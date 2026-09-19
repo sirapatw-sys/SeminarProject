@@ -9,6 +9,11 @@ public class ObjectInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (DialogueManager.IsDialogueOpen || AiSettingsPanel.IsOpen)
+        {
+            return;
+        }
+
         if (playerInRange &&
             Input.GetKeyDown(KeyCode.E))
         {
@@ -36,25 +41,17 @@ public class ObjectInteraction : MonoBehaviour
             return;
         }
 
-        bool success =
-            InteractionSystem.Instance.TryExecute(
-                interactionData
-            );
+        string responseMessage;
 
-        if (success)
-        {
-            ShowDialogue(
-                interactionData.displayName,
-                interactionData.interactionMessage
-            );
-        }
-        else
-        {
-            ShowDialogue(
-                interactionData.displayName,
-                "ตอนนี้ฉันยังทำสิ่งนี้ไม่ได้..."
-            );
-        }
+        InteractionSystem.Instance.TryExecute(
+            interactionData,
+            out responseMessage
+        );
+
+        ShowDialogue(
+            interactionData.displayName,
+            responseMessage
+        );
     }
 
     private void ShowDialogue(
@@ -85,6 +82,9 @@ public class ObjectInteraction : MonoBehaviour
 
             if (interactionData != null)
             {
+                AiSettingsPanel.SetInteractionPrompt(
+                    "กด E เพื่อสำรวจ " + interactionData.displayName
+                );
                 Debug.Log(
                     "Press E to interact with " +
                     interactionData.displayName
@@ -99,6 +99,7 @@ public class ObjectInteraction : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             playerInRange = false;
+            AiSettingsPanel.SetInteractionPrompt(string.Empty);
         }
     }
 }

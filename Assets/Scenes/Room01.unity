@@ -150,7 +150,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 16653781}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.82, y: 3.94, z: 0}
+  m_LocalPosition: {x: 0, y: 3.9, z: 0}
   m_LocalScale: {x: 1.5, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -309,7 +309,7 @@ MonoBehaviour:
   m_text: "\u0E44\u0E14\u0E49 \u0E09\u0E31\u0E19\u0E08\u0E30\u0E0A\u0E48\u0E27\u0E22\u0E2B\u0E32\u0E43\u0E2B\u0E49"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 6165767052782497252, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -410,7 +410,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 139503698}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 5.51, y: -3.84, z: 0}
+  m_LocalPosition: {x: 4.6, y: 3.35, z: 0}
   m_LocalScale: {x: 1.5, y: 0.8, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -507,7 +507,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 627a7bfc3dde6934984d68abb9ffcd52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  interactionData: {fileID: 11400000, guid: 7d00f8c9de76d514a81521208b6d0cb3, type: 2}
+  interactionData: {fileID: 11400000, guid: b1c2d3e4f5a64718a9b0c1d2e3f4a5b6, type: 2}
 --- !u!1 &246565831
 GameObject:
   m_ObjectHideFlags: 0
@@ -519,6 +519,9 @@ GameObject:
   - component: {fileID: 246565832}
   - component: {fileID: 246565835}
   - component: {fileID: 246565834}
+  - component: {fileID: 246565836}
+  - component: {fileID: 246565837}
+  - component: {fileID: 246565838}
   - component: {fileID: 246565833}
   m_Layer: 0
   m_Name: Alice
@@ -570,6 +573,65 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 520295d28482b86479187f82c9f2ccf0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  dialogueData: {fileID: 11400000, guid: e3f5d6c7b8a9401bac2d3e4f5a6b7c8d, type: 2}
+--- !u!114 &246565836
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 246565831}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4e5f6a7b8c9412dab3c4d5e6f7a8b9c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npcId: Alice
+  needs:
+  - needId: thirst
+    initialValue: 60
+    increasePerMinute: 20
+  emotions:
+  - emotionId: homesickness
+    initialValue: 62
+    changePerMinute: 4
+--- !u!114 &246565837
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 246565831}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6a7b8c9d0e1434fcd5e6f7a8b9c0d1e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  events:
+  - {fileID: 11400000, guid: b8c9d0e1f2a34671ef7a8b9c0d1e2f3a, type: 2}
+  - {fileID: 11400000, guid: f2a3b4c5d6e74015c3be2f3a4b5c6d7e, type: 2}
+  checkInterval: 5
+  triggerChancePerCheck: 0.5
+  indicatorOffset: {x: 0, y: 1.2, z: 0}
+--- !u!114 &246565838
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 246565831}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab212121212121212121212121212121, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  worldSprite: {fileID: 21300000, guid: ab141414141414141414141414141414, type: 3}
+  targetWorldHeight: 1.7
+  visualOffset: {x: 0, y: 0, z: 0}
+  sortingOrder: 10
+  walkBounceHeight: 0.09
+  walkCyclesPerSecond: 5
+  idleBounceHeight: 0.015
 --- !u!212 &246565835
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -683,7 +745,7 @@ MonoBehaviour:
   m_text: "\u0E15\u0E48\u0E2D"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 6165767052782497252, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -1331,6 +1393,7 @@ MonoBehaviour:
   choiceButton1: {fileID: 1922876558}
   choiceButton2: {fileID: 1151568320}
   choiceButton3: {fileID: 543851585}
+  defaultPlayerPortrait: {fileID: 21300000, guid: ab121212121212121212121212121212, type: 3}
 --- !u!4 &607815490
 Transform:
   m_ObjectHideFlags: 0
@@ -1403,6 +1466,7 @@ GameObject:
   - component: {fileID: 885797322}
   - component: {fileID: 885797321}
   - component: {fileID: 885797320}
+  - component: {fileID: 885797324}
   m_Layer: 0
   m_Name: PlayerCharacter
   m_TagString: Player
@@ -1438,6 +1502,25 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   moveSpeed: 5
+--- !u!114 &885797324
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 885797318}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab212121212121212121212121212121, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  worldSprite: {fileID: 21300000, guid: ab151515151515151515151515151515, type: 3}
+  targetWorldHeight: 1.6
+  visualOffset: {x: 0, y: 0, z: 0}
+  sortingOrder: 10
+  walkBounceHeight: 0.1
+  walkCyclesPerSecond: 5.5
+  idleBounceHeight: 0.012
 --- !u!61 &885797321
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -1661,7 +1744,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 627a7bfc3dde6934984d68abb9ffcd52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  interactionData: {fileID: 11400000, guid: e6197180be83a534b8edbcf1c828d584, type: 2}
+  interactionData: {fileID: 11400000, guid: c2d3e4f5a6b74829b0c1d2e3f4a5b6c7, type: 2}
 --- !u!1 &1101343580
 GameObject:
   m_ObjectHideFlags: 0
@@ -2012,7 +2095,7 @@ MonoBehaviour:
   m_text: "\u0E17\u0E33\u0E44\u0E21\u0E09\u0E31\u0E19\u0E15\u0E49\u0E2D\u0E07\u0E0A\u0E48\u0E27\u0E22\u0E40\u0E18\u0E2D?"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 6165767052782497252, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2286,7 +2369,7 @@ MonoBehaviour:
   m_text: "\u0E09\u0E31\u0E19\u0E44\u0E21\u0E48\u0E27\u0E48\u0E32\u0E07"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 6165767052782497252, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2644,7 +2727,7 @@ MonoBehaviour:
     \u0E41\u0E15\u0E48\u0E09\u0E31\u0E19\u0E08\u0E33\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E27\u0E48\u0E32\u0E40\u0E01\u0E47\u0E1A\u0E44\u0E27\u0E49\u0E17\u0E35\u0E48\u0E44\u0E2B\u0E19..."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 6165767052782497252, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2779,7 +2862,7 @@ MonoBehaviour:
   m_text: Alice
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 6165767052782497252, guid: ecc1a4e2372291644af7607c20dc899b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -3279,6 +3362,9 @@ GameObject:
   m_Component:
   - component: {fileID: 2060467331}
   - component: {fileID: 2060467332}
+  - component: {fileID: 2060467333}
+  - component: {fileID: 2060467334}
+  - component: {fileID: 2060467335}
   m_Layer: 0
   m_Name: GameState
   m_TagString: Untagged
@@ -3317,6 +3403,50 @@ MonoBehaviour:
     CurrentSceneId: Room01
     CurrentChapterId: Chapter01
     CurrentGoalId: escape_room
+--- !u!114 &2060467333
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2060467330}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0e1f2a3b4c54893a19c0d1e2f3a4b5c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableAiGeneration: 1
+  provider: 0
+  model: gpt-4o-mini
+  apiUrl: https://api.openai.com/v1/responses
+  timeoutSeconds: 20
+--- !u!114 &2060467334
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2060467330}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab202020202020202020202020202020, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  roomBackground: {fileID: 21300000, guid: ab161616161616161616161616161616, type: 3}
+  hideSimpleRoomSprites: 1
+  tint: {r: 0.88, g: 0.92, b: 1, a: 1}
+--- !u!114 &2060467335
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2060467330}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab222222222222222222222222222222, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &2080556312
 GameObject:
   m_ObjectHideFlags: 0
@@ -3344,7 +3474,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2080556312}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -4.33, y: -2.24, z: 0}
+  m_LocalPosition: {x: -4.65, y: 3.15, z: 0}
   m_LocalScale: {x: 2, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

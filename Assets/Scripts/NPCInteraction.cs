@@ -2,23 +2,41 @@ using UnityEngine;
 
 public class NPCInteraction : MonoBehaviour
 {
+    [SerializeField]
+    private DialogueData dialogueData;
+
     private bool playerInRange = false;
+    private NpcEventController eventController;
+
+    private void Awake()
+    {
+        eventController = GetComponent<NpcEventController>();
+    }
 
     private void Update()
     {
+        if (DialogueManager.IsDialogueOpen || AiSettingsPanel.IsOpen)
+        {
+            return;
+        }
+
         if (playerInRange && Input.GetKeyDown(KeyCode.E))
         {
-            string[] aliceDialogue =
+            if (eventController != null &&
+                eventController.TryStartPendingEvent())
             {
-                "ฉันจำได้ว่ากุญแจยังอยู่ในห้องนี้...",
-                "แต่ฉันจำไม่ได้ว่าเก็บไว้ที่ไหน",
-                "ช่วยฉันหามันหน่อยได้ไหม?"
-            };
+                return;
+            }
 
-            DialogueManager.Instance.StartDialogue(
-                "Alice",
-                aliceDialogue
-            );
+            if (dialogueData == null)
+            {
+                Debug.LogError(
+                    "DialogueData is missing on " + gameObject.name
+                );
+                return;
+            }
+
+            DialogueManager.Instance.StartDialogue(dialogueData);
         }
     }
 
@@ -27,6 +45,7 @@ public class NPCInteraction : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             playerInRange = true;
+            AiSettingsPanel.SetInteractionPrompt("กด E เพื่อคุย");
             Debug.Log("Press E to talk");
         }
     }
@@ -36,6 +55,7 @@ public class NPCInteraction : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             playerInRange = false;
+            AiSettingsPanel.SetInteractionPrompt(string.Empty);
         }
     }
 }

@@ -15,7 +15,15 @@ MonoBehaviour:
   interactionId: inspect_desk
   displayName: Desk
   interactionMessage: "\u0E09\u0E31\u0E19\u0E1E\u0E1A\u0E01\u0E23\u0E30\u0E14\u0E32\u0E29\u0E41\u0E1C\u0E48\u0E19\u0E2B\u0E19\u0E36\u0E48\u0E07\u0E1A\u0E19\u0E42\u0E15\u0E4A\u0E30"
+  failureMessage: "\u0E1A\u0E19\u0E42\u0E15\u0E4A\u0E30\u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E21\u0E35\u0E2D\u0E30\u0E44\u0E23\u0E17\u0E35\u0E48\u0E19\u0E48\u0E32\u0E2A\u0E19\u0E43\u0E08"
+  repeatable: 1
+  alreadyCompletedMessage: "\u0E09\u0E31\u0E19\u0E15\u0E23\u0E27\u0E08\u0E42\u0E15\u0E4A\u0E30\u0E19\u0E35\u0E49\u0E44\u0E1B\u0E41\u0E25\u0E49\u0E27"
   conditions:
-  - {fileID: 11400000, guid: 2c40d2d99ed231245ae35daf5597051e, type: 2}
-  effects:
-  - {fileID: 11400000, guid: 2d4ffe7d3631d9a4ab301d08a79224cf, type: 2}
+  - type: 0
+    targetId: inspected_painting
+    amount: 0
+  actions:
+  - type: 0
+    targetId: found_note
+    amount: 0
+    text: 

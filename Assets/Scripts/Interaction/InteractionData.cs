@@ -15,11 +15,20 @@ public class InteractionData : ScriptableObject
     [TextArea(2, 5)]
     public string interactionMessage;
 
-    [Header("Conditions")]
-    public List<ConditionData> conditions =
-        new List<ConditionData>();
+    [TextArea(2, 4)]
+    public string failureMessage = "ตอนนี้ฉันยังทำสิ่งนี้ไม่ได้...";
 
-    [Header("Effects")]
-    public List<EffectData> effects =
-        new List<EffectData>();
+    [Header("Repeat")]
+    public bool repeatable = true;
+
+    [TextArea(2, 4)]
+    public string alreadyCompletedMessage = "ฉันตรวจสอบสิ่งนี้ไปแล้ว";
+
+    [Header("Conditions")]
+    public List<ConditionRule> conditions =
+        new List<ConditionRule>();
+
+    [Header("Actions")]
+    public List<ActionCommand> actions =
+        new List<ActionCommand>();
 }

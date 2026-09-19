@@ -26,16 +26,25 @@ namespace MysteryGame.Core
         // NPC ID -> Relationship Score
         // =====================================================
 
-        public Dictionary<string, int> Relationships =
-            new Dictionary<string, int>();
+        public List<RelationshipSnapshot> Relationships =
+            new List<RelationshipSnapshot>();
 
         // =====================================================
         // NPC Memory
         // NPC ID -> Memory List
         // =====================================================
 
-        public Dictionary<string, List<string>> NpcMemories =
-            new Dictionary<string, List<string>>();
+        public List<NpcMemorySnapshot> NpcMemories =
+            new List<NpcMemorySnapshot>();
+
+        public List<NpcNeedSnapshot> NpcNeeds =
+            new List<NpcNeedSnapshot>();
+
+        public List<NpcEmotionSnapshot> NpcEmotions =
+            new List<NpcEmotionSnapshot>();
+
+        public List<NpcRelationshipSnapshot> NpcRelationships =
+            new List<NpcRelationshipSnapshot>();
 
         // =====================================================
         // Player History
@@ -43,5 +52,43 @@ namespace MysteryGame.Core
 
         public List<string> PlayerHistory =
             new List<string>();
+    }
+
+    [Serializable]
+    public class RelationshipSnapshot
+    {
+        public string NpcId;
+        public int Value;
+    }
+
+    [Serializable]
+    public class NpcMemorySnapshot
+    {
+        public string NpcId;
+        public List<string> Memories = new List<string>();
+    }
+
+    [Serializable]
+    public class NpcNeedSnapshot
+    {
+        public string NpcId;
+        public string NeedId;
+        public float Value;
+    }
+
+    [Serializable]
+    public class NpcEmotionSnapshot
+    {
+        public string NpcId;
+        public string EmotionId;
+        public float Value;
+    }
+
+    [Serializable]
+    public class NpcRelationshipSnapshot
+    {
+        public string FirstNpcId;
+        public string SecondNpcId;
+        public int Value;
     }
 }

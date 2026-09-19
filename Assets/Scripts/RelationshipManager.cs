@@ -1,22 +1,19 @@
 using UnityEngine;
-using System.Collections.Generic;
+using MysteryGame.Core;
 
 public class RelationshipManager : MonoBehaviour
 {
     public static RelationshipManager Instance;
 
-    private Dictionary<string, int> relationships =
-        new Dictionary<string, int>();
-
     private void Awake()
     {
-        Instance = this;
-
-        // ค่าเริ่มต้นของ Alice
-        if (!relationships.ContainsKey("Alice"))
+        if (Instance != null && Instance != this)
         {
-            relationships.Add("Alice", 50);
+            Destroy(gameObject);
+            return;
         }
+
+        Instance = this;
     }
 
     // =====================================================
@@ -25,14 +22,13 @@ public class RelationshipManager : MonoBehaviour
 
     public int GetRelationship(string npcName)
     {
-        if (relationships.ContainsKey(npcName))
+        if (GameState.Instance == null)
         {
-            return relationships[npcName];
+            Debug.LogError("GameState.Instance is null.");
+            return 0;
         }
 
-        relationships[npcName] = 50;
-
-        return 50;
+        return GameState.Instance.GetRelationship(npcName);
     }
 
     // =====================================================
@@ -41,19 +37,12 @@ public class RelationshipManager : MonoBehaviour
 
     public void ChangeRelationship(string npcName, int amount)
     {
-        int currentValue = GetRelationship(npcName);
+        if (GameState.Instance == null)
+        {
+            Debug.LogError("GameState.Instance is null.");
+            return;
+        }
 
-        currentValue += amount;
-
-        // จำกัด 0 - 100
-        currentValue = Mathf.Clamp(currentValue, 0, 100);
-
-        relationships[npcName] = currentValue;
-
-        Debug.Log(
-            npcName +
-            " Relationship = " +
-            currentValue
-        );
+        GameState.Instance.ChangeRelationship(npcName, amount);
     }
 }

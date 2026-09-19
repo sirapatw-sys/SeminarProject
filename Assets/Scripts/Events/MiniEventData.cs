@@ -1,0 +1,85 @@
+using System.Collections.Generic;
+using MysteryGame.Core;
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "NewMiniEvent", menuName = "Game/Mini Event")]
+public class MiniEventData : ScriptableObject
+{
+    public string eventId;
+    public string npcId;
+    public MiniEventTriggerType triggerType;
+    public string metricId;
+    public string relatedNpcId;
+    [Range(0f, 100f)] public float threshold = 70f;
+    [Min(0f)] public float minimumRoomTimeSeconds;
+    [Min(0.01f)] public float weight = 1f;
+    [Min(0f)] public float cooldownSeconds = 120f;
+    [Min(0f)] public float expiresSeconds = 45f;
+    public bool repeatable = true;
+    public bool useAiDialogue = true;
+
+    [TextArea(2, 5)] public string situationPrompt;
+    public string tonePrompt = "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ";
+
+    [Tooltip("Used immediately when AI is unavailable or returns invalid data.")]
+    public DialogueData dialogue;
+    public List<ConditionRule> conditions = new List<ConditionRule>();
+
+    public bool CanTrigger(GameState state)
+    {
+        if (state == null || dialogue == null ||
+            Time.timeSinceLevelLoad < minimumRoomTimeSeconds)
+        {
+            return false;
+        }
+
+        switch (triggerType)
+        {
+            case MiniEventTriggerType.NeedThreshold:
+                if (state.GetNpcNeed(npcId, metricId) < threshold)
+                {
+                    return false;
+                }
+                break;
+            case MiniEventTriggerType.EmotionThreshold:
+                if (state.GetNpcEmotion(npcId, metricId) < threshold)
+                {
+                    return false;
+                }
+                break;
+            case MiniEventTriggerType.NpcConflict:
+                if (state.GetNpcRelationship(npcId, relatedNpcId) > threshold)
+                {
+                    return false;
+                }
+                break;
+            case MiniEventTriggerType.TimeInRoom:
+            case MiniEventTriggerType.RandomAmbient:
+                break;
+        }
+
+        if (!repeatable && state.HasFlag("mini_event." + eventId + ".completed"))
+        {
+            return false;
+        }
+
+        foreach (ConditionRule condition in conditions)
+        {
+            if (condition != null && !condition.Evaluate(state))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+public enum MiniEventTriggerType
+{
+    NeedThreshold,
+    EmotionThreshold,
+    TimeInRoom,
+    NpcConflict,
+    RandomAmbient
+}

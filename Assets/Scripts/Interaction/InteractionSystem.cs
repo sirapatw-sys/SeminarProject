@@ -16,11 +16,25 @@ public class InteractionSystem : MonoBehaviour
         Instance = this;
     }
 
-    public bool TryExecute(InteractionData data)
+    public bool TryExecute(
+        InteractionData data,
+        out string responseMessage)
     {
+        responseMessage = string.Empty;
+
         if (data == null)
         {
             Debug.LogError("InteractionData is null.");
+            return false;
+        }
+
+        string completionFlag =
+            "interaction." + data.interactionId + ".completed";
+
+        if (!data.repeatable &&
+            GameState.Instance.HasFlag(completionFlag))
+        {
+            responseMessage = data.alreadyCompletedMessage;
             return false;
         }
 
@@ -34,7 +48,7 @@ public class InteractionSystem : MonoBehaviour
         // Check Conditions
         // =====================================================
 
-        foreach (ConditionData condition in data.conditions)
+        foreach (ConditionRule condition in data.conditions)
         {
             if (condition == null)
             {
@@ -43,6 +57,7 @@ public class InteractionSystem : MonoBehaviour
 
             if (!condition.Evaluate(GameState.Instance))
             {
+                responseMessage = data.failureMessage;
                 return false;
             }
         }
@@ -51,16 +66,22 @@ public class InteractionSystem : MonoBehaviour
         // Execute Effects
         // =====================================================
 
-        foreach (EffectData effect in data.effects)
+        foreach (ActionCommand action in data.actions)
         {
-            if (effect == null)
+            if (action == null)
             {
                 continue;
             }
 
-            effect.Execute(GameState.Instance);
+            action.Execute(GameState.Instance);
         }
 
+        if (!data.repeatable)
+        {
+            GameState.Instance.SetFlag(completionFlag);
+        }
+
+        responseMessage = data.interactionMessage;
         return true;
     }
 }

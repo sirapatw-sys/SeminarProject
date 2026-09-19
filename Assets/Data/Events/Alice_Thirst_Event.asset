@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0423ebc4d5e6f7a8b9c0d, type: 3}
+  m_Name: Alice_Thirst_Event
+  m_EditorClassIdentifier: 
+  eventId: alice_thirst
+  npcId: Alice
+  triggerType: 0
+  metricId: thirst
+  relatedNpcId: 
+  threshold: 70
+  minimumRoomTimeSeconds: 20
+  weight: 1
+  cooldownSeconds: 120
+  expiresSeconds: 45
+  repeatable: 1
+  useAiDialogue: 1
+  situationPrompt: Alice รู้สึกคอแห้งหลังติดอยู่ในห้องปิดมาระยะหนึ่ง จึงอยากขอความช่วยเหลือหรือกำลังใจจากผู้เล่น
+  tonePrompt: เหนื่อยเล็กน้อย สุภาพ และพยายามไม่เป็นภาระ
+  dialogue: {fileID: 11400000, guid: a7b8c9d0e1f24560de6f7a8b9c0d1e2f, type: 2}
+  conditions: []

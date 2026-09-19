@@ -43,6 +43,12 @@ namespace MysteryGame.Core
         private readonly Dictionary<string, int> relationships =
             new Dictionary<string, int>();
 
+        private readonly Dictionary<string, int> conversationCounts =
+            new Dictionary<string, int>();
+        private readonly Dictionary<string, int> npcLastSeenRevision =
+            new Dictionary<string, int>();
+        private int worldRevision;
+
         // =====================================================
         // NPC Memory
         // NPC ID -> Memories
@@ -50,6 +56,17 @@ namespace MysteryGame.Core
 
         private readonly Dictionary<string, List<string>> npcMemories =
             new Dictionary<string, List<string>>();
+
+        // NPC ID -> Need ID -> Value (0-100)
+        private readonly Dictionary<string, Dictionary<string, float>> npcNeeds =
+            new Dictionary<string, Dictionary<string, float>>();
+
+        private readonly Dictionary<string, Dictionary<string, float>> npcEmotions =
+            new Dictionary<string, Dictionary<string, float>>();
+
+        // Sorted pair key -> relationship score between two NPCs.
+        private readonly Dictionary<string, int> npcRelationships =
+            new Dictionary<string, int>();
 
         // =====================================================
         // Unity Lifecycle
@@ -89,6 +106,10 @@ namespace MysteryGame.Core
 
         public void SetCurrentGoal(string goalId)
         {
+            if (session.CurrentGoalId != goalId)
+            {
+                worldRevision++;
+            }
             session.CurrentGoalId = goalId;
         }
 
@@ -121,11 +142,11 @@ namespace MysteryGame.Core
 
             if (value)
             {
-                flags.Add(flagId);
+                if (flags.Add(flagId)) worldRevision++;
             }
             else
             {
-                flags.Remove(flagId);
+                if (flags.Remove(flagId)) worldRevision++;
             }
 
             Debug.Log(
@@ -147,7 +168,7 @@ namespace MysteryGame.Core
         {
             if (!string.IsNullOrWhiteSpace(flagId))
             {
-                flags.Remove(flagId);
+            if (flags.Remove(flagId)) worldRevision++;
             }
         }
 
@@ -165,6 +186,7 @@ namespace MysteryGame.Core
 
             if (inventory.Add(itemId))
             {
+                worldRevision++;
                 AddHistory("Added item: " + itemId);
             }
         }
@@ -176,7 +198,7 @@ namespace MysteryGame.Core
                 return;
             }
 
-            inventory.Remove(itemId);
+            if (inventory.Remove(itemId)) worldRevision++;
         }
 
         public bool HasItem(string itemId)
@@ -237,6 +259,7 @@ namespace MysteryGame.Core
             }
 
             relationships[npcId] = Mathf.Clamp(value, 0, 100);
+            worldRevision++;
         }
 
         public void ChangeRelationship(string npcId, int amount)
@@ -250,6 +273,7 @@ namespace MysteryGame.Core
             );
 
             relationships[npcId] = newValue;
+            worldRevision++;
 
             AddHistory(
                 $"Relationship[{npcId}] changed by {amount}"
@@ -279,6 +303,7 @@ namespace MysteryGame.Core
             }
 
             npcMemories[npcId].Add(memory);
+            worldRevision++;
         }
 
         public IReadOnlyList<string> GetNpcMemory(string npcId)
@@ -289,6 +314,171 @@ namespace MysteryGame.Core
             }
 
             return npcMemories[npcId];
+        }
+
+        public int GetConversationCount(string npcId)
+        {
+            if (string.IsNullOrWhiteSpace(npcId) ||
+                !conversationCounts.ContainsKey(npcId))
+            {
+                return 0;
+            }
+
+            return conversationCounts[npcId];
+        }
+
+        public int RecordConversation(string npcId)
+        {
+            if (string.IsNullOrWhiteSpace(npcId))
+            {
+                return 0;
+            }
+
+            int nextCount = GetConversationCount(npcId) + 1;
+            conversationCounts[npcId] = nextCount;
+            npcLastSeenRevision[npcId] = worldRevision;
+            return nextCount;
+        }
+
+        public bool HasWorldChangedSinceConversation(string npcId)
+        {
+            return !string.IsNullOrWhiteSpace(npcId) &&
+                   npcLastSeenRevision.ContainsKey(npcId) &&
+                   worldRevision > npcLastSeenRevision[npcId];
+        }
+
+        // =====================================================
+        // NPC Needs
+        // =====================================================
+
+        public bool HasNpcNeed(string npcId, string needId)
+        {
+            return !string.IsNullOrWhiteSpace(npcId) &&
+                   !string.IsNullOrWhiteSpace(needId) &&
+                   npcNeeds.ContainsKey(npcId) &&
+                   npcNeeds[npcId].ContainsKey(needId);
+        }
+
+        public float GetNpcNeed(string npcId, string needId)
+        {
+            if (!HasNpcNeed(npcId, needId))
+            {
+                return 0f;
+            }
+
+            return npcNeeds[npcId][needId];
+        }
+
+        public void SetNpcNeed(string npcId, string needId, float value)
+        {
+            if (string.IsNullOrWhiteSpace(npcId) ||
+                string.IsNullOrWhiteSpace(needId))
+            {
+                return;
+            }
+
+            if (!npcNeeds.ContainsKey(npcId))
+            {
+                npcNeeds[npcId] = new Dictionary<string, float>();
+            }
+
+            npcNeeds[npcId][needId] = Mathf.Clamp(value, 0f, 100f);
+            worldRevision++;
+        }
+
+        public void ChangeNpcNeed(string npcId, string needId, float amount)
+        {
+            SetNpcNeed(npcId, needId, GetNpcNeed(npcId, needId) + amount);
+        }
+
+        public bool HasNpcEmotion(string npcId, string emotionId)
+        {
+            return !string.IsNullOrWhiteSpace(npcId) &&
+                   !string.IsNullOrWhiteSpace(emotionId) &&
+                   npcEmotions.ContainsKey(npcId) &&
+                   npcEmotions[npcId].ContainsKey(emotionId);
+        }
+
+        public float GetNpcEmotion(string npcId, string emotionId)
+        {
+            return HasNpcEmotion(npcId, emotionId)
+                ? npcEmotions[npcId][emotionId]
+                : 0f;
+        }
+
+        public void SetNpcEmotion(string npcId, string emotionId, float value)
+        {
+            if (string.IsNullOrWhiteSpace(npcId) ||
+                string.IsNullOrWhiteSpace(emotionId))
+            {
+                return;
+            }
+
+            if (!npcEmotions.ContainsKey(npcId))
+            {
+                npcEmotions[npcId] = new Dictionary<string, float>();
+            }
+
+            npcEmotions[npcId][emotionId] = Mathf.Clamp(value, 0f, 100f);
+            worldRevision++;
+        }
+
+        public void ChangeNpcEmotion(string npcId, string emotionId, float amount)
+        {
+            SetNpcEmotion(
+                npcId,
+                emotionId,
+                GetNpcEmotion(npcId, emotionId) + amount
+            );
+        }
+
+        public int GetNpcRelationship(string firstNpcId, string secondNpcId)
+        {
+            string key = GetNpcPairKey(firstNpcId, secondNpcId);
+            if (string.IsNullOrEmpty(key))
+            {
+                return 50;
+            }
+
+            if (!npcRelationships.ContainsKey(key))
+            {
+                npcRelationships[key] = 50;
+            }
+
+            return npcRelationships[key];
+        }
+
+        public void ChangeNpcRelationship(
+            string firstNpcId,
+            string secondNpcId,
+            int amount)
+        {
+            string key = GetNpcPairKey(firstNpcId, secondNpcId);
+            if (string.IsNullOrEmpty(key))
+            {
+                return;
+            }
+
+            npcRelationships[key] = Mathf.Clamp(
+                GetNpcRelationship(firstNpcId, secondNpcId) + amount,
+                0,
+                100
+            );
+            worldRevision++;
+        }
+
+        private static string GetNpcPairKey(string firstNpcId, string secondNpcId)
+        {
+            if (string.IsNullOrWhiteSpace(firstNpcId) ||
+                string.IsNullOrWhiteSpace(secondNpcId) ||
+                firstNpcId == secondNpcId)
+            {
+                return string.Empty;
+            }
+
+            return string.CompareOrdinal(firstNpcId, secondNpcId) < 0
+                ? firstNpcId + "|" + secondNpcId
+                : secondNpcId + "|" + firstNpcId;
         }
 
         // =====================================================
@@ -325,8 +515,13 @@ namespace MysteryGame.Core
             foreach (KeyValuePair<string, int> pair
                      in relationships)
             {
-                snapshot.Relationships[pair.Key] =
-                    pair.Value;
+                snapshot.Relationships.Add(
+                    new RelationshipSnapshot
+                    {
+                        NpcId = pair.Key,
+                        Value = pair.Value
+                    }
+                );
             }
 
             // NPC Memory
@@ -334,8 +529,58 @@ namespace MysteryGame.Core
                 KeyValuePair<string, List<string>> pair
                 in npcMemories)
             {
-                snapshot.NpcMemories[pair.Key] =
-                    new List<string>(pair.Value);
+                snapshot.NpcMemories.Add(
+                    new NpcMemorySnapshot
+                    {
+                        NpcId = pair.Key,
+                        Memories = new List<string>(pair.Value)
+                    }
+                );
+            }
+
+            foreach (KeyValuePair<string, Dictionary<string, float>> npcPair
+                     in npcNeeds)
+            {
+                foreach (KeyValuePair<string, float> needPair in npcPair.Value)
+                {
+                    snapshot.NpcNeeds.Add(
+                        new NpcNeedSnapshot
+                        {
+                            NpcId = npcPair.Key,
+                            NeedId = needPair.Key,
+                            Value = needPair.Value
+                        }
+                    );
+                }
+            }
+
+            foreach (KeyValuePair<string, Dictionary<string, float>> npcPair
+                     in npcEmotions)
+            {
+                foreach (KeyValuePair<string, float> emotionPair in npcPair.Value)
+                {
+                    snapshot.NpcEmotions.Add(
+                        new NpcEmotionSnapshot
+                        {
+                            NpcId = npcPair.Key,
+                            EmotionId = emotionPair.Key,
+                            Value = emotionPair.Value
+                        }
+                    );
+                }
+            }
+
+            foreach (KeyValuePair<string, int> pair in npcRelationships)
+            {
+                string[] npcIds = pair.Key.Split('|');
+                snapshot.NpcRelationships.Add(
+                    new NpcRelationshipSnapshot
+                    {
+                        FirstNpcId = npcIds[0],
+                        SecondNpcId = npcIds[1],
+                        Value = pair.Value
+                    }
+                );
             }
 
             return snapshot;
