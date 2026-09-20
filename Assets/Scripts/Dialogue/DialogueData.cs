@@ -14,8 +14,22 @@ public class DialogueData : ScriptableObject
     [Tooltip("2D portrait shown during this conversation.")]
     public Sprite speakerPortrait;
 
+    [Tooltip("AI personality description for this speaker (optional).")]
+    [TextArea(2, 5)]
+    public string personalityPrompt;
+
     [TextArea(2, 5)]
     public List<string> lines = new List<string>();
+
+    [Tooltip(
+        "Use the authored returnLines instead of the generic contextual " +
+        "greeting when the player talks to this speaker again."
+    )]
+    public bool overrideReturnLines;
+
+    [Tooltip("Lines used on repeat conversations when overrideReturnLines is on.")]
+    [TextArea(2, 5)]
+    public List<string> returnLines = new List<string>();
 
     public List<DialogueChoiceData> choices =
         new List<DialogueChoiceData>();

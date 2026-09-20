@@ -6,21 +6,28 @@ public class AiSettingsPanel : MonoBehaviour
     public static string InteractionPrompt { get; private set; }
 
     private readonly string[] providerLabels =
-        { "OpenAI", "KKU IntelSphere", "Custom" };
+        { "OpenAI", "KKU IntelSphere", "Google Gemini", "Custom" };
 
     private readonly string[] openAiModels =
         { "gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1" };
 
+    private readonly string[] geminiModels =
+        { "gemini-3.6-flash", "gemini-3.6-pro", "gemini-3.5-flash" };
+
     private bool isOpen;
-    private Rect windowRect = new Rect(0f, 0f, 620f, 590f);
+    private Rect windowRect = new Rect(0f, 0f, 640f, 610f);
     private int providerIndex;
     private int previousProviderIndex;
     private int modelPresetIndex;
-    private string model = "gpt-4o-mini";
+    private int geminiPresetIndex;
+    private string model = "gpt-5.6-luna";
     private string endpoint = string.Empty;
     private string apiKey = string.Empty;
     private string status = "Settings not applied yet";
     private bool testInProgress;
+    private bool modelFetchInProgress;
+    private string[] fetchedModels;
+    private int fetchedModelIndex;
     private GUIStyle windowStyle;
     private GUIStyle titleStyle;
     private GUIStyle noteStyle;
@@ -56,6 +63,20 @@ public class AiSettingsPanel : MonoBehaviour
                 modelPresetIndex = index;
                 break;
             }
+        }
+
+        for (int index = 0; index < geminiModels.Length; index++)
+        {
+            if (geminiModels[index] == model)
+            {
+                geminiPresetIndex = index;
+                break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            apiKey = generator.GetApiKey();
         }
 
         status = generator.CanGenerate
@@ -127,7 +148,7 @@ public class AiSettingsPanel : MonoBehaviour
         providerIndex = GUILayout.SelectionGrid(
             providerIndex,
             providerLabels,
-            3,
+            4,
             tabStyle
         );
         if (providerIndex != previousProviderIndex)
@@ -139,7 +160,7 @@ public class AiSettingsPanel : MonoBehaviour
 
         if (providerIndex == (int)AiProviderType.OpenAiResponses)
         {
-            GUILayout.Label("เลือกโมเดลแบบรวดเร็ว", labelStyle);
+            GUILayout.Label("เลือกโมเดล OpenAI แบบรวดเร็ว", labelStyle);
             int selected = GUILayout.SelectionGrid(
                 modelPresetIndex,
                 openAiModels,
@@ -164,6 +185,29 @@ public class AiSettingsPanel : MonoBehaviour
                 noteStyle
             );
         }
+        else if (providerIndex == (int)AiProviderType.Gemini)
+        {
+            GUILayout.Label("เลือกโมเดล Google Gemini แบบรวดเร็ว", labelStyle);
+            int selected = GUILayout.SelectionGrid(
+                geminiPresetIndex,
+                geminiModels,
+                3,
+                tabStyle
+            );
+            if (selected != geminiPresetIndex)
+            {
+                geminiPresetIndex = selected;
+                model = geminiModels[selected];
+            }
+
+            endpoint = AiDialogueGenerator.GeminiChatCompletionsUrl;
+            GUILayout.Label("Gemini OpenAI-compatible endpoint (ตั้งค่าอัตโนมัติ)", labelStyle);
+            GUILayout.Label(endpoint, noteStyle);
+            GUILayout.Label(
+                "รองรับ API Key จาก Google AI Studio (รวมถึง Key รูปแบบใหม่ 'AQ...')",
+                noteStyle
+            );
+        }
         else
         {
             GUILayout.Label("OpenAI-compatible chat endpoint", labelStyle);
@@ -177,6 +221,37 @@ public class AiSettingsPanel : MonoBehaviour
         GUILayout.Space(10f);
         GUILayout.Label("Model name / ID", labelStyle);
         model = GUILayout.TextField(model, fieldStyle);
+
+        if (SupportsModelDiscovery())
+        {
+            GUI.enabled = !modelFetchInProgress;
+            if (GUILayout.Button(
+                    modelFetchInProgress
+                        ? "กำลังโหลดรายชื่อโมเดล..."
+                        : "โหลดรายชื่อโมเดลที่บัญชีนี้ใช้ได้",
+                    tabStyle,
+                    GUILayout.Height(32f)))
+            {
+                FetchModels();
+            }
+            GUI.enabled = true;
+
+            if (fetchedModels != null && fetchedModels.Length > 0)
+            {
+                int picked = GUILayout.SelectionGrid(
+                    fetchedModelIndex,
+                    fetchedModels,
+                    2,
+                    tabStyle
+                );
+                if (picked != fetchedModelIndex)
+                {
+                    fetchedModelIndex = picked;
+                    model = fetchedModels[picked];
+                    status = "เลือกโมเดล " + model + " แล้ว — กด APPLY เพื่อใช้งาน";
+                }
+            }
+        }
 
         GUILayout.Space(10f);
         GUILayout.Label("API key — ใช้เฉพาะรอบนี้", labelStyle);
@@ -226,6 +301,11 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void ApplyProviderDefaults()
     {
+        // A model list only ever belongs to the provider it came from.
+        fetchedModels = null;
+        fetchedModelIndex = 0;
+
+        AiDialogueGenerator generator = AiDialogueGenerator.Instance;
         switch ((AiProviderType)providerIndex)
         {
             case AiProviderType.OpenAiResponses:
@@ -236,19 +316,28 @@ public class AiSettingsPanel : MonoBehaviour
                     model = openAiModels[0];
                     modelPresetIndex = 0;
                 }
+                apiKey = generator != null ? generator.GetApiKey() : string.Empty;
+                status = "OpenAI โหลดค่าเริ่มต้นแล้ว";
                 break;
             case AiProviderType.KkuIntelsphere:
                 endpoint = AiDialogueGenerator.KkuChatCompletionsUrl;
                 model = "gpt-5.6-luna";
+                apiKey = generator != null ? generator.GetApiKey() : string.Empty;
+                status = "KKU IntelSphere (gpt-5.6-luna) โหลดค่าเริ่มต้นแล้ว — พร้อมใช้งาน";
+                break;
+            case AiProviderType.Gemini:
+                endpoint = AiDialogueGenerator.GeminiChatCompletionsUrl;
+                model = geminiModels[geminiPresetIndex];
+                apiKey = generator != null ? generator.GetApiKey() : string.Empty;
+                status = "Google Gemini โหลดค่าเริ่มต้นแล้ว — พร้อมใช้งาน";
                 break;
             default:
                 endpoint = "https://provider.example/v1/chat/completions";
                 model = string.Empty;
+                apiKey = generator != null ? generator.GetApiKey() : string.Empty;
+                status = "Custom endpoint preset";
                 break;
         }
-
-        apiKey = string.Empty;
-        status = "Enter this provider's key and model, then press APPLY";
     }
 
     private void ApplySettings()
@@ -270,6 +359,52 @@ public class AiSettingsPanel : MonoBehaviour
         status = generator.CanGenerate
             ? "บันทึกแล้ว — กดทดสอบการเชื่อมต่อเพื่อยืนยัน key และ model"
             : "Missing key, endpoint, or model; fallback remains active";
+    }
+
+    private bool SupportsModelDiscovery()
+    {
+        AiProviderType selected = (AiProviderType)providerIndex;
+        return selected == AiProviderType.KkuIntelsphere ||
+               selected == AiProviderType.OpenAiCompatible ||
+               selected == AiProviderType.Gemini;
+    }
+
+    private void FetchModels()
+    {
+        AiDialogueGenerator generator = AiDialogueGenerator.Instance;
+        if (generator == null)
+        {
+            status = "ยังไม่พร้อมใช้งาน";
+            return;
+        }
+
+        // The key has to be live on the generator before we can ask with it.
+        ApplySettings();
+
+        modelFetchInProgress = true;
+        status = "กำลังขอรายชื่อโมเดลจากผู้ให้บริการ...";
+        StartCoroutine(
+            generator.FetchAvailableModels((models, error) =>
+            {
+                modelFetchInProgress = false;
+                if (models == null)
+                {
+                    fetchedModels = null;
+                    status = "โหลดรายชื่อโมเดลไม่สำเร็จ: " + error;
+                    return;
+                }
+
+                fetchedModels = models;
+                fetchedModelIndex = System.Array.IndexOf(models, model);
+                if (fetchedModelIndex < 0)
+                {
+                    fetchedModelIndex = 0;
+                }
+
+                status = "พบโมเดลที่ใช้ได้ " + models.Length +
+                         " รายการ — เลือกจากรายการด้านบนแล้วกด APPLY";
+            })
+        );
     }
 
     private void TestConnection()

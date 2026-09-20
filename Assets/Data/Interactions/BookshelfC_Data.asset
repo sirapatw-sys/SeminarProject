@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: BookshelfC_Data
+  m_EditorClassIdentifier: 
+  interactionId: take_tome
+  displayName: "ตู้หนังสือชั้นล่างสุด (Bottom Shelf)"
+  interactionMessage: "ชั้นล่างสุด... เล่มที่ ๙๙๙ อยู่ตรงนั้นจริงๆ สันปกไม่มีชื่อ\nข้างในเป็นบันทึกประจำวัน และทุกหน้าลงท้ายด้วยประโยคเดียวกันเป๊ะ: 'สิ่งที่ข้าเฝ้ารอจะมาถึงในวันถัดไป'\nหน้าสุดท้ายค้างอยู่กลางประโยค: 'และเมื่อถึงวันนั้น ข้าจะ—' แล้วก็ไม่มีอะไรต่ออีกเลย\nที่ขอบหน้ามีลายมือเล็กๆ เขียนแทรกไว้: 'ข้าเฝ้ารอมันอยู่ทุกคืน แต่พอเข็มนาฬิกาข้ามเที่ยงคืนไป มันก็กลายเป็นวันนี้เสียทุกครั้ง ข้าจึงต้องเฝ้ารอวันถัดไปอีกหน — แล้วก็อีกหน'"
+  failureMessage: "หนังสือเป็นพันเล่มเรียงกันจนตาลาย สันปกส่วนใหญ่ก็ลบเลือนไปหมดแล้ว...
+ถ้าไม่รู้เลขชั้น ต่อให้ค้นทั้งวันก็คงไม่เจอ — ทุกเล่มในหอนี้ถูกลงทะเบียนไว้ในสมุดทะเบียนบนโต๊ะอ่านหนังสือฝั่งขวา"
+  repeatable: 0
+  alreadyCompletedMessage: "คุณหยิบจารึกเล่มนั้นออกมาแล้ว ชั้นนี้เหลือแต่ช่องว่าง"
+  conditions:
+  - type: 0
+    targetId: read_ledger
+    amount: 0
+  actions:
+  - type: 2
+    targetId: tome
+    amount: 0
+    text: 
+  - type: 0
+    targetId: found_tome
+    amount: 0
+    text: 
+  - type: 5
+    targetId: 
+    amount: 0
+    text: "Took the unfinished tome from the Room02 bottom shelf"
+  popupItemId: tome
+  popupItemName: "จารึกที่ยังเขียนมิจบ"
+  popupItemDescription: "บันทึกของคนที่เฝ้ารอ 'วันถัดไป' อยู่ทุกคืน แต่ไม่เคยมีวันนั้นมาถึงสักครั้ง หน้าสุดท้ายค้างอยู่กลางประโยค — สิ่งที่เซนะเรียกเป็นของถวาย"

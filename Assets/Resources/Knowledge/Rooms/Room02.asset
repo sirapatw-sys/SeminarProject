@@ -1,0 +1,152 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b2c3d4e5f6478a9b0c1d2e3f4a5b60, type: 3}
+  m_Name: Room02
+  m_EditorClassIdentifier:
+  roomId: Room02
+  roomName: "หอสมุดร้าง"
+  roomDescription: "หอสมุดเพดานสูงที่มืดและเต็มไปด้วยฝุ่น ผนังซ้ายเป็นตู้หนังสือสูงจรดเพดานแบ่งเป็นสามชั้นใหญ่ ฝั่งขวาเป็นโต๊ะอ่านหนังสือที่มีสมุดทะเบียนเปิดค้างไว้ ลูกโลกดาราศาสตร์ และเทียนไข ผนังขวาบนมีแผงเฟืองนาฬิกาฝังอยู่ มีนาฬิกาโบราณอยู่ข้างประตูดวงดาวที่เรืองแสงจางๆ ตรงกลางผนังด้านบน และมีแท่นไฟศักดิ์สิทธิ์ขนาบประตูทั้งสองข้าง"
+  background: {fileID: 21300000, guid: 6b9f2d41a8c04c7e9d3b5f1e8a70c2d4, type: 3}
+  facts:
+  - factId: clock_inscription
+    statement: "แผ่นทองเหลืองใต้หน้าปัดนาฬิกาโบราณสลักว่า 'เมื่อเข็มข้ามเที่ยงคืนไป สิ่งที่เจ้าเฝ้ารอทั้งคืนจะเปลี่ยนชื่อของมันทันที'"
+    revealedWhen:
+    - type: 0
+      targetId: inspected_clock
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: shelf_poem
+    statement: "บนตู้หนังสือชั้นกลางมีบทกวีว่า 'ข้าวิ่งนำหน้าเจ้าเสมอ แต่ไม่เคยไปถึงไหน เจ้าใช้ทั้งชีวิตรอคอยข้า แต่วินาทีที่ข้ามาถึง ข้าก็ถูกเรียกด้วยชื่ออื่นไปแล้ว' และมีลายมือเขียนแทรกว่า 'มันไม่ใช่สิ่งของ มันคือช่วงเวลา'"
+    revealedWhen:
+    - type: 0
+      targetId: inspected_bookshelf_r2
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: brazier_stele
+    statement: "ศิลาจารึกที่ฐานแท่นไฟบอกว่าผู้เฝ้าประตูจะเรียกของถวายก่อน แล้วจึงตั้งคำถามถึงช่วงเวลาที่ไม่มีวันมาถึง และนางไม่เคยให้คำใบ้แก่ผู้ใด"
+    revealedWhen:
+    - type: 0
+      targetId: inspected_altar
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: clockwork_wall
+    statement: "แผงเฟืองบนผนังขวาบนหยุดนิ่งเกือบหมด เหลือเฟืองเล็กสุดที่ยังขยับ ใต้แผงสลักว่า 'กลไกนี้นับสิ่งที่ยังมาไม่ถึง มิใช่สิ่งที่ผ่านพ้นไปแล้ว'"
+    revealedWhen:
+    - type: 0
+      targetId: inspected_clockwork
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: catalogue_rule
+    statement: "ป้ายทองเหลืองบนตู้หนังสือระบุว่าหนังสือทุกเล่มในหอนี้ถูกลงทะเบียนไว้ ผู้ใดหาเล่มใดไม่พบ ต้องไปค้นจากสมุดทะเบียนบนโต๊ะอ่านหนังสือ"
+    revealedWhen: []
+    isPuzzleAnswer: 0
+  - factId: tome_shelf_number
+    statement: "สมุดทะเบียนระบุว่า 'จารึกที่ยังเขียนมิจบ' คือเล่มที่ ๙๙๙ เก็บไว้ที่ตู้ทิศตะวันตก ชั้นล่างสุด ซึ่งก็คือตู้หนังสือใหญ่ฝั่งซ้ายของหอ"
+    revealedWhen:
+    - type: 0
+      targetId: read_ledger
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: sena_demand
+    statement: "เซนะ นางฟ้าผู้เฝ้าประตู จะไม่เอ่ยปริศนาแก่ผู้ที่มามือเปล่า นางเรียก 'จารึกที่ยังเขียนมิจบ' เป็นของถวายก่อน"
+    revealedWhen:
+    - type: 0
+      targetId: sena_wants_tome
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: riddle_answer
+    statement: "คำตอบของปริศนาเซนะคือ 'พรุ่งนี้' (Tomorrow)"
+    revealedWhen:
+    - type: 0
+      targetId: sena_offering_given
+      amount: 0
+    isPuzzleAnswer: 1
+  - factId: gate_unlock
+    statement: "ประตูดวงดาวจะเปิดก็ต่อเมื่อเซนะยอมรับคำตอบและจางหายไปแล้วเท่านั้น"
+    revealedWhen: []
+    isPuzzleAnswer: 0
+  steps:
+  - stepId: meet_sena
+    summary: "คุยกับเซนะที่ขวางประตูอยู่ เพื่อฟังว่านางต้องการอะไร"
+    availableWhen: []
+    completedWhen:
+    - type: 0
+      targetId: sena_wants_tome
+      amount: 0
+    vagueHint: "มีบางอย่างยืนอยู่หน้าทางออกนั่น... เราคงเลี่ยงมันไม่ได้หรอก"
+    normalHint: "ไปคุยกับนางฟ้าที่ขวางประตูก่อนสิ อย่างน้อยก็ต้องรู้ว่านางต้องการอะไร"
+    explicitHint: "เดินไปกด E คุยกับเซนะที่ยืนอยู่หน้าประตูก่อนเลย"
+  - stepId: read_ledger
+    summary: "อ่านสมุดทะเบียนบนโต๊ะอ่านหนังสือฝั่งขวา เพื่อหาเลขชั้นของหนังสือ"
+    availableWhen:
+    - type: 0
+      targetId: sena_wants_tome
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: read_ledger
+      amount: 0
+    vagueHint: "หนังสือในหอนี้มีเป็นพันเล่ม จะไล่หาทีละเล่มคงไม่ไหวหรอก... ที่ไหนสักแห่งต้องมีสารบัญ"
+    normalHint: "ตู้หนังสือมีป้ายบอกว่าทุกเล่มถูกลงทะเบียนไว้ ลองไปดูโต๊ะอ่านหนังสือฝั่งขวาสิ"
+    explicitHint: "ไปกด E ที่โต๊ะอ่านหนังสือฝั่งขวา แล้วค้นสมุดทะเบียนที่เปิดค้างอยู่"
+  - stepId: take_tome
+    summary: "หยิบ 'จารึกที่ยังเขียนมิจบ' จากตู้หนังสือชั้นล่างสุดฝั่งซ้าย"
+    availableWhen:
+    - type: 0
+      targetId: read_ledger
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: found_tome
+      amount: 0
+    vagueHint: "ทะเบียนบอกที่เก็บไว้แล้วนี่ ก็แค่เดินไปตามนั้น"
+    normalHint: "ทะเบียนบอกว่าอยู่ตู้ทิศตะวันตก ชั้นล่างสุด ก็คือตู้ฝั่งซ้ายของหอนี้"
+    explicitHint: "ไปกด E ที่ตู้หนังสือชั้นล่างสุดฝั่งซ้าย แล้วหยิบเล่มที่ ๙๙๙ ออกมา"
+  - stepId: give_offering
+    summary: "นำจารึกไปมอบให้เซนะ เพื่อให้นางเอ่ยปริศนา"
+    availableWhen:
+    - type: 2
+      targetId: tome
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: sena_offering_given
+      amount: 0
+    vagueHint: "ได้สิ่งที่นางเรียกมาแล้วนี่... ก็เหลือแค่เอาไปให้"
+    normalHint: "ถือจารึกอยู่แล้ว เอาไปให้เซนะเลยสิ"
+    explicitHint: "เดินกลับไปกด E คุยกับเซนะขณะที่ถือจารึกอยู่ นางจะรับไปแล้วเอ่ยปริศนา"
+  - stepId: answer_riddle
+    summary: "พิมพ์คำตอบปริศนาในช่องแชทของเซนะ"
+    availableWhen:
+    - type: 0
+      targetId: sena_offering_given
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: sena_passed
+      amount: 0
+    vagueHint: "คำถามของนาง... สิ่งที่อยู่ข้างหน้าเราเสมอ แต่พอข้ามผ่านเที่ยงคืนไป มันก็กลายเป็น 'วันนี้' เสียแล้ว"
+    normalHint: "มันไม่ใช่สิ่งของหรอก มันเป็น 'วัน' ที่เราเฝ้ารอ แต่ไม่ว่าจะรอนานแค่ไหนก็ไม่มีวันไปถึง เพราะพอถึงเที่ยงคืน เราก็เรียกมันด้วยชื่ออื่นไปแล้ว"
+    explicitHint: "คำตอบคือ 'พรุ่งนี้' (Tomorrow) ไปพิมพ์ตอบเซนะในช่องแชทได้เลย"
+  - stepId: open_gate
+    summary: "สำรวจประตูดวงดาวเพื่อออกไปห้องถัดไป"
+    availableWhen:
+    - type: 0
+      targetId: sena_passed
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: room03_entered
+      amount: 0
+    vagueHint: "นางไปแล้ว... ก็ไม่มีอะไรขวางเราอีกแล้วนี่"
+    normalHint: "ประตูดวงดาวเปิดแล้ว ไปดูสิ"
+    explicitHint: "เดินไปกด E ที่ประตูดวงดาวเพื่อไปห้องถัดไปได้เลย"

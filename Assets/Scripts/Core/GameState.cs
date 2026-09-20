@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace MysteryGame.Core
 {
@@ -83,6 +84,47 @@ namespace MysteryGame.Core
             Instance = this;
 
             DontDestroyOnLoad(gameObject);
+
+            SceneManager.sceneLoaded += HandleSceneLoaded;
+            SyncSceneState(SceneManager.GetActiveScene().name);
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                SceneManager.sceneLoaded -= HandleSceneLoaded;
+            }
+        }
+
+        private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            SyncSceneState(scene.name);
+        }
+
+        /// <summary>
+        /// Keeps CurrentSceneId honest even when a room scene is opened
+        /// directly from the editor instead of being reached through
+        /// RoomTransitionManager, and raises the per-room "entered" flag the
+        /// AI prompt and the local fallback replies key off.
+        /// </summary>
+        private void SyncSceneState(string sceneName)
+        {
+            if (string.IsNullOrEmpty(sceneName))
+            {
+                return;
+            }
+
+            SetCurrentScene(sceneName);
+
+            if (sceneName == "Room02")
+            {
+                SetFlag("room02_entered");
+            }
+            else if (sceneName == "Room03")
+            {
+                SetFlag("room03_entered");
+            }
         }
 
         // =====================================================
@@ -188,6 +230,7 @@ namespace MysteryGame.Core
             {
                 worldRevision++;
                 AddHistory("Added item: " + itemId);
+                ItemPopupUI.ShowItem(itemId);
             }
         }
 

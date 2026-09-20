@@ -24,3 +24,12 @@
 
 sysinfo.txt
 crashlytics-build.properties
+
+# Local secrets & API keys (Never commit)
+.env
+.env.*
+api_keys.json
+*.key
+*.secret
+kku_api_key.txt
+gemini_api_key.txt

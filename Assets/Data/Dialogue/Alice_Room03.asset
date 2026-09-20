@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b75aa9e7779470c889557275485c8a2, type: 3}
+  m_Name: Alice_Room03
+  m_EditorClassIdentifier:
+  dialogueId: alice_room03
+  speakerId: Alice
+  speakerName: Alice
+  speakerPortrait: {fileID: 21300000, guid: ab111111111111111111111111111111, type: 3}
+  personalityPrompt:
+  lines:
+  - "...เราผ่านนางฟ้านั่นมาได้จริงๆ ด้วย"
+  - "ห้องนี้ยังเงียบเกินไป เหมือนยังไม่มีอะไรตื่นขึ้นมาเลยสักอย่าง"
+  - "...พักก่อนก็ได้นะ ที่เหลือค่อยว่ากันทีหลัง"
+  overrideReturnLines: 1
+  returnLines:
+  - "...ยังไม่มีอะไรใหม่ในห้องนี้หรอก"
+  - "รอไปก่อนแล้วกัน"
+  choices:
+  - optionText: "พักก่อนก็ได้"
+    responseText: "...อืม พักเถอะ"
+    actions:
+    - type: 4
+      targetId: Alice
+      amount: 2
+      text:
+  - optionText: "ลองสำรวจรอบๆ กันดีกว่า"
+    responseText: "...ก็ได้ แต่ฉันว่ายังไม่มีอะไรให้ดูหรอกนะ"
+    actions: []

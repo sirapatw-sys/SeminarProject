@@ -2,6 +2,7 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 using MysteryGame.Core;
+using MysteryGame.Knowledge;
 using System.Collections.Generic;
 
 public class DialogueManager : MonoBehaviour
@@ -59,6 +60,7 @@ public class DialogueManager : MonoBehaviour
     private string activeDialogueId;
     private string activeNpcId;
     private string activeSpeakerName;
+    private string activePersonalityPrompt;
     private string activeDialogueContext;
 
     // =========================================================
@@ -107,6 +109,15 @@ public class DialogueManager : MonoBehaviour
         string[] lines,
         bool showChoicesAfterDialogue = true)
     {
+        StartDialogue(characterName, lines, showChoicesAfterDialogue, null);
+    }
+
+    public void StartDialogue(
+        string characterName,
+        string[] lines,
+        bool showChoicesAfterDialogue,
+        Sprite speakerPortrait)
+    {
         if (IsDialogueOpen)
         {
             return;
@@ -128,8 +139,9 @@ public class DialogueManager : MonoBehaviour
         activeDialogueId = string.Empty;
         activeNpcId = characterName;
         activeSpeakerName = characterName;
+        activePersonalityPrompt = string.Empty;
         activeDialogueContext = string.Join(" ", lines);
-        SetPortraits(null);
+        SetPortraits(speakerPortrait);
         if (chatComposerObject != null)
         {
             chatComposerObject.SetActive(false);
@@ -180,6 +192,7 @@ public class DialogueManager : MonoBehaviour
         activeDialogueId = data.dialogueId;
         activeNpcId = data.speakerId;
         activeSpeakerName = data.speakerName;
+        activePersonalityPrompt = data.personalityPrompt;
         if (chatComposerObject != null)
         {
             chatComposerObject.SetActive(true);
@@ -230,8 +243,6 @@ public class DialogueManager : MonoBehaviour
         {
             panelImage.color = new Color(0.025f, 0.045f, 0.075f, 0.975f);
         }
-
-        CreateAccentLine();
 
         speakerPortraitImage = CreatePortraitImage(
             "SpeakerPortrait",
@@ -313,26 +324,6 @@ public class DialogueManager : MonoBehaviour
         rect.anchoredPosition = new Vector2(-14f, -14f);
         rect.sizeDelta = new Vector2(112f, 42f);
         closeButton.onClick.AddListener(HideDialogue);
-    }
-
-    private void CreateAccentLine()
-    {
-        GameObject accent = new GameObject(
-            "DialogueAccent",
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(Image)
-        );
-        accent.layer = dialoguePanel.layer;
-        accent.transform.SetParent(dialoguePanel.transform, false);
-        RectTransform rect = accent.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(0f, 4f);
-        accent.GetComponent<Image>().color =
-            new Color(0.78f, 0.55f, 0.2f, 0.95f);
     }
 
     private void CreateChatComposer()
@@ -602,6 +593,27 @@ public class DialogueManager : MonoBehaviour
     private string[] BuildContextualLines(DialogueData data)
     {
         GameState state = GameState.Instance;
+
+        // Authored repeat lines are tracked per dialogue, not per speaker:
+        // Sena owns several dialogues and each stage needs its own
+        // "you are back" variant, and none of them may fall through to the
+        // generic friendly greeting.
+        if (data.overrideReturnLines && data.returnLines.Count > 0)
+        {
+            if (state == null)
+            {
+                return data.lines.ToArray();
+            }
+
+            string seenFlag = "dialogue." + data.dialogueId + ".seen";
+            bool alreadySeen = state.HasFlag(seenFlag);
+            state.SetFlag(seenFlag);
+
+            return alreadySeen
+                ? data.returnLines.ToArray()
+                : data.lines.ToArray();
+        }
+
         if (state == null || state.GetConversationCount(data.speakerId) == 0)
         {
             return data.lines.ToArray();
@@ -863,7 +875,8 @@ public class DialogueManager : MonoBehaviour
                     activeSpeakerName,
                     activeDialogueContext,
                     playerMessage,
-                    reply => CompleteTypedReply(playerMessage, reply)
+                    reply => CompleteTypedReply(playerMessage, reply),
+                    activePersonalityPrompt
                 )
             );
             return;
@@ -894,7 +907,7 @@ public class DialogueManager : MonoBehaviour
 
         bool usedFallback = generated == null;
         GeneratedChatReply reply = generated ?? BuildFallbackReply(playerMessage);
-        int relationshipDelta = Mathf.Clamp(reply.relationshipDelta, -3, 3);
+        int relationshipDelta = Mathf.Clamp(reply.relationshipDelta, -15, 5);
 
         if (GameState.Instance != null && !string.IsNullOrWhiteSpace(activeNpcId))
         {
@@ -935,6 +948,19 @@ public class DialogueManager : MonoBehaviour
             serviceNotice;
         AnimateSpeakerForText(reply.reply);
 
+        // Check if player answered Sena's riddle correctly
+        bool isSena = (activeSpeakerName != null && activeSpeakerName.ToLowerInvariant().Contains("sena")) ||
+                      (activeNpcId != null && activeNpcId.ToLowerInvariant().Contains("sena"));
+        if (isSena &&
+            SenaInteraction.IsListeningForAnswer &&
+            SenaInteraction.IsCorrectRiddleAnswer(playerMessage))
+        {
+            if (SenaInteraction.Instance != null)
+            {
+                SenaInteraction.Instance.HandleRiddleSolved();
+            }
+        }
+
         chatRequestInProgress = false;
         chatInput.interactable = true;
         sendButton.interactable = true;
@@ -944,36 +970,122 @@ public class DialogueManager : MonoBehaviour
     private GeneratedChatReply BuildFallbackReply(string playerMessage)
     {
         string normalized = playerMessage.ToLowerInvariant();
+        bool isSena = (activeSpeakerName != null && activeSpeakerName.ToLowerInvariant().Contains("sena")) ||
+                      (activeNpcId != null && activeNpcId.ToLowerInvariant().Contains("sena"));
+        bool isAlice = (activeSpeakerName != null && activeSpeakerName.ToLowerInvariant().Contains("alice")) ||
+                       (activeNpcId != null && activeNpcId.ToLowerInvariant().Contains("alice"));
+        string currentScene = GameState.Instance != null ? GameState.Instance.GetCurrentScene() : string.Empty;
+        bool isRoom02 = currentScene == "Room02" || (GameState.Instance != null && GameState.Instance.HasFlag("room02_entered"));
+
+        // Route the actual walkthrough through the authored room data, so the
+        // offline reply and the AI prompt always agree on which step comes
+        // next and on how explicit this NPC is allowed to be.
+        NpcKnowledgeContext knowledge =
+            AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
+        if (knowledge.HasData)
+        {
+            string authored =
+                NpcKnowledgeContextBuilder.BuildOfflineReply(knowledge);
+            if (!string.IsNullOrWhiteSpace(authored))
+            {
+                return new GeneratedChatReply
+                {
+                    reply = authored,
+                    relationshipDelta =
+                        knowledge.AllowedHintLevel == HintLevel.None ? -5 : 2,
+                };
+            }
+        }
+
+
+        if (isSena)
+        {
+            return BuildSenaFallbackReply(normalized);
+        }
+
+        // ==================== ALICE IN ROOM02 ====================
+        if (isAlice && isRoom02)
+        {
+            if (ContainsAny(
+                normalized,
+                "ทำยังไง", "ทำอย่างไร", "ทางออก", "เบาะแส", "ต่อไป", "ใบ้", "ช่วย", "เซนะ", "นางฟ้า", "riddle", "คำถาม", "หนังสือ", "จารึก", "ของถวาย", "ทะเบียน", "ชั้น", "โต๊ะ", "ตู้"))
+            {
+                return BuildAliceRiddleHint();
+            }
+        }
+
+        // ==================== STANDARD / ALICE IN ROOM01 ====================
+        // 1. Hostile / Rude / Dismissive player messages
         if (ContainsAny(
             normalized,
-            "ขอบคุณ", "ไม่เป็นไร", "ช่วย", "เป็นห่วง", "เข้าใจ", "โอเค"))
+            "อย่ามายุ่ง", "ไม่ยุ่ง", "ไปไกลๆ", "ไปให้พ้น", "หุบปาก", "รำคาญ",
+            "เงียบ", "เสือก", "น่ารำคาญ", "เกะกะ", "ออกไป", "ไม่ต้องช่วย",
+            "ไม่ต้องพูด", "ช่างหัว", "กวนใจ", "ด่า", "บ้า", "ไปตาย", "shut up", "go away"))
+        {
+            return new GeneratedChatReply
+            {
+                reply = "...ถ้าไม่อยากให้ยุ่ง ก็จัดการเองแล้วกันนะ ฉันจะไม่กวนเธออีก",
+                relationshipDelta = -10
+            };
+        }
+
+        // 2. Apology / Kind words
+        if (ContainsAny(
+            normalized,
+            "ขอโทษ", "ขออภัย", "ช่วยหน่อยนะ", "ดีกันนะ", "ไม่ได้ตั้งใจ"))
+        {
+            return new GeneratedChatReply
+            {
+                reply = "...เฮ้อ ช่างเถอะ ฉันก็ไม่ได้โกรธขนาดนั้นหรอก มาช่วยกันหาทางออกต่อเถอะ",
+                relationshipDelta = 5
+            };
+        }
+
+        // 3. Greeting / Normal conversation (No hints!)
+        if (ContainsAny(
+            normalized,
+            "สวัสดี", "หวัดดี", "ดีครับ", "ดีค่ะ", "ดีจ้า", "hello", "hi", "hey"))
+        {
+            return new GeneratedChatReply
+            {
+                reply = "...สวัสดี มีอะไรหรือเปล่า? ถ้าไม่มีอะไรก็อย่าชวนคุยเรื่อยเปื่อยเลย",
+                relationshipDelta = 0
+            };
+        }
+
+        // 4. Low relationship refusal when asking for hints
+        bool isLowRel = GameState.Instance != null &&
+                        !string.IsNullOrWhiteSpace(activeNpcId) &&
+                        GameState.Instance.GetRelationship(activeNpcId) < 45;
+
+        if (ContainsAny(
+            normalized,
+            "ทำยังไง", "ทำอย่างไร", "ทางออก", "เบาะแส", "ต่อไป", "ใบ้", "ช่วย"))
+        {
+            if (isLowRel)
+            {
+                return new GeneratedChatReply
+                {
+                    reply = "ก็บอกว่าอย่ามายุ่งไม่ใช่เหรอ... แล้วจะมาถามฉันทำไมล่ะ ลองหาดูเองแล้วกันนะ",
+                    relationshipDelta = 0
+                };
+            }
+
+            return new GeneratedChatReply
+            {
+                reply = "ลองทบทวนสิ่งที่เราเพิ่งตรวจพบก่อนนะ บางอย่างในห้องอาจเชื่อมโยงกันมากกว่าที่เห็น",
+                relationshipDelta = 0
+            };
+        }
+
+        if (ContainsAny(
+            normalized,
+            "ขอบคุณ", "ไม่เป็นไร", "เป็นห่วง", "เข้าใจ", "โอเค"))
         {
             return new GeneratedChatReply
             {
                 reply = "ขอบคุณนะ อย่างน้อยฉันก็รู้ว่าไม่ได้ต้องรับมือกับเรื่องนี้คนเดียว",
                 relationshipDelta = 1
-            };
-        }
-
-        if (ContainsAny(
-            normalized,
-            "รำคาญ", "เงียบ", "ไม่สน", "ไร้สาระ", "โง่"))
-        {
-            return new GeneratedChatReply
-            {
-                reply = "เข้าใจแล้ว ฉันจะไม่รบกวน แต่คำพูดนั้นก็เจ็บอยู่เหมือนกัน",
-                relationshipDelta = -1
-            };
-        }
-
-        if (ContainsAny(
-            normalized,
-            "ทำยังไง", "ทำอย่างไร", "ทางออก", "เบาะแส", "ต่อไป"))
-        {
-            return new GeneratedChatReply
-            {
-                reply = "ลองทบทวนสิ่งที่เราเพิ่งตรวจพบก่อนนะ บางอย่างในห้องอาจเชื่อมโยงกันมากกว่าที่เห็น",
-                relationshipDelta = 0
             };
         }
 
@@ -1004,6 +1116,209 @@ public class DialogueManager : MonoBehaviour
             relationshipDelta = 0
         };
     }
+
+    /// <summary>
+    /// Offline replies for Sena. She never hints, and what she says depends on
+    /// which stage of the gate trial the player has reached.
+    /// </summary>
+    private static GeneratedChatReply BuildSenaFallbackReply(string normalized)
+    {
+        GameState state = GameState.Instance;
+        bool offeringGiven =
+            state != null && state.HasFlag(SenaInteraction.OfferingGivenFlag);
+        bool carryingOffering =
+            state != null && state.HasItem(SenaInteraction.OfferingItemId);
+
+        bool askingForHelp = ContainsAny(
+            normalized,
+            "ช่วย", "ใบ้", "ทำยังไง", "hint", "help", "ขอคำใบ้", "บอกหน่อย", "แก้ยังไง");
+        bool greeting = ContainsAny(
+            normalized,
+            "สวัสดี", "หวัดดี", "ดีครับ", "ดีค่ะ", "hi", "hello", "hey");
+        bool hostile = ContainsAny(
+            normalized,
+            "อย่ามายุ่ง", "ไม่ยุ่ง", "ไปไกลๆ", "หุบปาก", "รำคาญ", "เงียบ", "เสือก", "บ้า", "shut up");
+
+        if (hostile)
+        {
+            return new GeneratedChatReply
+            {
+                reply = "มนุษย์ชั้นต่ำผู้ไร้มารยาท... ข้าเห็นผู้เช่นเจ้ามาแล้วนับร้อย และทุกผู้ล้วนผุพังอยู่หน้าประตูนี้ทั้งสิ้น",
+                relationshipDelta = -10
+            };
+        }
+
+        if (askingForHelp)
+        {
+            return new GeneratedChatReply
+            {
+                reply = "คำใบ้ฤๅ? เจ้าสิ้นไร้ปัญญาถึงเพียงนั้นเชียวหรือ ข้ามิใช่พี่เลี้ยงของเจ้าดอก จงใช้ตาที่ติดหัวมานั่นเสาะหาเอาเองเถิด",
+                relationshipDelta = -5
+            };
+        }
+
+        // ---------------- Stage 1: she has not posed the riddle yet
+        if (!offeringGiven)
+        {
+            if (carryingOffering)
+            {
+                return new GeneratedChatReply
+                {
+                    reply = "เจ้าถือจารึกนั้นมาแล้วฤๅ... งั้นก็จงยื่นมันให้ข้าเสียสิ (กด E คุยกับข้าอีกครั้ง)",
+                    relationshipDelta = 1
+                };
+            }
+
+            if (greeting)
+            {
+                return new GeneratedChatReply
+                {
+                    reply = "อย่ามาตีสนิทกับข้า มนุษย์ เจ้ายังมาด้วยมืออันว่างเปล่าอยู่เลย",
+                    relationshipDelta = 0
+                };
+            }
+
+            return new GeneratedChatReply
+            {
+                reply = "ข้าจะมิเอ่ยปริศนาแก่ผู้ที่มิมีของถวาย จงเสาะหา 'จารึกที่ยังเขียนมิจบ' ในหอสมุดแห่งนี้มาให้ข้าเสียก่อนเถิด",
+                relationshipDelta = 0
+            };
+        }
+
+        // ---------------- Stage 2: the riddle is on the table
+        if (SenaInteraction.IsCorrectRiddleAnswer(normalized))
+        {
+            return new GeneratedChatReply
+            {
+                reply = "...หึ เจ้าตอบถูกจนได้ฤๅ น่าประทับใจนักสำหรับมนุษย์ตัวจ้อยเช่นเจ้า ข้ายอมรับในปัญญาของเจ้าในครานี้",
+                relationshipDelta = 5
+            };
+        }
+
+        if (greeting)
+        {
+            return new GeneratedChatReply
+            {
+                reply = "อย่ามาเสียเวลากับถ้อยคำไร้สาระ จงตอบปริศนาของข้ามาเถิด",
+                relationshipDelta = 0
+            };
+        }
+
+        return new GeneratedChatReply
+        {
+            reply = "ปริศนาของข้าแจ่มชัดอยู่แล้ว: 'สิ่งที่วิ่งนำหน้าเจ้าเสมอ ทว่ามิเคยมาถึง เจ้าเฝ้ารอมันทั้งชีวิต แต่ครานที่มันมาถึง ชื่อของมันก็เปลี่ยนไปเสียแล้ว'... จงตอบมา หรือจะยอมแพ้",
+            relationshipDelta = 0
+        };
+    }
+
+    /// <summary>
+    /// Alice walks the player through Room02 one gate at a time, and only
+    /// starts unpacking the riddle itself after Sena has actually posed it.
+    /// The AI prompt reads the same flags, so both paths agree.
+    /// </summary>
+    private static GeneratedChatReply BuildAliceRiddleHint()
+    {
+        GameState state = GameState.Instance;
+        bool wantsOffering =
+            state != null && state.HasFlag(SenaInteraction.WantsOfferingFlag);
+        bool offeringGiven =
+            state != null && state.HasFlag(SenaInteraction.OfferingGivenFlag);
+        bool readLedger = state != null && state.HasFlag("read_ledger");
+        bool hasTome =
+            state != null && state.HasItem(SenaInteraction.OfferingItemId);
+
+        if (!wantsOffering)
+        {
+            return new GeneratedChatReply
+            {
+                reply = "...ยังไม่ได้คุยกับนางฟ้าที่ขวางประตูอยู่เลยนี่ ไปฟังดูก่อนสิว่านางต้องการอะไร",
+                relationshipDelta = 1
+            };
+        }
+
+        if (!offeringGiven)
+        {
+            if (!readLedger)
+            {
+                return new GeneratedChatReply
+                {
+                    reply = "หนังสือที่ยังเขียนไม่จบ... ในหอนี้มีหนังสือเป็นพัน จะไล่หาทีละเล่มคงไม่ไหว ลองดูโต๊ะอ่านหนังสือฝั่งขวาสิ มีสมุดทะเบียนเปิดค้างอยู่",
+                    relationshipDelta = 2
+                };
+            }
+
+            if (!hasTome)
+            {
+                return new GeneratedChatReply
+                {
+                    reply = "ทะเบียนบอกชั้นไว้แล้วนี่ — ชั้นล่างสุดของตู้ฝั่งซ้าย ไปหยิบมาเลย",
+                    relationshipDelta = 2
+                };
+            }
+
+            return new GeneratedChatReply
+            {
+                reply = "ได้มาแล้วนี่ ...เอาไปให้นางเถอะ ฉันอยากรู้แล้วว่านางจะถามอะไร",
+                relationshipDelta = 2
+            };
+        }
+
+        int cluesFound = CountRoom02CluesFound();
+
+        if (cluesFound == 0)
+        {
+            return new GeneratedChatReply
+            {
+                reply = "คำถามของนาง... สิ่งที่อยู่ข้างหน้าเราเสมอ แต่พอข้ามผ่านเที่ยงคืนไป มันก็กลายเป็น 'วันนี้' เสียแล้ว... ลองไปสำรวจนาฬิกาโบราณ ชั้นหนังสือ และแท่นไฟดูก่อนสิ",
+                relationshipDelta = 2
+            };
+        }
+
+        if (cluesFound < 3)
+        {
+            return new GeneratedChatReply
+            {
+                reply = "...มันไม่ใช่สิ่งของหรอกนะ มันเป็น 'วัน' ที่เราเฝ้ารอ แต่ไม่ว่าจะรอนานแค่ไหน ก็ไม่มีวันไปถึง เพราะพอถึงตอนเที่ยงคืน เราก็เรียกมันด้วยชื่ออื่นไปแล้ว",
+                relationshipDelta = 2
+            };
+        }
+
+        return new GeneratedChatReply
+        {
+            reply = "เฮ้อ... เบาะแสครบหมดแล้วนี่ คำตอบคือ 'พรุ่งนี้' (Tomorrow) ไปพิมพ์ตอบนางได้แล้ว",
+            relationshipDelta = 1
+        };
+    }
+
+    /// <summary>
+    /// How many of Room02's three written clues about the riddle the player
+    /// has read: the clock, the poem on the middle shelf, and the brazier.
+    /// </summary>
+    public static int CountRoom02CluesFound()
+    {
+        GameState state = GameState.Instance;
+        if (state == null)
+        {
+            return 0;
+        }
+
+        int found = 0;
+        if (state.HasFlag("inspected_clock"))
+        {
+            found++;
+        }
+        if (state.HasFlag("inspected_bookshelf_r2"))
+        {
+            found++;
+        }
+        if (state.HasFlag("inspected_altar"))
+        {
+            found++;
+        }
+
+        return found;
+    }
+
 
     private static bool ContainsAny(string source, params string[] values)
     {
@@ -1041,6 +1356,7 @@ public class DialogueManager : MonoBehaviour
         activeDialogueId = string.Empty;
         activeNpcId = string.Empty;
         activeSpeakerName = string.Empty;
+        activePersonalityPrompt = string.Empty;
         activeDialogueContext = string.Empty;
         speakerTalkingUntil = 0f;
         playerTalkingUntil = 0f;

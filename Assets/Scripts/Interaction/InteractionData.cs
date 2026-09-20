@@ -31,4 +31,16 @@ public class InteractionData : ScriptableObject
     [Header("Actions")]
     public List<ActionCommand> actions =
         new List<ActionCommand>();
+
+    [Header("Item Popup")]
+    [Tooltip(
+        "Item id to show in the item popup after a successful interaction. " +
+        "Leave empty for interactions that hand out nothing."
+    )]
+    public string popupItemId;
+
+    public string popupItemName;
+
+    [TextArea(2, 4)]
+    public string popupItemDescription;
 }

@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactionId: inspect_desk
   displayName: Desk
-  interactionMessage: "\u0E09\u0E31\u0E19\u0E1E\u0E1A\u0E01\u0E23\u0E30\u0E14\u0E32\u0E29\u0E41\u0E1C\u0E48\u0E19\u0E2B\u0E19\u0E36\u0E48\u0E07\u0E1A\u0E19\u0E42\u0E15\u0E4A\u0E30"
-  failureMessage: "\u0E1A\u0E19\u0E42\u0E15\u0E4A\u0E30\u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E21\u0E35\u0E2D\u0E30\u0E44\u0E23\u0E17\u0E35\u0E48\u0E19\u0E48\u0E32\u0E2A\u0E19\u0E43\u0E08"
+  interactionMessage: "ลองสำรวจตามรอยลูกศรที่ซอกขอบโต๊ะ... เจอกระดาษโน้ตแผ่นหนึ่งพับซ่อนอยู่ข้างใต้!"
+  failureMessage: "โต๊ะทำงานไม้ตัวเก่า ดูเผินๆ เหมือนไม่มีอะไรผิดปกติ..."
   repeatable: 1
-  alreadyCompletedMessage: "\u0E09\u0E31\u0E19\u0E15\u0E23\u0E27\u0E08\u0E42\u0E15\u0E4A\u0E30\u0E19\u0E35\u0E49\u0E44\u0E1B\u0E41\u0E25\u0E49\u0E27"
+  alreadyCompletedMessage: "กระดาษโน้ตที่ซ่อนอยู่ตรงซอกขอบโต๊ะ... ลองหยิบขึ้นมาอ่านดูอีกครั้ง"
   conditions:
   - type: 0
     targetId: inspected_painting

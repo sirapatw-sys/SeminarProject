@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: ClockworkWall_Data
+  m_EditorClassIdentifier: 
+  interactionId: inspect_clockwork
+  displayName: "แผงเฟืองบนผนัง (Clockwork Wall)"
+  interactionMessage: "เฟืองทองเหลืองหลายสิบตัวฝังอยู่ในผนัง หยุดนิ่งไปหมดแล้ว เหลือเพียงตัวที่เล็กที่สุดที่ยังขยับทีละหนึ่งฟันอย่างเชื่องช้า\nใต้แผงมีแผ่นทองเหลืองสลักว่า: 'กลไกนี้นับสิ่งที่ยังมาไม่ถึง มิใช่สิ่งที่ผ่านพ้นไปแล้ว'\nข้างกันมีภาพวาดสองภาพ ทิวทัศน์เดียวกันเป๊ะ ต่างกันแค่ภาพหนึ่งเป็นกลางวัน อีกภาพเป็นคืนก่อนรุ่งสาง"
+  failureMessage: "เฟืองบนผนังไม่ตอบสนองคุณ"
+  repeatable: 1
+  alreadyCompletedMessage: ""
+  conditions: []
+  actions:
+  - type: 0
+    targetId: inspected_clockwork
+    amount: 0
+    text: 
+  - type: 5
+    targetId: 
+    amount: 0
+    text: "Read the clockwork wall plaque in Room02"
+  popupItemId: 
+  popupItemName: 
+  popupItemDescription: 

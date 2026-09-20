@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: BookshelfA_Data
+  m_EditorClassIdentifier: 
+  interactionId: inspect_shelf_a
+  displayName: "ตู้หนังสือชั้นบน (Upper Shelf)"
+  interactionMessage: "หนังสือเรียงกันแน่นจนมองไม่เห็นผนังด้านหลัง สันปกส่วนใหญ่ลบเลือนไปหมดแล้ว\nมีป้ายทองเหลืองตอกติดไว้ที่ขอบชั้น: 'ทุกเล่มในหอนี้ถูกลงทะเบียนไว้แล้ว ผู้ใดหาเล่มใดมิพบ จงถามสมุดทะเบียนบนโต๊ะอ่านหนังสือ'"
+  failureMessage: "ไม่มีอะไรให้ดูเพิ่มบนชั้นนี้"
+  repeatable: 1
+  alreadyCompletedMessage: ""
+  conditions: []
+  actions:
+  - type: 0
+    targetId: inspected_shelf_a
+    amount: 0
+    text: 
+  popupItemId: 
+  popupItemName: 
+  popupItemDescription: 

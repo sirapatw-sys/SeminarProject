@@ -7,6 +7,9 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
     private Vector2 movement;
 
+    public Vector2 Movement => movement;
+    public bool IsMoving => movement.sqrMagnitude > 0.001f;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -14,7 +17,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        if (DialogueManager.IsDialogueOpen || AiSettingsPanel.IsOpen)
+        if (IntroSequence.IsPlaying || DialogueManager.IsDialogueOpen ||
+            AiSettingsPanel.IsOpen || KeypadLockUI.IsOpen)
         {
             movement = Vector2.zero;
             return;

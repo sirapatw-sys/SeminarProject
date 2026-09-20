@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: DoorR3_Data
+  m_EditorClassIdentifier:
+  interactionId: inspect_gate_r3
+  displayName: "ประตูมิติถัดไป (Next Gate)"
+  interactionMessage: "ประตูบานนี้ยังปิดสนิท ลวดลายบนบานประตูยังไม่ตื่นขึ้น...\n(ห้องถัดไปยังอยู่ระหว่างการสร้าง — Coming soon)"
+  failureMessage: "ประตูบานนี้ยังไม่ตอบสนองคุณ"
+  repeatable: 1
+  alreadyCompletedMessage: ""
+  conditions: []
+  actions:
+  - type: 0
+    targetId: inspected_gate_r3
+    amount: 0
+    text:

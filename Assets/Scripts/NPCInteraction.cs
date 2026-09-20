@@ -15,7 +15,8 @@ public class NPCInteraction : MonoBehaviour
 
     private void Update()
     {
-        if (DialogueManager.IsDialogueOpen || AiSettingsPanel.IsOpen)
+        if (IntroSequence.IsPlaying || DialogueManager.IsDialogueOpen ||
+            AiSettingsPanel.IsOpen)
         {
             return;
         }

@@ -1,0 +1,101 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b2c3d4e5f6478a9b0c1d2e3f4a5b60, type: 3}
+  m_Name: Room01
+  m_EditorClassIdentifier:
+  roomId: Room01
+  roomName: "ห้องทำงานเก่า"
+  roomDescription: "ห้องทำงานไม้สีเข้ม จุดด้วยเทียนไขไม่กี่เล่ม ไม่มีหน้าต่างที่มองเห็นข้างนอกได้เลย มีภาพวาดแขวนอยู่บนผนังด้านบน โต๊ะทำงานทางซ้าย ตู้ลิ้นชักทางขวา ตู้หนังสือสูงตลอดผนังซ้าย และประตูทางออกบานเดียวอยู่ทางขวา"
+  background: {fileID: 21300000, guid: ab161616161616161616161616161616, type: 3}
+  facts:
+  - factId: painting_arrow
+    statement: "ด้านหลังกรอบภาพวาดบนผนังมีรูปลูกศรสลักไว้ ชี้ตรงไปที่ซอกขอบโต๊ะทำงานข้างๆ"
+    revealedWhen:
+    - type: 0
+      targetId: inspected_painting
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: desk_note
+    statement: "ในซอกขอบโต๊ะทำงานมีกระดาษโน้ตพับซ่อนอยู่ เขียนโดยคนที่เคยติดอยู่ในห้องนี้"
+    revealedWhen:
+    - type: 0
+      targetId: found_note
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: drawer_code
+    statement: "รหัสแม่กุญแจ 4 หลักของลิ้นชักคือ 4592 ซึ่งถูกบันทึกไว้ในกระดาษโน้ตจากโต๊ะทำงาน"
+    revealedWhen:
+    - type: 0
+      targetId: found_note
+      amount: 0
+    isPuzzleAnswer: 1
+  - factId: drawer_key
+    statement: "ในลิ้นชักที่ปลดล็อคแล้วมีกุญแจทองเหลืองโบราณอยู่ ใช้ไขประตูทางออกของห้องนี้ได้"
+    revealedWhen:
+    - type: 0
+      targetId: drawer_opened
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: door_locked
+    statement: "ประตูทางออกถูกล็อคอยู่ และเปิดได้ด้วยกุญแจทองเหลืองจากลิ้นชักเท่านั้น"
+    revealedWhen: []
+    isPuzzleAnswer: 0
+  steps:
+  - stepId: inspect_painting
+    summary: "ตรวจภาพวาดบนผนัง"
+    availableWhen: []
+    completedWhen:
+    - type: 0
+      targetId: inspected_painting
+      amount: 0
+    vagueHint: "ของบางอย่างในห้องนี้ดูไม่เข้าที่เข้าทาง... ลองมองผนังดูสิ"
+    normalHint: "ภาพวาดบนผนังนั่น มันเอียงกว่าที่ควรจะเป็นนะ ลองเข้าไปดูใกล้ๆ สิ"
+    explicitHint: "ไปตรวจภาพวาดบนผนังก่อนเลย มีอะไรซ่อนอยู่หลังกรอบแน่ๆ"
+  - stepId: search_desk
+    summary: "ตรวจโต๊ะทำงานตามทิศที่ลูกศรหลังภาพวาดชี้"
+    availableWhen:
+    - type: 0
+      targetId: inspected_painting
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: found_note
+      amount: 0
+    vagueHint: "ลูกศรที่เจอหลังภาพวาดมันชี้ไปทางใดทางหนึ่งนะ ลองมองตามดู"
+    normalHint: "ลูกศรหลังภาพวาดชี้ไปทางโต๊ะทำงาน ลองไปค้นดูตรงนั้น"
+    explicitHint: "ไปตรวจโต๊ะทำงาน มีกระดาษพับซ่อนอยู่ในซอกขอบโต๊ะ"
+  - stepId: open_drawer
+    summary: "ใส่รหัส 4592 เพื่อปลดล็อคลิ้นชักและเอากุญแจ"
+    availableWhen:
+    - type: 0
+      targetId: found_note
+      amount: 0
+    completedWhen:
+    - type: 2
+      targetId: key
+      amount: 0
+    vagueHint: "ตัวเลขในกระดาษโน้ตนั่นน่าจะมีไว้ใช้กับอะไรสักอย่างในห้องนี้"
+    normalHint: "ลิ้นชักมีแม่กุญแจรหัส 4 หลัก ลองใช้ตัวเลขจากกระดาษโน้ตดู"
+    explicitHint: "ไปที่ลิ้นชักแล้วกดรหัส 4592 ตามที่เขียนไว้ในกระดาษโน้ต"
+  - stepId: unlock_door
+    summary: "ใช้กุญแจทองเหลืองเปิดประตูทางออก"
+    availableWhen:
+    - type: 2
+      targetId: key
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: door_unlocked
+      amount: 0
+    vagueHint: "ได้ของที่ต้องใช้มาแล้วนี่ ก็เหลือแค่ทางออกเท่านั้น"
+    normalHint: "มีกุญแจแล้ว ลองเอาไปไขประตูดูสิ"
+    explicitHint: "เอากุญแจทองเหลืองไปไขประตูทางออกได้เลย"
