@@ -4,8 +4,8 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// The cold open: black screen, narration fading in line by line, then a slow
-/// fade into Room01. Bootstraps itself so no scene wiring can go stale, and
-/// plays at most once per session.
+/// fade into Room01. Started by the title menu's "new game", so no scene
+/// wiring can go stale, and plays at most once per session.
 /// </summary>
 public class IntroSequence : MonoBehaviour
 {
@@ -42,14 +42,28 @@ public class IntroSequence : MonoBehaviour
     private GUIStyle narrationStyle;
     private GUIStyle skipStyle;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void Bootstrap()
+    public static void Play(bool force = false)
     {
-        if (hasPlayed || SceneManager.GetActiveScene().name != IntroScene)
+        if (!force && hasPlayed)
         {
             return;
         }
 
+        if (SceneManager.GetActiveScene().name != IntroScene)
+        {
+            return;
+        }
+
+        // Clean up any stale IntroSequence instance if present
+        IntroSequence existing = FindObjectOfType<IntroSequence>();
+        if (existing != null)
+        {
+            Destroy(existing.gameObject);
+        }
+
+        hasPlayed = true;
+        // Raised immediately so nothing moves in the frame before Start runs.
+        IsPlaying = true;
         GameObject host = new GameObject("IntroSequence");
         host.AddComponent<IntroSequence>();
     }
@@ -140,7 +154,8 @@ public class IntroSequence : MonoBehaviour
     {
         return Input.GetKeyDown(KeyCode.Escape) ||
                Input.GetKeyDown(KeyCode.Space) ||
-               Input.GetKeyDown(KeyCode.Return);
+               Input.GetKeyDown(KeyCode.Return) ||
+               Input.GetMouseButtonDown(0);
     }
 
     private IEnumerator FadeText(float from, float to, float duration)
@@ -161,6 +176,7 @@ public class IntroSequence : MonoBehaviour
 
     private void OnGUI()
     {
+        UiScale.Apply();
         if (curtainAlpha <= 0f)
         {
             return;
@@ -171,21 +187,21 @@ public class IntroSequence : MonoBehaviour
         Color previous = GUI.color;
 
         GUI.color = new Color(0f, 0f, 0f, curtainAlpha);
-        GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height),
+        GUI.DrawTexture(new Rect(0f, 0f, UiScale.Width, UiScale.Height),
                         blackTexture, ScaleMode.StretchToFill);
 
         if (!string.IsNullOrEmpty(currentLine) && textAlpha > 0f)
         {
             GUI.color = new Color(0.86f, 0.84f, 0.78f, textAlpha * curtainAlpha);
-            float width = Mathf.Min(900f, Screen.width - 120f);
-            Rect rect = new Rect((Screen.width - width) * 0.5f,
-                                 Screen.height * 0.5f - 130f, width, 260f);
+            float width = Mathf.Min(900f, UiScale.Width - 120f);
+            Rect rect = new Rect((UiScale.Width - width) * 0.5f,
+                                 UiScale.Height * 0.5f - 130f, width, 260f);
             GUI.Label(rect, currentLine, narrationStyle);
 
             GUI.color = new Color(0.55f, 0.55f, 0.55f, textAlpha * curtainAlpha * 0.7f);
-            GUI.Label(new Rect((Screen.width - width) * 0.5f,
-                               Screen.height - 70f, width, 30f),
-                      "กด Space หรือ Esc เพื่อข้าม", skipStyle);
+            GUI.Label(new Rect((UiScale.Width - width) * 0.5f,
+                               UiScale.Height - 70f, width, 30f),
+                      "กด Space, Esc หรือคลิกเมาส์เพื่อข้าม", skipStyle);
         }
 
         GUI.color = previous;

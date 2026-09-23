@@ -80,6 +80,78 @@ public static class AiProviderDiagnostics
         }
     }
 
+    // Header names used by OpenAI-compatible gateways (OpenAI, LiteLLM,
+    // Azure, Groq, ...). Matching is case-insensitive.
+    private static readonly string[][] QuotaHeaders =
+    {
+        new[] { "x-ratelimit-remaining-requests", "x-ratelimit-limit-requests", "คำขอ" },
+        new[] { "x-ratelimit-remaining-tokens", "x-ratelimit-limit-tokens", "โทเคน" },
+        new[] { "x-ratelimit-remaining-requests-day", "x-ratelimit-limit-requests-day", "คำขอวันนี้" },
+        new[] { "x-ratelimit-remaining", "x-ratelimit-limit", "คำขอ" },
+    };
+
+    /// <summary>
+    /// A short Thai line describing how much quota is left, read from the
+    /// rate-limit headers or from a quota/credits field in the body. Empty
+    /// when the provider sends neither, which is the honest answer: most
+    /// gateways, KKU included, do not advertise it on every response.
+    /// </summary>
+    public static string ReadQuota(
+        System.Collections.Generic.IDictionary<string, string> headers,
+        string body)
+    {
+        System.Collections.Generic.List<string> parts =
+            new System.Collections.Generic.List<string>();
+
+        if (headers != null)
+        {
+            System.Collections.Generic.Dictionary<string, string> lower =
+                new System.Collections.Generic.Dictionary<string, string>();
+            foreach (System.Collections.Generic.KeyValuePair<string, string> pair in headers)
+            {
+                if (pair.Key != null)
+                {
+                    lower[pair.Key.ToLowerInvariant()] = pair.Value;
+                }
+            }
+
+            foreach (string[] names in QuotaHeaders)
+            {
+                string remaining;
+                if (!lower.TryGetValue(names[0], out remaining) ||
+                    string.IsNullOrWhiteSpace(remaining))
+                {
+                    continue;
+                }
+
+                string limit;
+                string text = lower.TryGetValue(names[1], out limit) &&
+                              !string.IsNullOrWhiteSpace(limit)
+                    ? remaining.Trim() + "/" + limit.Trim()
+                    : remaining.Trim();
+                string entry = names[2] + " " + text;
+                if (!parts.Exists(p => p.StartsWith(names[2] + " ")))
+                {
+                    parts.Add(entry);
+                }
+            }
+        }
+
+        if (parts.Count == 0 && !string.IsNullOrEmpty(body))
+        {
+            Match match = Regex.Match(
+                body,
+                "\"(?<key>remaining_quota|quota_remaining|remaining_credits|credits_remaining|remaining_balance|remaining)\"\\s*:\\s*\"?(?<value>[0-9.]+)",
+                RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                parts.Add("คงเหลือ " + match.Groups["value"].Value);
+            }
+        }
+
+        return parts.Count == 0 ? string.Empty : string.Join(" · ", parts.ToArray());
+    }
+
     /// <summary>
     /// Strips anything that looks like a bearer token out of text bound for a
     /// log or the settings panel.

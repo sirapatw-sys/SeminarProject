@@ -17,6 +17,7 @@ public class NpcEventController : MonoBehaviour
     private GeneratedDialogueContent pendingDialogue;
     private float pendingUntil;
     private float nextCheckTime;
+    private float nextStoryCheckTime;
     private TextMeshPro indicatorText;
     private bool generationInProgress;
 
@@ -24,7 +25,15 @@ public class NpcEventController : MonoBehaviour
     {
         GameObject indicator = new GameObject("TalkRequestIndicator");
         indicator.transform.SetParent(transform, false);
-        indicator.transform.localPosition = indicatorOffset;
+
+        // indicatorOffset is in world units: undo the NPC's own scale (Sena
+        // is authored at 0.2) so every "!" sits at the same height and size.
+        Vector3 parentScale = transform.lossyScale;
+        float sx = Mathf.Max(Mathf.Abs(parentScale.x), 0.01f);
+        float sy = Mathf.Max(Mathf.Abs(parentScale.y), 0.01f);
+        indicator.transform.localPosition =
+            new Vector3(indicatorOffset.x / sx, indicatorOffset.y / sy, indicatorOffset.z);
+        indicator.transform.localScale = new Vector3(1f / sx, 1f / sy, 1f);
 
         indicatorText = indicator.AddComponent<TextMeshPro>();
         indicatorText.text = "!";
@@ -38,7 +47,19 @@ public class NpcEventController : MonoBehaviour
     {
         if (pendingEvent != null)
         {
-            if (Time.time >= pendingUntil)
+            // A story beat that the player has already moved past (Stelle's
+            // fright at the mirror once the music box is open) is stale, so
+            // its "!" goes away instead of replaying the moment out of order.
+            bool stale = false;
+            if (pendingEvent.storyBeat && Time.time >= nextStoryCheckTime &&
+                !DialogueManager.IsDialogueOpen)
+            {
+                nextStoryCheckTime = Time.time + 1f;
+                stale = GameState.Instance != null &&
+                        !pendingEvent.CanTrigger(GameState.Instance);
+            }
+
+            if (stale || Time.time >= pendingUntil)
             {
                 ClearPendingEvent();
             }
@@ -46,8 +67,23 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
-        if (generationInProgress || DialogueManager.IsDialogueOpen ||
-            Time.time < nextCheckTime)
+        if (generationInProgress || DialogueManager.IsDialogueOpen)
+        {
+            return;
+        }
+
+        // Story beats react to what the player just did, so they are checked
+        // often and skip the random roll entirely.
+        if (Time.time >= nextStoryCheckTime)
+        {
+            nextStoryCheckTime = Time.time + 1f;
+            if (TryQueueStoryBeat())
+            {
+                return;
+            }
+        }
+
+        if (Time.time < nextCheckTime)
         {
             return;
         }
@@ -60,6 +96,11 @@ public class NpcEventController : MonoBehaviour
         }
 
         TryQueueRandomEvent();
+    }
+
+    public bool HasPendingEvent
+    {
+        get { return pendingEvent != null; }
     }
 
     public bool TryStartPendingEvent()
@@ -78,9 +119,7 @@ public class NpcEventController : MonoBehaviour
 
         if (!selectedEvent.repeatable && GameState.Instance != null)
         {
-            GameState.Instance.SetFlag(
-                "mini_event." + selectedEvent.eventId + ".completed"
-            );
+            GameState.Instance.SetFlag(selectedEvent.CompletedFlag);
         }
 
         DialogueManager.Instance.StartDialogue(
@@ -88,6 +127,27 @@ public class NpcEventController : MonoBehaviour
             selectedDialogue
         );
         return true;
+    }
+
+    private bool TryQueueStoryBeat()
+    {
+        if (GameState.Instance == null)
+        {
+            return false;
+        }
+
+        foreach (MiniEventData candidate in events)
+        {
+            if (candidate != null && candidate.storyBeat &&
+                !IsOnCooldown(candidate) &&
+                candidate.CanTrigger(GameState.Instance))
+            {
+                QueueEvent(candidate);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void TryQueueRandomEvent()
@@ -102,7 +162,8 @@ public class NpcEventController : MonoBehaviour
 
         foreach (MiniEventData candidate in events)
         {
-            if (candidate == null || IsOnCooldown(candidate) ||
+            if (candidate == null || candidate.storyBeat ||
+                IsOnCooldown(candidate) ||
                 !candidate.CanTrigger(GameState.Instance))
             {
                 continue;
@@ -171,6 +232,7 @@ public class NpcEventController : MonoBehaviour
         pendingDialogue = generated;
         pendingUntil = Time.time + candidate.expiresSeconds;
         indicatorText.gameObject.SetActive(true);
+        SfxPlayer.Play(SfxPlayer.Cue.EventPing);
     }
 
     private void ClearPendingEvent()

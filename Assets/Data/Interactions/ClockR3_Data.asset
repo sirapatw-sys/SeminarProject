@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: ClockR3_Data
+  m_EditorClassIdentifier: 
+  interactionId: "inspect_clock_r3"
+  displayName: "นาฬิกาตั้งพื้น (Stopped Clock)"
+  interactionMessage: "นาฬิกาตั้งพื้นหยุดเดินที่ตีสามพอดี เข็มวินาทีสั่นระริกอยู่กับที่ ราวกับพยายามเดินต่อแต่ไปไม่ได้\nลูกตุ้มแขวนนิ่ง ไม่มีเสียงติ๊กต็อกเลยสักนิด"
+  failureMessage: "ตอนนี้ฉันยังทำสิ่งนี้ไม่ได้..."
+  repeatable: 1
+  alreadyCompletedMessage: ""
+  conditions: []
+  actions:
+  - type: 0
+    targetId: "inspected_clock_r3"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  popupItemId: ""
+  popupItemName: ""
+  popupItemDescription: ""
+  transitionScene: ""
+  transitionMessage: ""
+  endsDemo: 0
+  scareOnSuccess: 0

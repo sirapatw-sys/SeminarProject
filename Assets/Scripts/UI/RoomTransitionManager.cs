@@ -29,7 +29,21 @@ public class RoomTransitionManager : MonoBehaviour
 
     private float currentAlpha = 0f;
     private bool isTransitioning = false;
+    private bool showingEnding;
     private string currentMessage = string.Empty;
+
+    /// <summary>
+    /// True while a fade or the ending card is on screen. Reads the field
+    /// directly so asking never spawns a manager as a side effect.
+    /// </summary>
+    public static bool IsBusy
+    {
+        get
+        {
+            return _instance != null &&
+                   (_instance.isTransitioning || _instance.showingEnding);
+        }
+    }
     private Texture2D blackTexture;
     private GUIStyle messageStyle;
     private GUIStyle hintStyle;
@@ -110,6 +124,9 @@ public class RoomTransitionManager : MonoBehaviour
         // Wait a small beat for scene to initialize
         yield return new WaitForSecondsRealtime(0.3f);
 
+        // Every room entry is a checkpoint for "continue" on the title menu.
+        SaveSystem.Save();
+
         // Clear message and fade in from black
         currentMessage = string.Empty;
         timer = 0f;
@@ -123,8 +140,63 @@ public class RoomTransitionManager : MonoBehaviour
         isTransitioning = false;
     }
 
+    /// <summary>
+    /// Fades out on the last door of the demo and holds the closing card
+    /// until the player quits.
+    /// </summary>
+    public void PlayEnding(string endingMessage)
+    {
+        if (isTransitioning || showingEnding)
+        {
+            return;
+        }
+
+        StartCoroutine(DoEnding(endingMessage));
+    }
+
+    private IEnumerator DoEnding(string endingMessage)
+    {
+        isTransitioning = true;
+        currentMessage = endingMessage;
+        if (DialogueManager.Instance != null)
+        {
+            DialogueManager.Instance.HideDialogue();
+        }
+
+        if (GameState.Instance != null)
+        {
+            GameState.Instance.AddHistory("Reached the end of the demo");
+        }
+        SaveSystem.Save();
+
+        float timer = 0f;
+        while (timer < 2.5f)
+        {
+            timer += Time.unscaledDeltaTime;
+            currentAlpha = Mathf.Clamp01(timer / 2.5f);
+            yield return null;
+        }
+
+        currentAlpha = 1f;
+        isTransitioning = false;
+        showingEnding = true;
+    }
+
+    private void Update()
+    {
+        if (showingEnding && Input.GetKeyDown(KeyCode.Escape))
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+    }
+
     private void OnGUI()
     {
+        UiScale.Apply();
         if (currentAlpha <= 0f && !isTransitioning)
         {
             return;
@@ -136,7 +208,7 @@ public class RoomTransitionManager : MonoBehaviour
         Color oldColor = GUI.color;
         GUI.color = new Color(0f, 0f, 0f, currentAlpha);
         GUI.DrawTexture(
-            new Rect(0f, 0f, Screen.width, Screen.height),
+            new Rect(0f, 0f, UiScale.Width, UiScale.Height),
             blackTexture,
             ScaleMode.StretchToFill
         );
@@ -149,11 +221,11 @@ public class RoomTransitionManager : MonoBehaviour
             Color textOldColor = GUI.contentColor;
             GUI.contentColor = new Color(1f, 0.85f, 0.4f, msgAlpha);
 
-            float panelWidth = Mathf.Min(700f, Screen.width - 60f);
+            float panelWidth = Mathf.Min(700f, UiScale.Width - 60f);
             float panelHeight = 160f;
             Rect msgRect = new Rect(
-                (Screen.width - panelWidth) * 0.5f,
-                (Screen.height - panelHeight) * 0.5f,
+                (UiScale.Width - panelWidth) * 0.5f,
+                (UiScale.Height - panelHeight) * 0.5f,
                 panelWidth,
                 panelHeight
             );
@@ -162,12 +234,17 @@ public class RoomTransitionManager : MonoBehaviour
 
             GUI.contentColor = new Color(0.8f, 0.85f, 0.95f, msgAlpha * 0.7f);
             Rect hintRect = new Rect(
-                (Screen.width - panelWidth) * 0.5f,
+                (UiScale.Width - panelWidth) * 0.5f,
                 msgRect.yMax + 10f,
                 panelWidth,
                 40f
             );
-            GUI.Label(hintRect, "— กำลังโหลดข้อมูลห้อง —", hintStyle);
+            GUI.Label(
+                hintRect,
+                showingEnding
+                    ? "— จบเดโม บทที่ 1 · ขอบคุณที่เล่น · กด Esc เพื่อออกจากเกม —"
+                    : "— กำลังโหลดข้อมูลห้อง —",
+                hintStyle);
 
             GUI.contentColor = textOldColor;
         }

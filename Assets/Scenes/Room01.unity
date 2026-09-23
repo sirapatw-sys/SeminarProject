@@ -896,7 +896,7 @@ MonoBehaviour:
   m_ScaleFactor: 1
   m_ReferenceResolution: {x: 1920, y: 1080}
   m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0
+  m_MatchWidthOrHeight: 0.5
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
@@ -3482,7 +3482,7 @@ MonoBehaviour:
   roomBackground: {fileID: 21300000, guid: ab161616161616161616161616161616, type: 3}
   room01Background: {fileID: 21300000, guid: ab161616161616161616161616161616, type: 3}
   room02Background: {fileID: 21300000, guid: 6b9f2d41a8c04c7e9d3b5f1e8a70c2d4, type: 3}
-  room03Background: {fileID: 21300000, guid: 7bb4e8ba66e34866a5207e6b96147ae6, type: 3}
+  room03Background: {fileID: 21300000, guid: 5f0b8df4c6b94457be3b3340900f1fb1, type: 3}
   hideSimpleRoomSprites: 1
   tint: {r: 1, g: 1, b: 1, a: 1}
 --- !u!114 &2060467335

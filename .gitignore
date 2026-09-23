@@ -33,3 +33,6 @@ api_keys.json
 *.secret
 kku_api_key.txt
 gemini_api_key.txt
+
+# Scratch previews from art experiments (not part of the game)
+scratch/

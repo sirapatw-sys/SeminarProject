@@ -52,6 +52,33 @@ namespace MysteryGame.Core
 
         public List<string> PlayerHistory =
             new List<string>();
+
+        // =====================================================
+        // Conversations
+        // =====================================================
+
+        public List<RelationshipSnapshot> ConversationCounts =
+            new List<RelationshipSnapshot>();
+
+        public List<ConversationLogSnapshot> ConversationLogs =
+            new List<ConversationLogSnapshot>();
+    }
+
+    /// <summary>One line of a conversation. SpeakerId is "player" or an NPC id.</summary>
+    [Serializable]
+    public class ConversationTurn
+    {
+        public const string Player = "player";
+
+        public string SpeakerId;
+        public string Text;
+    }
+
+    [Serializable]
+    public class ConversationLogSnapshot
+    {
+        public string NpcId;
+        public List<ConversationTurn> Turns = new List<ConversationTurn>();
     }
 
     [Serializable]

@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0423ebc4d5e6f7a8b9c0d, type: 3}
+  m_Name: Sena_RiddleTaunt_Event
+  m_EditorClassIdentifier: 
+  eventId: "sena_riddle_taunt"
+  npcId: "Sena"
+  triggerType: 2
+  metricId: ""
+  relatedNpcId: ""
+  threshold: 70
+  minimumRoomTimeSeconds: 60
+  weight: 1
+  cooldownSeconds: 150
+  expiresSeconds: 40
+  repeatable: 1
+  useAiDialogue: 1
+  storyBeat: 0
+  situationPrompt: "เซนะเอ่ยปริศนาไปแล้วแต่ผู้เล่นยังตอบไม่ได้ นางจึงเยาะเย้ยและทวนปริศนาครึ่งแรก โดยไม่บอกคำตอบ"
+  tonePrompt: "สำนวนโบราณ หยิ่งยโส ห้ามบอกคำตอบหรือใบ้เพิ่มจากตัวปริศนา"
+  dialogue: {fileID: 11400000, guid: 83a094955cd24587ac200eaef4ec7287, type: 2}
+  conditions:
+  - type: 0
+    targetId: "sena_offering_given"
+    secondaryId: ""
+    amount: 0
+  - type: 1
+    targetId: "sena_passed"
+    secondaryId: ""
+    amount: 0

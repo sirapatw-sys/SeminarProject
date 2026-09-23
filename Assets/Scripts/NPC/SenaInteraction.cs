@@ -67,6 +67,7 @@ public class SenaInteraction : MonoBehaviour
 
     private bool playerInRange;
     private bool isFading;
+    private NpcEventController eventController;
     private bool hasBeenPassed;
     private SpriteRenderer[] spriteRenderers;
     private Color[] spriteBaseColors;
@@ -82,6 +83,7 @@ public class SenaInteraction : MonoBehaviour
             spriteBaseColors[index] = spriteRenderers[index].color;
         }
         senaCollider = GetComponent<Collider2D>();
+        eventController = GetComponent<NpcEventController>();
     }
 
     private void OnDestroy()
@@ -104,8 +106,7 @@ public class SenaInteraction : MonoBehaviour
 
     private void Update()
     {
-        if (isFading || IntroSequence.IsPlaying || DialogueManager.IsDialogueOpen ||
-            AiSettingsPanel.IsOpen || KeypadLockUI.IsOpen)
+        if (isFading || InputGate.IsBlocked)
         {
             return;
         }
@@ -136,6 +137,14 @@ public class SenaInteraction : MonoBehaviour
 
         bool offeringGiven = state != null && state.HasFlag(OfferingGivenFlag);
         bool carryingOffering = state != null && state.HasItem(OfferingItemId);
+
+        // A pending taunt plays first, unless the player has come to hand
+        // over the offering: that must never be blocked by small talk.
+        if (!carryingOffering && eventController != null &&
+            eventController.TryStartPendingEvent())
+        {
+            return;
+        }
 
         // Stage 2 begins the moment the player turns up holding the tome.
         if (!offeringGiven && carryingOffering)

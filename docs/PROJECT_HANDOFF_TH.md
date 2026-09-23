@@ -1,10 +1,10 @@
 # AI Mystery Game — สถานะงานและแผนส่งต่อ
 
-เอกสารนี้ใช้เป็นจุดเริ่มต้นสำหรับสมาชิกที่ clone/pull โปรเจกต์ไปทำต่อ
+เอกสารนี้ใช้เป็นจุดเริ่มต้นสำหรับสมาชิกที่ clone/pull โปรเจกต์ไปทำต่อ รายการงานที่ยังค้างอยู่แยกไว้ที่ [REMAINING_WORK_TH.md](REMAINING_WORK_TH.md)
 
 ## เป้าหมายของต้นแบบ
 
-เกม escape room แบบ 2D top-down ที่ผู้เล่นสำรวจห้อง แก้ลำดับปริศนา และคุยกับ NPC ได้ทั้งผ่านตัวเลือกและการพิมพ์ข้อความ NPC มีความสัมพันธ์ ความทรงจำ ความต้องการ อารมณ์ และสามารถส่งสัญญาณชวนคุยเพื่อเริ่ม mini event ได้
+เกม escape room แบบ 2D top-down ที่ผู้เล่นสำรวจห้อง แก้ลำดับปริศนา และคุยกับ NPC ได้ทั้งผ่านตัวเลือกและการพิมพ์ข้อความ NPC มีความสัมพันธ์กับผู้เล่นและกับ NPC ด้วยกันเอง มีความทรงจำ ความลับ อารมณ์ และส่งสัญญาณชวนคุยเพื่อเริ่ม mini event ได้
 
 หลักสำคัญของระบบ AI:
 
@@ -12,217 +12,158 @@
 - AI ใช้สำหรับเรียบเรียงบทพูด บุคลิก อารมณ์ และความหลากหลายของประโยค
 - AI ห้ามเป็นผู้คิดกฎปริศนา ไอเท็ม หรือวิธีผ่านขึ้นมาเอง
 - หาก AI ใช้งานไม่ได้ เกมต้องเล่นต่อได้ด้วยบทสนทนาสำรอง
+- **ตัวละครและห้องเป็นข้อมูลทั้งหมด** เพิ่ม NPC หรือห้องใหม่ได้โดยไม่ต้องแก้โค้ด
 
-## สิ่งที่ทำแล้ว
+## การเล่นและฉาก
 
-### การเล่นและฉาก
-
-- มีสามฉาก: `Assets/Scenes/Room01.unity` (ห้องทำงาน), `Room02.unity` (หอสมุดแห่งดวงดาว) และ `Room03.unity` (ยังเป็นโครงเปล่า)
-- เริ่มเล่นที่ `Room01.unity` และเปลี่ยนฉากด้วย `RoomTransitionManager`
-- `IntroSequence` สร้างตัวเองอัตโนมัติเมื่อ Room01 โหลด แสดงบทนำบนจอดำแล้วค่อยเฟดเข้าห้อง (กด Space/Esc ข้ามได้) แก้ข้อความได้ที่ `Assets/Scripts/UI/IntroSequence.cs`
-- เดินด้วย WASD/ปุ่มลูกศร และกด E เพื่อสำรวจหรือคุย
-- ฉากเป็นห้อง 2D top-down
-- ตัวละครในห้องเป็น chibi ที่มีการขยับเดินแบบ procedural
-- ภาพตัวละครเต็มแสดงเฉพาะระหว่างบทสนทนาและเด้งตามช่วงที่พูด
+- สามฉาก: `Room01` (ห้องทำงานธรรมดา), `Room02` (หอสมุดเก่า) และ `Room03` (ห้องรับแขกร้างที่มีผี) — บรรยากาศไล่จากธรรมดา → ลึกลับ → สยองขวัญ
+- เปิดเกมที่ `Room01.unity` จะเจอ **เมนูเริ่มเกม** (`TitleMenu`) ก่อน: เริ่มเกมใหม่ / เล่นต่อ / ตั้งค่า AI / ออกจากเกม
+  - "เริ่มเกมใหม่" เล่น `IntroSequence` แล้วเข้าห้อง
+  - เปิด Room02/03 ตรงๆ จาก editor จะไม่เห็นเมนู เล่นห้องนั้นได้ทันทีเหมือนเดิม
+- เดินด้วย WASD/ลูกศร กด E เพื่อสำรวจหรือคุย F10 เปิดตั้งค่า AI
+- **บันทึกเกม:** บันทึกอัตโนมัติทุกครั้งที่เข้าห้องใหม่ กด F5 บันทึกเอง F9 โหลด (`SaveSystem` เก็บ snapshot ทั้งหมดของ `GameState` ไว้ที่ `Application.persistentDataPath/save.json`)
+- **เสียง:** `SfxPlayer` สังเคราะห์เสียงเองตอนเริ่มเกม (กด E, สำเร็จ, ล็อก, ได้ไอเท็ม, บทพูด, มี event, เสียงตกใจ) และเสียง ambience หลอนใน Room03 — ถ้าจะใช้ไฟล์จริง วางที่ `Assets/Resources/Audio/<ชื่อ Cue>` เช่น `Audio/Item.wav` หรือ `Audio/Room03Ambience.wav` ระบบจะใช้ไฟล์นั้นแทน
+- **UI หลายความละเอียด:** Canvas ใช้ `ScaleWithScreenSize` 1920x1080 match 0.5 ส่วนหน้าต่าง IMGUI ทั้งหมด (ตั้งค่า AI, ไอเท็ม, keypad, intro, transition, title) ย่อ/ขยายผ่าน `UiScale`
 
 ### ลำดับผ่านด่าน Room01
 
-1. ตรวจภาพวาด → ได้ flag `inspected_painting`
-2. ตรวจโต๊ะ → ต้องมี `inspected_painting` แล้วจึงได้ flag `found_note`
-3. เปิดลิ้นชัก → ต้องมี `found_note` แล้วจึงได้ item `key`
-4. เปิดประตู → ต้องมี `key` แล้วจึงตั้ง flag `door_unlocked` และเปลี่ยนเป้าหมายเป็น `escape_room_complete`
+1. ตรวจภาพวาด → `inspected_painting`
+2. ตรวจโต๊ะ → ต้องมี `inspected_painting` → `found_note`
+3. เปิดลิ้นชัก (รหัส 4592) → ต้องมี `found_note` → item `key`
+4. เปิดประตู → ต้องมี `key` → `door_unlocked` แล้วเปลี่ยนฉากไป Room02
 
-ข้อมูลลำดับนี้อยู่ใน `Assets/Data/Interactions/`
+### ลำดับผ่านด่าน Room02 (หอสมุดเก่า)
 
-### ลำดับผ่านด่าน Room02 (หอสมุดร้าง)
+1. คุยกับเซนะ → `sena_wants_tome`
+2. อ่านสมุดทะเบียนบนโต๊ะอ่านหนังสือ → `read_ledger`
+3. หยิบจารึกจากตู้ชั้นล่างสุด → item `tome`
+4. คุยกับเซนะขณะถือ `tome` → `sena_offering_given` นางเอ่ยปริศนา
+5. พิมพ์ตอบ `พรุ่งนี้` / `Tomorrow` → `sena_passed`
+6. สำรวจประตูดวงดาว → ไป Room03
 
-ห้องนี้ใช้ปริศนาแบบหลายขั้น โดยแต่ละขั้นจะ "ทำไม่ได้" จนกว่าขั้นก่อนหน้าจะสำเร็จ
+เซนะมี mini event ของตัวเองสองอัน: เยาะเย้ยเมื่อผู้เล่นหาของถวายนานเกินไป และทวนปริศนาเมื่อผู้เล่นยังตอบไม่ได้ (ไม่มีอันไหนใบ้)
 
-1. คุยกับเซนะ (นางฟ้าเฝ้าประตู) → ตั้ง flag `sena_wants_tome` นางเรียก "จารึกที่ยังเขียนมิจบ" เป็นของถวาย และจะยังไม่เอ่ยปริศนา
-2. อ่านสมุดทะเบียนบนโต๊ะอ่านหนังสือ → ต้องมี `sena_wants_tome` แล้วจึงได้ flag `read_ledger` (รู้ว่าหนังสืออยู่ชั้นล่างสุดของตู้ฝั่งซ้าย)
-3. หยิบหนังสือจากตู้หนังสือชั้นล่างสุด → ต้องมี `read_ledger` แล้วจึงได้ item `tome` (interaction นี้ `repeatable: 0`)
-4. คุยกับเซนะขณะถือ `tome` → `SenaInteraction` หักไอเท็มออก ตั้ง flag `sena_offering_given` แล้วเปลี่ยนไปใช้ `Sena_Riddle.asset` ซึ่งเอ่ยปริศนา
-5. พิมพ์คำตอบ `Tomorrow` / `พรุ่งนี้` ในช่องแชท → ตั้ง flag `sena_passed` เซนะค่อยๆ จางหาย
-6. สำรวจประตูดวงดาว → ต้องมี `sena_passed` แล้วจึงเปลี่ยนฉากไป Room03
+### ลำดับผ่านด่าน Room03 (ห้องรับแขกร้าง)
 
-คำตอบปริศนาจะถูกรับก็ต่อเมื่อ `sena_offering_given` เป็นจริงแล้วเท่านั้น (`SenaInteraction.IsListeningForAnswer`) ดังนั้นการเดาคำตอบก่อนมอบของถวายจะไม่ผ่านด่าน
+ตั้งใจให้ง่ายกว่า Room02: **ไม่มีการพิมพ์ตอบปริศนา** ทุกขั้นมีคำใบ้อยู่ในข้อความของวัตถุเองที่ชี้ไปขั้นถัดไป
 
-เบาะแสของปริศนา (ไม่บังคับ แต่ควบคุมว่า Alice จะใบ้ลึกแค่ไหน) อยู่ที่นาฬิกาโบราณ บทกวีบนตู้หนังสือชั้นกลาง และศิลาจารึกที่แท่นไฟ — นับจำนวนด้วย `DialogueManager.CountRoom02CluesFound()`
+1. ดูกระจกบานใหญ่ (ที่รอยเท้าเปียกเริ่มต้น) → `saw_mirror_message` ข้อความ "เพลงของหนูหายไป..."
+2. ดูกล่องดนตรีบนโต๊ะเครื่องแป้ง (ที่รอยเท้าไปหยุด) → `music_box_needs_key` รูไขลานมีเขม่าเหมือนในเตาผิง
+3. คุ้ยเตาผิง → item `winding_key`
+4. กลับไปไขกล่องดนตรี (object เดิม ใช้ `followUpInteraction`) → `ghost_lullaby_played`, `room03_door_unlocked` ผีสงบ
+5. เปิดประตูทางออก → จบเดโมบทที่ 1
 
-เซนะใช้ DialogueData สองไฟล์ตามสถานะ (`Sena_Demand.asset` / `Sena_Riddle.asset`) และพูดด้วยสำนวนโบราณตามบุคลิกที่กำหนดไว้ใน `AiDialogueGenerator.BuildReplyPrompt`
+วัตถุประกอบบรรยากาศ (ไม่บังคับ): ภาพวาดเด็กหญิง "ลิลี่", นาฬิกาที่หยุดตีสาม, เก้าอี้โยกที่โยกเอง, โซฟาคลุมผ้า
 
 ### ฉากและการชนกับเฟอร์นิเจอร์
 
-- ภาพห้องที่เห็นจริงมาจาก background ภาพเดียวที่ `RoomVisualController` สร้างขึ้น ส่วน SpriteRenderer ของ prop ทุกชิ้นที่อยู่ใต้ root `Environment` / `Interactables` จะถูกปิดตอนรันไทม์
-- **background ของแต่ละห้องอยู่ในไฟล์ `RoomKnowledgeData` ของห้องนั้น** (`Assets/Resources/Knowledge/Rooms/<roomId>.asset` ช่อง `background`) แก้ที่เดียวพอ
-  - `RoomVisualController` เป็น `DontDestroyOnLoad` ตัวที่รอดคือตัวจาก scene แรกที่โหลด ดังนั้นช่อง `room01Background` / `room02Background` / `room03Background` ที่อยู่บน component ในแต่ละ scene เป็นแค่ fallback สำหรับห้องที่ยังไม่มีไฟล์ knowledge เท่านั้น และต้องตั้งให้เหมือนกันทุก scene ไม่งั้นห้องจะแสดงภาพผิดตามลำดับการโหลด
-- ตำแหน่งของ GameObject ในฉากจึงมีหน้าที่เดียวคือวาง collider ให้ตรงกับเฟอร์นิเจอร์ที่วาดไว้ในภาพพื้นหลัง
-- เฟอร์นิเจอร์ที่เดินทะลุไม่ได้ใช้ GameObject ชื่อ `Obstacle_*` ใต้ `Environment` ซึ่งมี BoxCollider2D แบบไม่ใช่ trigger และไม่มี SpriteRenderer
-- กำแพง (`Wall_Top` / `Wall_Bottom` / `Wall_Left` / `Wall_Right`) ถูกตัดให้ตรงกับขอบพื้นในภาพ ดังนั้นเมื่อย้ายเฟอร์นิเจอร์หรือเปลี่ยนภาพพื้นหลัง ต้องปรับ collider ตามด้วย
-- อาการ "เดินชนกำแพงล่องหน" เกิดได้สองแบบ: (1) ภาพพื้นหลังไม่ตรงกับที่ collider ถูกคำนวณไว้ และ (2) มีพื้นที่พื้นที่เดินไปไม่ถึงเพราะถูกล้อมด้วย collider จนหมด — ตรวจได้ด้วยการ flood-fill จากจุดเกิดของผู้เล่นแล้วหา free cell ที่ไม่ถูก visit
-- การแปลงพิกัด: ภาพ 16:9 ที่ PPU 100 กับกล้อง orthographic size 5 จะครอบคลุม x ∈ [-8.89, 8.89] และ y ∈ [-5, 5] ดังนั้น `world_x = (px - width/2) * 17.778/width` และ `world_y = (height/2 - py) * 10/height`
+- ภาพห้องมาจาก background ภาพเดียวที่ `RoomVisualController` สร้างขึ้น SpriteRenderer ของ prop ใต้ root `Environment` / `Interactables` ถูกปิดตอนรันไทม์
+- **background ของแต่ละห้องอยู่ใน `RoomKnowledgeData` ของห้องนั้น** (`Assets/Resources/Knowledge/Rooms/<roomId>.asset` ช่อง `background`) ช่อง `room0XBackground` บน component ในแต่ละ scene เป็นแค่ fallback และต้องเหมือนกันทุก scene
+- เฟอร์นิเจอร์ที่เดินทะลุไม่ได้คือ `Obstacle_*` ใต้ `Environment` (BoxCollider2D ไม่ใช่ trigger)
+- การแปลงพิกัดภาพ 1920x1080 เป็น world: `world_x = (px - 960) / 108`, `world_y = (540 - py) / 108`
+- ภาพ Room03 (`Assets/Art/Backgrounds/Room03_HauntedParlor.png`) วาดด้วยโค้ดให้โทนเดียวกับ Room01 ตำแหน่งวัตถุทั้งหมดตรงกับ collider ในฉากแล้ว ถ้าจะเปลี่ยนเป็นภาพวาดจริง ให้คงตำแหน่งวัตถุเดิม (ดูหัวข้อ Room03 ใน REMAINING_WORK)
 
-### บทสนทนาและสถานะ NPC
+## ระบบ NPC
 
-- มี NPC สองตัว: Alice (เพื่อนร่วมทาง ตามผู้เล่นไปทุกห้อง) และเซนะ (ผู้เฝ้าประตูใน Room02)
-- มีค่าความสัมพันธ์ระหว่างผู้เล่นกับ NPC
-- มีความทรงจำของ NPC และประวัติการกระทำของผู้เล่น
-- บทเปิดเปลี่ยนเมื่อกลับมาคุยตามความสัมพันธ์และการเปลี่ยนแปลงของห้อง
-- ผู้เล่นพิมพ์คุยเองได้ และ AI ส่งกลับ `reply` พร้อม `relationshipDelta`
-- มี local fallback เมื่อ AI ใช้งานไม่ได้
+### ข้อมูลตัวละคร (`NpcProfileData`)
+
+อยู่ที่ `Assets/Resources/Knowledge/Npcs/<npcId>.asset` ชื่อไฟล์ต้องตรงกับ `DialogueData.speakerId`
+
+| ช่อง | ใช้ทำอะไร |
+|---|---|
+| `persona` / `speechStyle` / `personalGoal` | บุคลิกที่ส่งเข้า prompt แทนข้อความที่เคยฮาร์ดโค้ดในโค้ด |
+| `portrait`, `initialRelationship` | ภาพใน dialogue และค่าความสัมพันธ์เริ่มต้นกับผู้เล่น |
+| `emotions[]` | หน้าในกล่องอารมณ์ (emotion box) พร้อมความหมายให้ AI เลือก |
+| `backstory[]` | เรื่องของตัวเองที่เล่าได้เสมอเมื่อถูกถาม |
+| `secrets[]` | ความลับที่เปิดเมื่อเงื่อนไขเป็นจริง (ใช้ `KnowledgeGrant` เดิม) เช่น ความสัมพันธ์ ≥ 65 |
+| `situationalNotes[]` | คำสั่งเพิ่มเติมที่ใช้เฉพาะบางสถานการณ์ เช่น สถานะของเซนะแต่ละขั้น หรือผลของการทะเลาะ |
+| `bonds[]` | ความสัมพันธ์กับ NPC ตัวอื่น ค่าเริ่มต้น + มุมมองต่อกัน |
+| `knownFactIds` / `learnedFacts` / `forbiddenFactIds` | สิทธิ์รู้ข้อมูลของห้อง |
+| `givesHints`, `refuseHintLine`, `tones[]` | ระดับคำใบ้ตามความสัมพันธ์ |
+| `fallbackReplies[]`, `neutralReplies[]` | **บทตอบสำรองตอนไม่มี AI** ไล่จากบนลงล่าง ตรงกฎแรกชนะ จับจากเจตนา (`PlayerIntent`), คำสำคัญ และเงื่อนไข |
+| `returnGreetings[]` | ประโยคเปิดเมื่อกลับมาคุยอีกครั้ง |
+
+`DialogueManager` ไม่มีบทพูดของตัวละครใดๆ ในโค้ดแล้ว การเพิ่ม NPC ใหม่ = สร้างไฟล์ profile + DialogueData + วางใน scene
+
+### ประวัติสนทนาและความทรงจำ
+
+- `GameState` เก็บ log บทสนทนาแยกต่อ NPC (สูงสุด 40 บรรทัด) ทั้งข้อความที่พิมพ์ ตัวเลือกที่เลือก และคำตอบของ NPC
+- prompt ส่งท้ายสุด 10 บรรทัด ภายใน 1,400 ตัวอักษร (บรรทัดยาวถูกตัดเหลือ 240 ตัว) และ memory ที่มาจาก event/ตัวเลือกอีกสูงสุด 4 รายการ
+- ความลับที่ NPC เล่าแล้ว (AI อ้าง factId ของความลับ) จะตั้ง flag `secret.<npc>.<id>.told` และบันทึกเป็น memory
+
+### กล่องอารมณ์และบทพูดหลายคน
+
+- บรรทัดใน `DialogueData.lines` / `responseText` / `returnGreetings` ขึ้นต้นด้วยแท็กได้:
+  - `[Stelle]` เปลี่ยนชื่อและภาพผู้พูดเป็น Stelle สำหรับบรรทัดนั้น
+  - `[:shock]` เด้งกล่องอารมณ์หน้า shock ของผู้พูด
+  - `[Stelle:cry]` ทั้งสองอย่าง
+- AI ส่งช่อง `emotion` กลับมาได้ ถ้าตรงกับ `emotions[]` ของ NPC กล่องอารมณ์จะเด้งขึ้น
+- สเตลใช้ระบบนี้: ตอนเป็นคนแปลกหน้าหน้านิ่ง (เฉพาะ Portrait) พอมีบริบทจึงเด้งหน้า shock / flustered / cry / blank
 
 ### Mini event
 
-- NPC ส่งสัญญาณว่าอยากคุย โดยไม่ขัดจังหวะการเดินหรือแก้ปริศนา
-- มีระบบ trigger, weight, cooldown และเวลาหมดอายุของคำชวน
-- Alice มีตัวอย่าง event หิวน้ำและคิดถึงบ้าน
-- ระบบรองรับชนิด trigger สำหรับ need, emotion, NPC conflict, เวลาในห้อง และเหตุการณ์สุ่ม
-- เซนะยังไม่มี mini event ของตัวเอง และยังไม่มีข้อมูล event ทะเลาะกันระหว่าง NPC
+- trigger: need, emotion, เวลาในห้อง, สุ่ม, ความขัดแย้งระหว่าง NPC และ **`RoomProgress`** (ยิงเมื่อขั้นปัจจุบันของห้องเป็นขั้นที่กำหนด)
+- `storyBeat` = ยิงทันทีที่เงื่อนไขครบโดยไม่สุ่ม และถ้าผู้เล่นเลยจุดนั้นไปแล้วเครื่องหมาย "!" จะหายเอง
+- ตัวเลือกได้สูงสุด 4 ข้อ
+- event ที่มีอยู่:
 
-### AI provider
+| Event | NPC | เกิดเมื่อ | ผลระยะยาว |
+|---|---|---|---|
+| Alice_Thirst / Alice_Homesick | Alice | need/emotion สูง | ความสัมพันธ์ + memory |
+| Sena_Impatient / Sena_RiddleTaunt | Sena | อยู่ใน Room02 นานโดยยังไม่คืบหน้า | ความสัมพันธ์ + memory |
+| Stelle_Scare | Stelle | เพิ่งอ่านข้อความบนกระจก | ปลอบ = สเตลไว้ใจเร็วขึ้น |
+| Room03_Quarrel | Rina + Stelle | ดูกล่องดนตรีแล้ว และ Rina–Stelle ≤ 45 | 4 ทาง: รับฟัง / ไกล่เกลี่ย / เข้าข้างรินะ / เข้าข้างสเตล — เปลี่ยน flag, ความสัมพันธ์ทั้งกับผู้เล่นและระหว่างกัน, situational notes และ event ถัดไป |
+| Stelle_Relief / Stelle_Hurt | Stelle | ผีสงบแล้ว แยกตามว่าเคยเข้าข้างรินะหรือไม่ | ขอโทษได้ `stelle_forgave` |
 
-- รองรับ OpenAI Responses API
-- รองรับ KKU IntelSphere แบบ OpenAI-compatible
-- KKU endpoint ที่ถูกต้องคือ `https://gen.ai.kku.ac.th/api/v1/chat/completions`
-- รายการโมเดลของ KKU อยู่ที่ `https://gen.ai.kku.ac.th/api/v1/models`
-- รองรับ custom OpenAI-compatible endpoint
-- API key เก็บในหน่วยความจำเฉพาะรอบการเล่น ไม่บันทึกลง Scene, PlayerPrefs หรือ Git
-- หน้าตั้งค่ามีปุ่มทดสอบการเชื่อมต่อและแสดงข้อความ error จาก provider
+### ตัวละคร Room03
 
-### NPC World Knowledge (P0 — ทำแล้ว)
+- **รินะ (Rina)** — kuudere สายเท่: ใจเย็น นิ่ง พูดตรง มุกประชดแห้งๆ พูดพอดีไม่น้อยไม่มาก ติดอยู่ที่นี่มาสามวัน ห่วงสเตลแบบพี่สาวแต่พูดแรงบ่อย ความลับ: จริงๆ กลัวผี (≥65) และเริ่มลืมนามสกุลตัวเอง (≥75) ให้คำใบ้ได้
+- **สเตล (Stelle)** — ขี้อาย ขี้กลัว ตกใจแล้วโวยวายนิดๆ กับคนแปลกหน้าจะหน้านิ่ง ตอบสั้น ไม่ช่วยคิด (ความสัมพันธ์เริ่ม 35, ≤45 = คนแปลกหน้า) ความลับ: รู้จักเพลงกล่อมเด็ก (≥55) และเคยเห็นเด็กผู้หญิงในกระจก (≥65)
+- **Alice** ตามผู้เล่นเข้ามา รู้ว่าห้องนี้ต่างจากสองห้องแรกและกลัวแต่ปากแข็ง
 
-canon ของห้องย้ายออกจากโค้ดมาเป็น ScriptableObject แล้ว ไม่ต้องแก้ `BuildReplyPrompt` เวลาเพิ่มห้องใหม่อีก
+### NPC World Knowledge
 
-- `RoomKnowledgeData` (`Assets/Scripts/Knowledge/RoomKnowledgeData.cs`)
-  - `facts[]`: `factId`, ข้อความ canon, `revealedWhen` (ใช้ `ConditionRule` ชุดเดียวกับระบบ interaction), `isPuzzleAnswer`
-  - `steps[]`: ลำดับผ่านด่าน แต่ละขั้นมี `availableWhen` / `completedWhen` และคำใบ้สามระดับ (`vagueHint` / `normalHint` / `explicitHint`)
-- `NpcProfileData` (`Assets/Scripts/Knowledge/NpcProfileData.cs`)
-  - บุคลิก สำนวนการพูด เป้าหมายส่วนตัว
-  - `knownFactIds` (รู้ตั้งแต่ต้น), `learnedFacts` (รู้เมื่อเงื่อนไขเป็นจริง), `forbiddenFactIds` (รู้แต่ห้ามพูด)
-  - `givesHints` + `refuseHintLine` สำหรับตัวละครอย่างเซนะที่ไม่ใบ้เด็ดขาด
-  - `tones[]` แบ่งตามช่วงความสัมพันธ์ พร้อม `maxHintLevel` ของแต่ละช่วง
-- `NpcKnowledgeContextBuilder` อ่าน `GameState` แล้วคัดออกมาเป็น `NpcKnowledgeContext` ซึ่งมีเฉพาะ fact ที่ตัวละครนั้น "รู้ + ถูกเปิดเผยแล้ว + ไม่ถูกห้าม", ขั้นตอนถัดไปที่ทำได้จริง, และ **คำใบ้ที่เลือกมาแบบ deterministic**
-- `AiDialogueGenerator.BuildReplyPrompt` ใส่ section นี้ลง prompt และสั่งให้ AI **เรียบเรียงคำใบ้ที่ให้มาเท่านั้น** ห้ามคิดเอง
-- AI ต้องส่ง `referencedFactIds` กลับมาด้วย ถ้าอ้าง factId ที่ตัวละครไม่มีสิทธิ์รู้ ระบบจะทิ้งคำตอบนั้นแล้วใช้ fallback แทน (`NpcKnowledgeContext.ValidateReferences`)
-- `DialogueManager.BuildFallbackReply` อ่านคำใบ้จากแหล่งเดียวกัน ดังนั้นตอนไม่มี API key ผู้เล่นก็ได้คำใบ้ขั้นเดียวกันเป๊ะ
+- `RoomKnowledgeData` (`facts[]`, `steps[]` พร้อมคำใบ้สามระดับ และ `interactionId` ที่ผูกกับ `InteractionData`)
+- `NpcKnowledgeContextBuilder` คัดเฉพาะสิ่งที่ NPC รู้และพูดได้ + ขั้นถัดไป + คำใบ้แบบ deterministic + ส่วนตัวละคร + ประวัติสนทนา
+- `AiDialogueGenerator.BuildReplyPrompt` สร้าง prompt จากข้อมูลทั้งหมด ไม่มีข้อความเฉพาะห้องหรือเฉพาะตัวละครในโค้ดแล้ว
+- คำตอบที่อ้าง factId นอกสิทธิ์ (รวมความลับที่ยังล็อก) ถูกทิ้งและใช้บทสำรองแทน
+- ทุกห้องมีไฟล์ knowledge ครบแล้ว (Room01–03)
 
-ไฟล์ข้อมูลอยู่ที่ `Assets/Resources/Knowledge/Rooms/<roomId>.asset` และ `Assets/Resources/Knowledge/Npcs/<npcId>.asset` โหลดผ่าน `KnowledgeLibrary` (ชื่อไฟล์ต้องตรงกับชื่อ scene และ `DialogueData.speakerId`)
+## AI provider
 
-ห้องที่ยังไม่มีไฟล์ knowledge จะตกไปใช้ prompt แบบเดิมโดยอัตโนมัติ (ตอนนี้คือ Room03)
+- รองรับ OpenAI Responses, KKU IntelSphere (`https://gen.ai.kku.ac.th/api/v1/chat/completions`), Gemini และ custom OpenAI-compatible
+- โหลดรายชื่อโมเดลจาก `/models`, จำ provider/endpoint/model ผ่าน PlayerPrefs, API key อยู่ในหน่วยความจำเท่านั้น
+- `AiResponseParser` แยกออกมาและ **ไม่ throw** เมื่อเจอ JSON ผิดรูป + `DialogueManager` มี timeout 30 วินาที บทสนทนาจึงไม่ค้างที่ "กำลังคิด..." อีก
+- หน้าตั้งค่าแสดงโควตาคงเหลือ ถ้า response มี header `x-ratelimit-remaining-*` หรือช่อง quota ใน body (ถ้าผู้ให้บริการไม่ส่งมาจะบอกตามจริงว่าไม่มีข้อมูล)
 
-### การทดสอบ (P0 — ทำแล้ว)
+## การทดสอบ
 
-- `Assets/Tests/Editor/NpcKnowledgeTests.cs` (EditMode, 14 เคส) เปิดผ่าน `Window > General > Test Runner`
-- ครอบคลุมตามที่เอกสารกำหนด: ก่อน/หลังตรวจภาพวาด, ก่อน/หลังพบโน้ต, รหัสลิ้นชักไม่รั่วก่อนเวลา, ลำดับขั้นของทั้งสองห้องเดินถูกทาง, เซนะไม่ใบ้แม้ความสัมพันธ์เต็ม, เซนะห้ามบอกเลขชั้นหนังสือ, คำตอบที่อ้าง fact นอก canon ถูกปฏิเสธ, และห้องที่ยังไม่มีข้อมูลต้องไม่พัง
-- โปรเจกต์ถูกแบ่งเป็นสอง assembly: `MysteryGame.Runtime` (`Assets/Scripts/`) และ `MysteryGame.Tests.EditMode` (`Assets/Tests/Editor/`) เพราะ test assembly อ้างถึง Assembly-CSharp โดยตรงไม่ได้
+EditMode tests ที่ `Assets/Tests/Editor/` เปิดผ่าน `Window > General > Test Runner`
 
-### AI provider (P1 — ทำแล้ว)
+| ไฟล์ | ครอบคลุม |
+|---|---|
+| `NpcKnowledgeTests` | ลำดับขั้นของทั้งสามห้อง การกันข้อมูลรั่ว เซนะไม่ใบ้ สเตลไม่ใบ้ตอนเป็นคนแปลกหน้า |
+| `AiResponseParserTests` | API ล้มเหลว / JSON ผิดรูป / body เป็น HTML / ค่าเกินช่วง ต้องได้ null โดยไม่ throw, อ่านโควตา |
+| `InteractionConsistencyTests` | เงื่อนไขใน `Assets/Data/Interactions/` ตรงกับ `steps[]` ทั้งสองทิศ, การทำ interaction ทำให้ขั้นเสร็จจริง, ทุกห้องมีประตูเข้า, event มี dialogue ถูกรูป |
+| `NpcConversationTests` | ประวัติสนทนาและงบตัวอักษร, prompt มาจาก profile, บทสำรองจากข้อมูล, ความลับ, ความสัมพันธ์ระหว่าง NPC, event ทะเลาะและผลต่อเนื่อง, save/load |
 
-- ปุ่ม "โหลดรายชื่อโมเดลที่บัญชีนี้ใช้ได้" เรียก `GET /models` ของ provider แล้วแสดงเป็นรายการให้เลือก (KKU, Gemini, custom OpenAI-compatible)
-- `AiProviderDiagnostics` แยกสาเหตุความผิดพลาดเป็น key ผิด / model ผิด / เรียกถี่เกินไป / โควตาหมด / เน็ตมีปัญหา / เซิร์ฟเวอร์ล่ม แล้วแสดงข้อความที่บอกว่าควรทำอะไรต่อ
-- ข้อความ error ทุกอันถูกกรองด้วย `AiProviderDiagnostics.Redact` ก่อนแสดงหรือ log เพื่อไม่ให้ API key หลุด
+tests ใช้ `GameStateFixture` ซึ่งตั้ง `GameState.UseForTests(...)` เอง เพราะ Unity ไม่เรียก `Awake` ใน Edit Mode
 
-## ปัญหาหลักในสถานะปัจจุบัน
+โปรเจกต์แบ่งเป็นสอง assembly: `MysteryGame.Runtime` (`Assets/Scripts/`) และ `MysteryGame.Tests.EditMode` (`Assets/Tests/Editor/`)
 
-canon ของ Room01 และ Room02 ย้ายไปเป็น ScriptableObject แล้ว และคำตอบของ AI ถูกตรวจก่อนถึงผู้เล่น สิ่งที่ยังขาดอยู่คือ:
+## ไฟล์หลักที่ควรอ่านก่อน
 
-- **ประวัติสนทนาหลายข้อความ** — ตอนนี้ส่งความทรงจำล่าสุดให้ AI แค่หนึ่งรายการ ทำให้ NPC จำบทสนทนาก่อนหน้าไม่ได้จริง
-- **ประวัติและความลับส่วนตัวของ NPC** — `NpcProfileData` มีช่องบุคลิกแล้ว แต่ยังไม่มีโครงสำหรับ backstory หรือความลับที่ค่อยๆ เปิดเผย
-- **Room03 ยังไม่มีไฟล์ knowledge** — ยังตกไปใช้ prompt แบบ hard-code เดิม ต้องสร้าง `Assets/Resources/Knowledge/Rooms/Room03.asset` เมื่อออกแบบห้องเสร็จ
-- **fallback ที่เขียนมือใน `DialogueManager`** — ส่วนทักทาย/ตอบโต้คำหยาบยังเป็นโค้ด ควรย้ายไปเป็นข้อมูลใน `NpcProfileData` ด้วย
-
-## งานถัดไปตามลำดับความสำคัญ
-
-### P0 — งานที่เหลือของ NPC World Knowledge
-
-โครงหลักทำเสร็จแล้ว (ดูหัวข้อ "NPC World Knowledge" ด้านบน) ที่เหลือคือ:
-
-1. ส่งประวัติสนทนาหลายข้อความให้ AI
-   - ตอนนี้ `BuildReplyPrompt` ส่งความทรงจำล่าสุดแค่หนึ่งรายการ
-   - ควรเก็บ log บทสนทนาต่อ NPC แล้วส่งท้าย N ข้อความ พร้อมจำกัดความยาว context
-
-2. เพิ่มประวัติและความลับใน `NpcProfileData`
-   - backstory ที่ NPC เล่าได้
-   - ความลับที่ค่อยๆ เปิดเผยตามความสัมพันธ์หรือ flag (ใช้ `KnowledgeGrant` แบบเดียวกับ `learnedFacts` ได้)
-
-3. ย้าย fallback ที่ยังเขียนมือใน `DialogueManager.BuildFallbackReply` ไปเป็นข้อมูล
-   - ส่วนทักทาย ตอบโต้คำหยาบ และการขอโทษ ยังเป็นโค้ดอยู่
-   - ควรเป็นรายการใน `NpcProfileData` เพื่อให้เพิ่ม NPC ใหม่ได้โดยไม่แตะโค้ด
-
-4. สร้าง `Assets/Resources/Knowledge/Rooms/Room03.asset` เมื่อออกแบบ Room03 เสร็จ
-   - ถ้ายังไม่มีไฟล์ ห้องนั้นจะตกไปใช้ prompt แบบ hard-code เดิมโดยอัตโนมัติ
-
-### P0 — งานที่เหลือของการทดสอบ
-
-ชุดทดสอบ knowledge มีแล้วที่ `Assets/Tests/Editor/NpcKnowledgeTests.cs` ที่ยังขาด:
-
-- เคสที่ API ล้มเหลวหรือคืน JSON ผิดรูป แล้วต้องไม่ทำให้บทสนทนาค้าง (ต้อง mock `UnityWebRequest` หรือแยก parser ออกมาทดสอบเดี่ยว)
-- เคสที่ตรวจว่าเงื่อนไขของ `InteractionData` ใน `Assets/Data/Interactions/` ตรงกับลำดับขั้นใน `RoomKnowledgeData` (กันข้อมูลสองชุดเพี้ยนจากกัน)
-
-### P1 — งานที่เหลือของระบบ KKU
-
-ปุ่มโหลดรายชื่อโมเดลและการแยกข้อความ error ทำแล้ว ที่ยังขาด:
-
-- แสดง quota ที่เหลือ หาก response ของ provider มีข้อมูลดังกล่าว
-- จำโมเดลที่เลือกไว้ข้ามรอบการเล่น (ปัจจุบันจำเฉพาะ provider/endpoint ผ่าน PlayerPrefs)
-
-### P1 — เติมเนื้อหา NPC และ mini event
-
-- เพิ่ม NPC ฝ่ายผู้เล่นคนที่สองใน Room03 (เซนะไม่นับ เพราะเป็นผู้เฝ้าประตู ไม่ใช่พวกเดียวกับผู้เล่น)
-- กำหนดความสัมพันธ์ระหว่าง NPC
-- ทำ event ทะเลาะกันและให้ผู้เล่นเลือกว่าจะรับฟัง ไกล่เกลี่ย หรือเข้าข้าง
-- ทำ event ให้ตอบสนองต่อความคืบหน้าด่าน ไม่ใช่สุ่มโดยไม่สนสถานการณ์
-- เพิ่มผลระยะยาวของคำตอบ เช่น memory, relationship และการเปิด/ปิดบทสนทนาในอนาคต
-
-### P2 — งาน polish
-
-- เปลี่ยน placeholder art เป็นภาพจริง
-- ปรับ animation เดินและพูด
-- ปรับ responsive UI สำหรับหลายความละเอียด
-- เพิ่มเสียงและ feedback ขณะ interact
-- เพิ่ม save/load และเมนูเริ่มเกม
-
-## ขอบเขตงานแนะนำสำหรับคนที่รับช่วงต่อ
-
-Branch แนะนำ: `feature/npc-world-knowledge`
-
-Definition of Done รอบแรก:
-
-- Alice ตอบคำถามเกี่ยวกับภาพ โต๊ะ ลิ้นชัก กุญแจ และประตูโดยยึดข้อมูลด่าน
-- Alice ไม่เปิดเผยข้อมูลที่ยังไม่ควรรู้
-- เมื่อไม่รู้คำตอบ Alice บอกว่าไม่รู้โดยไม่แต่งข้อมูล
-- คำตอบเปลี่ยนตาม flag และ inventory ที่ผู้เล่นทำได้จริง
-- มี test/debug scenario ครบห้าช่วง: เริ่มเกม, ตรวจภาพ, พบโน้ต, ได้กุญแจ, เปิดประตู
-- local fallback ยังทำงานเมื่อไม่ใส่ API key
-
-ไฟล์หลักที่ต้องเริ่มอ่าน:
-
-- `Assets/Scripts/AI/AiDialogueGenerator.cs`
-- `Assets/Scripts/Core/GameState.cs`
+- `Assets/Scripts/AI/AiDialogueGenerator.cs`, `AiResponseParser.cs`
+- `Assets/Scripts/Core/GameState.cs`, `SaveSystem.cs`
 - `Assets/Scripts/DialogueManager.cs`
-- `Assets/Scripts/Interaction/InteractionSystem.cs`
-- `Assets/Scripts/Interaction/InteractionData.cs`
-- `Assets/Data/Interactions/`
-- `Assets/Data/Dialogue/`
-- `Assets/Data/Events/`
+- `Assets/Scripts/Knowledge/` ทั้งโฟลเดอร์
+- `Assets/Scripts/Events/`
+- `Assets/Resources/Knowledge/` (ข้อมูลห้องและตัวละคร)
+- `Assets/Data/` (interaction, dialogue, event)
 
-## สถานะ Git ก่อนส่งขึ้น GitHub
+## Git
 
-- branch ปัจจุบันคือ `main`
-- มี commit ตั้งต้นเพียงหนึ่ง commit: `chore: snapshot Unity prototype before refactor`
-- ยังไม่มี Git remote
-- working tree มีการแก้ เพิ่ม และลบไฟล์จำนวนมาก จึงต้อง review ก่อน commit
-- การลบ `Assets/TextMesh Pro/Examples & Extras/` เป็นการลดไฟล์ตัวอย่างที่ไม่ใช้ แต่ควรยืนยันว่าไม่มี reference ขาดก่อน commit
-- ห้าม commit API key, `Library/`, `Temp/`, `Logs/` หรือ `UserSettings/`
-
-ขั้นส่งขึ้น GitHub หลังทดสอบ Scene ผ่าน:
-
-1. ตรวจ Missing Script/สีชมพู/asset reference ที่หายภายใน Unity
-2. ตรวจ diff และยืนยันรายการลบไฟล์ตัวอย่าง
-3. commit สถานะต้นแบบที่เล่นได้เป็น baseline
-4. สร้าง GitHub repository และเพิ่ม `origin`
-5. push `main`
-6. ให้ผู้รับช่วงสร้าง branch `feature/npc-world-knowledge` จาก `main`
-7. ทำงานผ่าน pull request เพื่อให้ review การเปลี่ยน prompt, schema และข้อมูลด่านได้
-
-ไม่ควรให้เพื่อนเริ่มจาก working tree ที่ยังไม่ commit เพราะจะไม่สามารถดึงสถานะปัจจุบันที่เห็นในเครื่องนี้จาก GitHub ได้
+- remote: `origin` → `github.com/sirapatw-sys/SeminarProject` ทำงานบน `develop`
+- `CopyPasteAssets/` (ต้นฉบับภาพตัวละครและชีทท่าเดิน) **commit ขึ้น repo** เพื่อให้เพื่อนตัดเฟรมใหม่เองได้
+- `scratch/` (ภาพทดลอง) อยู่ใน `.gitignore`
+- ห้าม commit API key (`api_keys.json`, `*_api_key.txt` อยู่ใน `.gitignore` แล้ว), `Library/`, `Temp/`, `Logs/`, `UserSettings/`

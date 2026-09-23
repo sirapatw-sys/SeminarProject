@@ -189,6 +189,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void OnGUI()
     {
+        UiScale.Apply();
         if (!IsOpen)
         {
             return;
@@ -198,17 +199,17 @@ public class KeypadLockUI : MonoBehaviour
 
         // 1. Fullscreen Dim
         GUI.DrawTexture(
-            new Rect(0f, 0f, Screen.width, Screen.height),
+            new Rect(0f, 0f, UiScale.Width, UiScale.Height),
             dimTexture,
             ScaleMode.StretchToFill
         );
 
         // 2. Center Modal Panel with shake offset
         float shakeOffset = shakeTimer > 0f ? Mathf.Sin(shakeTimer * 50f) * 6f : 0f;
-        float panelWidth = Mathf.Min(420f, Screen.width - 30f);
+        float panelWidth = Mathf.Min(420f, UiScale.Width - 30f);
         float panelHeight = 520f;
-        float panelX = (Screen.width - panelWidth) * 0.5f + shakeOffset;
-        float panelY = (Screen.height - panelHeight) * 0.5f;
+        float panelX = (UiScale.Width - panelWidth) * 0.5f + shakeOffset;
+        float panelY = (UiScale.Height - panelHeight) * 0.5f;
         Rect panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
 
         // Panel background & gold border

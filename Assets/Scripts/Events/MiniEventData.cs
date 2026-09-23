@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using MysteryGame.Core;
+using MysteryGame.Knowledge;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "NewMiniEvent", menuName = "Game/Mini Event")]
@@ -8,6 +9,11 @@ public class MiniEventData : ScriptableObject
     public string eventId;
     public string npcId;
     public MiniEventTriggerType triggerType;
+
+    [Tooltip(
+        "Need/emotion id for the threshold triggers, or the PuzzleStep.stepId " +
+        "of the current room for RoomProgress."
+    )]
     public string metricId;
     public string relatedNpcId;
     [Range(0f, 100f)] public float threshold = 70f;
@@ -18,12 +24,24 @@ public class MiniEventData : ScriptableObject
     public bool repeatable = true;
     public bool useAiDialogue = true;
 
+    [Tooltip(
+        "A story beat fires as soon as it is eligible instead of waiting on " +
+        "the random roll, and wins over ordinary events. Use it for events " +
+        "that react to what the player just did."
+    )]
+    public bool storyBeat;
+
     [TextArea(2, 5)] public string situationPrompt;
     public string tonePrompt = "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ";
 
     [Tooltip("Used immediately when AI is unavailable or returns invalid data.")]
     public DialogueData dialogue;
     public List<ConditionRule> conditions = new List<ConditionRule>();
+
+    public string CompletedFlag
+    {
+        get { return "mini_event." + eventId + ".completed"; }
+    }
 
     public bool CanTrigger(GameState state)
     {
@@ -53,25 +71,36 @@ public class MiniEventData : ScriptableObject
                     return false;
                 }
                 break;
+            case MiniEventTriggerType.RoomProgress:
+                if (!IsCurrentStep(state))
+                {
+                    return false;
+                }
+                break;
             case MiniEventTriggerType.TimeInRoom:
             case MiniEventTriggerType.RandomAmbient:
                 break;
         }
 
-        if (!repeatable && state.HasFlag("mini_event." + eventId + ".completed"))
+        if (!repeatable && state.HasFlag(CompletedFlag))
         {
             return false;
         }
 
-        foreach (ConditionRule condition in conditions)
+        return ConditionRule.AllHold(conditions, state);
+    }
+
+    /// <summary>True while the room's next step is the one named by metricId.</summary>
+    private bool IsCurrentStep(GameState state)
+    {
+        RoomKnowledgeData room = KnowledgeLibrary.GetRoom(state.GetCurrentScene());
+        if (room == null)
         {
-            if (condition != null && !condition.Evaluate(state))
-            {
-                return false;
-            }
+            return false;
         }
 
-        return true;
+        PuzzleStep step = room.CurrentStep(state);
+        return step != null && step.stepId == metricId;
     }
 }
 
@@ -81,5 +110,6 @@ public enum MiniEventTriggerType
     EmotionThreshold,
     TimeInRoom,
     NpcConflict,
-    RandomAmbient
+    RandomAmbient,
+    RoomProgress
 }

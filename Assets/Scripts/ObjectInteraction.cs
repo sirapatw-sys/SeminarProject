@@ -1,3 +1,4 @@
+using MysteryGame.Core;
 using UnityEngine;
 
 public class ObjectInteraction : MonoBehaviour
@@ -5,12 +6,18 @@ public class ObjectInteraction : MonoBehaviour
     [SerializeField]
     private InteractionData interactionData;
 
+    [Tooltip(
+        "Used once interactionData is non-repeatable and already done, so one " +
+        "object can hold a two-stage puzzle (inspect it, then use an item on it)."
+    )]
+    [SerializeField]
+    private InteractionData followUpInteraction;
+
     private bool playerInRange;
 
     private void Update()
     {
-        if (IntroSequence.IsPlaying || DialogueManager.IsDialogueOpen ||
-            AiSettingsPanel.IsOpen || KeypadLockUI.IsOpen)
+        if (InputGate.IsBlocked || KeypadLockUI.IsOpen)
         {
             return;
         }
@@ -22,9 +29,27 @@ public class ObjectInteraction : MonoBehaviour
         }
     }
 
+    /// <summary>The interaction this object offers right now.</summary>
+    private InteractionData ActiveData
+    {
+        get
+        {
+            GameState state = GameState.Instance;
+            if (followUpInteraction != null && interactionData != null &&
+                !interactionData.repeatable && state != null &&
+                state.HasFlag("interaction." + interactionData.interactionId + ".completed"))
+            {
+                return followUpInteraction;
+            }
+
+            return interactionData;
+        }
+    }
+
     private void TryInteract()
     {
-        if (interactionData == null)
+        InteractionData data = ActiveData;
+        if (data == null)
         {
             Debug.LogError(
                 $"InteractionData is missing on {gameObject.name}."
@@ -45,37 +70,40 @@ public class ObjectInteraction : MonoBehaviour
         // 0. Sena guards the celestial gate. While she is still standing
         // there, her trigger overlaps the door's, so let her own script own
         // the E key instead of both of them opening a dialogue at once.
-        if (IsCelestialDoor(interactionData) && SenaInteraction.IsGuardingDoor)
+        if (IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor)
         {
             return;
         }
 
+        GameState state = GameState.Instance;
+
         // 1. Special Case: Drawer 4-Digit Combination Lock
-        if (interactionData.interactionId == "open_drawer")
+        if (data.interactionId == "open_drawer")
         {
-            if (MysteryGame.Core.GameState.Instance != null &&
-                MysteryGame.Core.GameState.Instance.HasFlag("drawer_opened"))
+            if (state != null && state.HasFlag("drawer_opened"))
             {
                 ShowDialogue(
-                    interactionData.displayName,
+                    data.displayName,
                     "ลิ้นชักเปิดออกแล้ว และไม่มีอะไรเหลืออยู่ข้างในแล้ว"
                 );
                 return;
             }
 
+            SfxPlayer.Play(SfxPlayer.Cue.Interact);
             KeypadLockUI.Show(
                 targetCode: "4592",
                 title: "แม่กุญแจรหัสของลิ้นชัก (Drawer Lock)",
                 hint: "ใส่รหัสตัวเลข 4 หลักเพื่อปลดล็อคลิ้นชัก",
                 onSuccess: () =>
                 {
-                    if (MysteryGame.Core.GameState.Instance != null)
+                    if (GameState.Instance != null)
                     {
-                        MysteryGame.Core.GameState.Instance.SetFlag("drawer_opened");
-                        MysteryGame.Core.GameState.Instance.AddItem("key");
+                        GameState.Instance.SetFlag("drawer_opened");
+                        GameState.Instance.AddItem("key");
                     }
+                    SfxPlayer.Play(SfxPlayer.Cue.Success);
                     ShowDialogue(
-                        interactionData.displayName,
+                        data.displayName,
                         "รหัสถูกต้อง! ได้ยินเสียงสลักปลดล็อคดังคลิก...\nในลิ้นชักมีกุญแจทองเหลืองโบราณซ่อนอยู่!"
                     );
                 }
@@ -86,60 +114,49 @@ public class ObjectInteraction : MonoBehaviour
         string responseMessage;
 
         bool success = InteractionSystem.Instance.TryExecute(
-            interactionData,
+            data,
             out responseMessage
         );
 
+        SfxPlayer.Play(success
+            ? (data.scareOnSuccess ? SfxPlayer.Cue.Scare : SfxPlayer.Cue.Interact)
+            : SfxPlayer.Cue.Locked);
+
         ShowDialogue(
-            interactionData.displayName,
+            data.displayName,
             responseMessage
         );
 
         // 2. Any interaction may hand the player an item to look at.
-        if (success && !string.IsNullOrWhiteSpace(interactionData.popupItemId))
+        if (success && !string.IsNullOrWhiteSpace(data.popupItemId))
         {
             ItemPopupUI.ShowItem(
-                interactionData.popupItemId,
-                interactionData.popupItemName,
-                interactionData.popupItemDescription
+                data.popupItemId,
+                data.popupItemName,
+                data.popupItemDescription
             );
         }
 
         // 3. Special Case: Desk Note (Repeatable reading)
-        if (interactionData.interactionId == "inspect_desk" &&
-            MysteryGame.Core.GameState.Instance != null &&
-            MysteryGame.Core.GameState.Instance.HasFlag("found_note"))
+        if (data.interactionId == "inspect_desk" &&
+            state != null && state.HasFlag("found_note"))
         {
             ItemPopupUI.ShowItem("paper");
         }
 
-        // 4. Special Case: Room01 Door Room Transition to Room02
-        if (interactionData.interactionId == "unlock_door" &&
-            MysteryGame.Core.GameState.Instance != null &&
-            MysteryGame.Core.GameState.Instance.HasFlag("door_unlocked"))
+        // 4. Doors that lead on are data: transitionScene / endsDemo on the
+        // InteractionData, applied only when the interaction succeeded.
+        if (success && RoomTransitionManager.Instance != null)
         {
-            if (RoomTransitionManager.Instance != null)
+            if (data.endsDemo)
             {
-                RoomTransitionManager.Instance.TransitionToRoom(
-                    "Room02",
-                    "คุณใช้กุญแจเปิดประตูสำเร็จ...\nก้าวเดินเข้าสู่ห้องถัดไป (Room 02)"
-                );
+                RoomTransitionManager.Instance.PlayEnding(data.transitionMessage);
             }
-        }
-
-        // 5. Special Case: Room02 Celestial Door Transition to Room03.
-        // DoorR2_Data requires the "sena_passed" flag, so a failed
-        // TryExecute has already shown the locked-gate message for us.
-        if (IsCelestialDoor(interactionData) &&
-            success &&
-            MysteryGame.Core.GameState.Instance != null &&
-            MysteryGame.Core.GameState.Instance.HasFlag("sena_passed"))
-        {
-            if (RoomTransitionManager.Instance != null)
+            else if (!string.IsNullOrWhiteSpace(data.transitionScene))
             {
                 RoomTransitionManager.Instance.TransitionToRoom(
-                    "Room03",
-                    "คุณก้าวผ่านประตูดวงดาวที่เปิดออก...\nมุ่งหน้าสู่ห้องถัดไป (Room 03)"
+                    data.transitionScene,
+                    data.transitionMessage
                 );
             }
         }
@@ -178,20 +195,17 @@ public class ObjectInteraction : MonoBehaviour
         {
             playerInRange = true;
 
-            if (IsCelestialDoor(interactionData) && SenaInteraction.IsGuardingDoor)
+            InteractionData data = ActiveData;
+            if (IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor)
             {
                 // Sena's own prompt wins while she is blocking the gate.
                 return;
             }
 
-            if (interactionData != null)
+            if (data != null)
             {
                 AiSettingsPanel.SetInteractionPrompt(
-                    "กด E เพื่อสำรวจ " + interactionData.displayName
-                );
-                Debug.Log(
-                    "Press E to interact with " +
-                    interactionData.displayName
+                    "กด E เพื่อสำรวจ " + data.displayName
                 );
             }
         }

@@ -77,6 +77,7 @@ MonoBehaviour:
   steps:
   - stepId: meet_sena
     summary: "คุยกับเซนะที่ขวางประตูอยู่ เพื่อฟังว่านางต้องการอะไร"
+    interactionId: 
     availableWhen: []
     completedWhen:
     - type: 0
@@ -87,6 +88,7 @@ MonoBehaviour:
     explicitHint: "เดินไปกด E คุยกับเซนะที่ยืนอยู่หน้าประตูก่อนเลย"
   - stepId: read_ledger
     summary: "อ่านสมุดทะเบียนบนโต๊ะอ่านหนังสือฝั่งขวา เพื่อหาเลขชั้นของหนังสือ"
+    interactionId: read_ledger
     availableWhen:
     - type: 0
       targetId: sena_wants_tome
@@ -100,6 +102,7 @@ MonoBehaviour:
     explicitHint: "ไปกด E ที่โต๊ะอ่านหนังสือฝั่งขวา แล้วค้นสมุดทะเบียนที่เปิดค้างอยู่"
   - stepId: take_tome
     summary: "หยิบ 'จารึกที่ยังเขียนมิจบ' จากตู้หนังสือชั้นล่างสุดฝั่งซ้าย"
+    interactionId: take_tome
     availableWhen:
     - type: 0
       targetId: read_ledger
@@ -113,6 +116,7 @@ MonoBehaviour:
     explicitHint: "ไปกด E ที่ตู้หนังสือชั้นล่างสุดฝั่งซ้าย แล้วหยิบเล่มที่ ๙๙๙ ออกมา"
   - stepId: give_offering
     summary: "นำจารึกไปมอบให้เซนะ เพื่อให้นางเอ่ยปริศนา"
+    interactionId: 
     availableWhen:
     - type: 2
       targetId: tome
@@ -126,6 +130,7 @@ MonoBehaviour:
     explicitHint: "เดินกลับไปกด E คุยกับเซนะขณะที่ถือจารึกอยู่ นางจะรับไปแล้วเอ่ยปริศนา"
   - stepId: answer_riddle
     summary: "พิมพ์คำตอบปริศนาในช่องแชทของเซนะ"
+    interactionId: 
     availableWhen:
     - type: 0
       targetId: sena_offering_given
@@ -139,6 +144,7 @@ MonoBehaviour:
     explicitHint: "คำตอบคือ 'พรุ่งนี้' (Tomorrow) ไปพิมพ์ตอบเซนะในช่องแชทได้เลย"
   - stepId: open_gate
     summary: "สำรวจประตูดวงดาวเพื่อออกไปห้องถัดไป"
+    interactionId: unlock_celestial_door
     availableWhen:
     - type: 0
       targetId: sena_passed

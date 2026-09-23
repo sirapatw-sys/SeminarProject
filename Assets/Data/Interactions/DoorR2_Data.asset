@@ -31,3 +31,7 @@ MonoBehaviour:
     targetId: enter_room03
     amount: 0
     text:
+  transitionScene: Room03
+  transitionMessage: "คุณก้าวผ่านประตูดวงดาวที่เปิดออก...\nอากาศเย็นเฉียบลงทันที และได้ยินเสียงกล่องดนตรีแผ่วๆ จากที่ไหนสักแห่ง (Room 03)"
+  endsDemo: 0
+  scareOnSuccess: 0

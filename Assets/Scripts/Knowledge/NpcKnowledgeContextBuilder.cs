@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using MysteryGame.Core;
 using UnityEngine;
 
@@ -27,6 +28,17 @@ namespace MysteryGame.Knowledge
                 PlayerAskedForHint = playerAskedForHint,
             };
 
+            int relationship = state != null && !string.IsNullOrWhiteSpace(npcId)
+                ? state.GetRelationship(npcId)
+                : 50;
+            context.Relationship = relationship;
+            RelationshipTone tone = context.Npc != null
+                ? context.Npc.ToneFor(relationship)
+                : null;
+            context.Tone = tone != null ? tone.tone : string.Empty;
+
+            FillCharacter(context, state);
+
             if (context.Room == null)
             {
                 return context;
@@ -38,19 +50,85 @@ namespace MysteryGame.Knowledge
 
             SplitFacts(context, state);
 
-            int relationship = state != null && !string.IsNullOrWhiteSpace(npcId)
-                ? state.GetRelationship(npcId)
-                : 50;
-            RelationshipTone tone = context.Npc != null
-                ? context.Npc.ToneFor(relationship)
-                : null;
-            context.Tone = tone != null ? tone.tone : string.Empty;
-
             context.AllowedHintLevel = ResolveHintLevel(context, tone, relationship);
             context.DeterministicHint = ResolveHint(context);
 
             return context;
         }
+
+        /// <summary>How many memory notes go into one prompt.</summary>
+        public const int MemoryLimit = 4;
+
+        /// <summary>
+        /// The NPC's own side: backstory, secrets, situational direction,
+        /// bonds with other NPCs and what was said before.
+        /// </summary>
+        private static void FillCharacter(NpcKnowledgeContext context, GameState state)
+        {
+            NpcProfileData npc = context.Npc;
+            if (npc != null)
+            {
+                npc.SplitPersonalFacts(
+                    state, context.ShareablePersonalFacts, context.LockedSecrets);
+
+                if (npc.situationalNotes != null)
+                {
+                    foreach (SituationalNote note in npc.situationalNotes)
+                    {
+                        if (note != null && !string.IsNullOrWhiteSpace(note.note) &&
+                            note.IsActive(state))
+                        {
+                            context.ActiveNotes.Add(note.note);
+                        }
+                    }
+                }
+
+                if (npc.bonds != null)
+                {
+                    foreach (NpcBond bond in npc.bonds)
+                    {
+                        if (bond == null || string.IsNullOrWhiteSpace(bond.otherNpcId))
+                        {
+                            continue;
+                        }
+
+                        int value = state != null
+                            ? state.GetNpcRelationship(npc.npcId, bond.otherNpcId)
+                            : bond.initialValue;
+                        context.BondLines.Add(
+                            bond.otherNpcId + " (" + value + "/100): " + bond.description);
+                    }
+                }
+            }
+
+            if (state == null || string.IsNullOrWhiteSpace(context.NpcId))
+            {
+                return;
+            }
+
+            context.History.AddRange(NpcKnowledgeContext.SelectRecentTurns(
+                state.GetConversationLog(context.NpcId),
+                NpcKnowledgeContext.HistoryTurnLimit,
+                NpcKnowledgeContext.HistoryCharBudget));
+
+            // Typed lines are already in the history above, so only the
+            // notes written by choices and events are worth repeating here.
+            IReadOnlyList<string> memories = state.GetNpcMemory(context.NpcId);
+            for (int i = memories.Count - 1;
+                 i >= 0 && context.RecentMemories.Count < MemoryLimit;
+                 i--)
+            {
+                string memory = memories[i];
+                if (!string.IsNullOrWhiteSpace(memory) &&
+                    !memory.StartsWith(PlayerSaidPrefix))
+                {
+                    context.RecentMemories.Insert(0, memory);
+                }
+            }
+        }
+
+        /// <summary>Prefix DialogueManager uses when it files a typed line as a memory.</summary>
+        public const string PlayerSaidPrefix = "ผู้เล่นพูดว่า:";
 
         private static void SplitFacts(NpcKnowledgeContext context, GameState state)
         {

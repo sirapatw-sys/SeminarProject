@@ -17,8 +17,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        if (IntroSequence.IsPlaying || DialogueManager.IsDialogueOpen ||
-            AiSettingsPanel.IsOpen || KeypadLockUI.IsOpen)
+        if (InputGate.IsBlocked)
         {
             movement = Vector2.zero;
             return;

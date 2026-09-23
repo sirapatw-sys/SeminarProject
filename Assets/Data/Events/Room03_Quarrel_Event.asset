@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0423ebc4d5e6f7a8b9c0d, type: 3}
+  m_Name: Room03_Quarrel_Event
+  m_EditorClassIdentifier: 
+  eventId: "room03_quarrel"
+  npcId: "Rina"
+  triggerType: 3
+  metricId: ""
+  relatedNpcId: "Stelle"
+  threshold: 45
+  minimumRoomTimeSeconds: 0
+  weight: 1
+  cooldownSeconds: 0
+  expiresSeconds: 900
+  repeatable: 0
+  useAiDialogue: 0
+  storyBeat: 1
+  situationPrompt: "สเตลกลัวว่าการยุ่งกับกล่องดนตรีจะทำให้ผีโกรธ ส่วนรินะยืนยันว่าต้องทำเพื่อออกไป ทั้งคู่ทะเลาะกันและหันมาถามผู้เล่น"
+  tonePrompt: "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ"
+  dialogue: {fileID: 11400000, guid: 89ef798c7727418fb05b709d727bccc9, type: 2}
+  conditions:
+  - type: 0
+    targetId: "music_box_needs_key"
+    secondaryId: ""
+    amount: 0
+  - type: 1
+    targetId: "ghost_lullaby_played"
+    secondaryId: ""
+    amount: 0

@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: MusicBox_R3_Data
+  m_EditorClassIdentifier: 
+  interactionId: "inspect_music_box"
+  displayName: "กล่องดนตรีเก่า (Music Box)"
+  interactionMessage: "กล่องดนตรีรูปบ้านหลังเล็ก ฝาเปิดค้าง ข้างในมีตุ๊กตานักบัลเล่ต์ยืนนิ่ง\nที่ไขลานด้านหลังหายไป เหลือแต่รูเสียบที่มีคราบเขม่าดำติดอยู่ — สีเดียวกับเขม่าในเตาผิงฝั่งซ้ายเป๊ะ\nรอยเท้าเปียกมาหยุดตรงหน้าโต๊ะนี้พอดี ราวกับมีใครยืนรอให้กล่องนี้ร้องเพลงอยู่"
+  failureMessage: "กล่องดนตรีเก่าวางนิ่งอยู่บนโต๊ะเครื่องแป้ง... มีรอยเท้าเปียกเล็กๆ มาหยุดตรงหน้าโต๊ะนี้ และต้นทางของรอยอยู่ที่กระจกบานใหญ่"
+  repeatable: 0
+  alreadyCompletedMessage: ""
+  conditions:
+  - type: 0
+    targetId: "saw_mirror_message"
+    secondaryId: ""
+    amount: 0
+  actions:
+  - type: 0
+    targetId: "music_box_needs_key"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 5
+    targetId: ""
+    secondaryId: ""
+    amount: 0
+    text: "Found the Room03 music box has no winding key"
+  popupItemId: ""
+  popupItemName: ""
+  popupItemDescription: ""
+  transitionScene: ""
+  transitionMessage: ""
+  endsDemo: 0
+  scareOnSuccess: 0

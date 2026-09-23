@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: Fireplace_R3_Data
+  m_EditorClassIdentifier: 
+  interactionId: "search_fireplace"
+  displayName: "เตาผิง (Fireplace)"
+  interactionMessage: "คุณคุ้ยขี้เถ้าที่เย็นเฉียบราวกับไม่เคยมีไฟ... นิ้วไปโดนของแข็งชิ้นเล็กๆ\nที่ไขลานทองเหลืองอันจิ๋ว ยังมีคราบเขม่าติดอยู่\nขณะที่คุณหยิบมันขึ้นมา มีเสียงเด็กหัวเราะคิกคักดังมาจากด้านหลัง... แต่พอหันไปก็ไม่มีใคร"
+  failureMessage: "เตาผิงดับสนิท ขี้เถ้าเย็นเฉียบราวกับไม่เคยมีไฟ... ตอนนี้ยังไม่มีเหตุผลอะไรให้คุ้ยมัน"
+  repeatable: 0
+  alreadyCompletedMessage: "ในเตาผิงเหลือแต่ขี้เถ้าเย็นชืดกับรอยนิ้วที่คุณคุ้ยไว้"
+  conditions:
+  - type: 0
+    targetId: "music_box_needs_key"
+    secondaryId: ""
+    amount: 0
+  actions:
+  - type: 2
+    targetId: "winding_key"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 0
+    targetId: "found_winding_key"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 5
+    targetId: ""
+    secondaryId: ""
+    amount: 0
+    text: "Dug the winding key out of the Room03 fireplace"
+  popupItemId: "winding_key"
+  popupItemName: "ที่ไขลานทองเหลือง (Winding Key)"
+  popupItemDescription: "ที่ไขลานอันจิ๋ว มีคราบเขม่าติดอยู่ ขนาดพอดีกับรูเสียบของกล่องดนตรีบนโต๊ะเครื่องแป้ง"
+  transitionScene: ""
+  transitionMessage: ""
+  endsDemo: 0
+  scareOnSuccess: 1

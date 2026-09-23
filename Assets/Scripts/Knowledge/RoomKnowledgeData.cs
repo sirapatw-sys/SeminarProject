@@ -64,6 +64,13 @@ namespace MysteryGame.Knowledge
         [TextArea(2, 4)]
         public string summary;
 
+        [Tooltip(
+            "InteractionData.interactionId that performs this step, if an " +
+            "object does. Empty for steps driven by code (talking to Sena). " +
+            "The edit-mode tests check the two stay in agreement."
+        )]
+        public string interactionId;
+
         public List<ConditionRule> availableWhen = new List<ConditionRule>();
         public List<ConditionRule> completedWhen = new List<ConditionRule>();
 

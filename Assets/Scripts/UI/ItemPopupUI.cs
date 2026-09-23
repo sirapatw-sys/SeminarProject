@@ -134,6 +134,7 @@ public class ItemPopupUI : MonoBehaviour
         }
 
         pendingItems.Enqueue(info);
+        SfxPlayer.Play(SfxPlayer.Cue.Item);
         // Ensure instance exists
         _ = Instance;
     }
@@ -185,6 +186,7 @@ public class ItemPopupUI : MonoBehaviour
 
     private void OnGUI()
     {
+        UiScale.Apply();
         if (!isShowing)
         {
             return;
@@ -194,7 +196,7 @@ public class ItemPopupUI : MonoBehaviour
 
         // 1. Draw dimmed full-screen background
         GUI.DrawTexture(
-            new Rect(0f, 0f, Screen.width, Screen.height),
+            new Rect(0f, 0f, UiScale.Width, UiScale.Height),
             dimTexture,
             ScaleMode.StretchToFill
         );
@@ -204,10 +206,10 @@ public class ItemPopupUI : MonoBehaviour
                        currentItem.itemId.IndexOf("note", System.StringComparison.OrdinalIgnoreCase) >= 0);
 
         // 2. Center modal panel
-        float panelWidth = Mathf.Min(580f, Screen.width - 30f);
+        float panelWidth = Mathf.Min(580f, UiScale.Width - 30f);
         float panelHeight = isNote ? 520f : 460f;
-        float panelX = (Screen.width - panelWidth) * 0.5f;
-        float panelY = (Screen.height - panelHeight) * 0.5f;
+        float panelX = (UiScale.Width - panelWidth) * 0.5f;
+        float panelY = (UiScale.Height - panelHeight) * 0.5f;
         Rect panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
 
         // Draw panel background
@@ -224,7 +226,7 @@ public class ItemPopupUI : MonoBehaviour
         // 3. Center Sprite (Spinning Key or Antique Paper)
         float spriteSize = isNote ? 140f : 130f;
         Rect spriteRect = new Rect(
-            (Screen.width - spriteSize) * 0.5f,
+            (UiScale.Width - spriteSize) * 0.5f,
             panelY + 62f,
             spriteSize,
             spriteSize
@@ -273,7 +275,7 @@ public class ItemPopupUI : MonoBehaviour
         float btnWidth = 220f;
         float btnHeight = 44f;
         Rect btnRect = new Rect(
-            (Screen.width - btnWidth) * 0.5f,
+            (UiScale.Width - btnWidth) * 0.5f,
             panelY + panelHeight - 70f,
             btnWidth,
             btnHeight

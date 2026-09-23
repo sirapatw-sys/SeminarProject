@@ -15,8 +15,7 @@ public class NPCInteraction : MonoBehaviour
 
     private void Update()
     {
-        if (IntroSequence.IsPlaying || DialogueManager.IsDialogueOpen ||
-            AiSettingsPanel.IsOpen)
+        if (InputGate.IsBlocked)
         {
             return;
         }
@@ -47,7 +46,6 @@ public class NPCInteraction : MonoBehaviour
         {
             playerInRange = true;
             AiSettingsPanel.SetInteractionPrompt("กด E เพื่อคุย");
-            Debug.Log("Press E to talk");
         }
     }
 

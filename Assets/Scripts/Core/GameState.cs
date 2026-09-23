@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MysteryGame.Knowledge;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -69,6 +70,13 @@ namespace MysteryGame.Core
         private readonly Dictionary<string, int> npcRelationships =
             new Dictionary<string, int>();
 
+        // NPC ID -> what was actually said, oldest first. Capped so a long
+        // session cannot grow the prompt without bound.
+        public const int MaxConversationTurns = 40;
+
+        private readonly Dictionary<string, List<ConversationTurn>> conversationLogs =
+            new Dictionary<string, List<ConversationTurn>>();
+
         // =====================================================
         // Unity Lifecycle
         // =====================================================
@@ -83,7 +91,10 @@ namespace MysteryGame.Core
 
             Instance = this;
 
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
 
             SceneManager.sceneLoaded += HandleSceneLoaded;
             SyncSceneState(SceneManager.GetActiveScene().name);
@@ -95,6 +106,15 @@ namespace MysteryGame.Core
             {
                 SceneManager.sceneLoaded -= HandleSceneLoaded;
             }
+        }
+
+        /// <summary>
+        /// Edit-mode tests cannot rely on Awake, which Unity only calls in
+        /// play mode, so they install (and later clear) the instance here.
+        /// </summary>
+        public static void UseForTests(GameState state)
+        {
+            Instance = state;
         }
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -288,7 +308,10 @@ namespace MysteryGame.Core
 
             if (!relationships.ContainsKey(npcId))
             {
-                relationships[npcId] = 50;
+                NpcProfileData profile = KnowledgeLibrary.GetNpc(npcId);
+                relationships[npcId] = profile != null
+                    ? profile.initialRelationship
+                    : 50;
             }
 
             return relationships[npcId];
@@ -485,7 +508,8 @@ namespace MysteryGame.Core
 
             if (!npcRelationships.ContainsKey(key))
             {
-                npcRelationships[key] = 50;
+                npcRelationships[key] =
+                    InitialNpcRelationship(firstNpcId, secondNpcId);
             }
 
             return npcRelationships[key];
@@ -508,6 +532,68 @@ namespace MysteryGame.Core
                 100
             );
             worldRevision++;
+        }
+
+        /// <summary>
+        /// Where two NPCs start, authored as a bond on either one's profile.
+        /// When both author one, the average wins so neither file silently
+        /// overrides the other.
+        /// </summary>
+        private static int InitialNpcRelationship(string firstNpcId, string secondNpcId)
+        {
+            NpcProfileData first = KnowledgeLibrary.GetNpc(firstNpcId);
+            NpcProfileData second = KnowledgeLibrary.GetNpc(secondNpcId);
+            NpcBond a = first != null ? first.BondWith(secondNpcId) : null;
+            NpcBond b = second != null ? second.BondWith(firstNpcId) : null;
+
+            if (a != null && b != null)
+            {
+                return (a.initialValue + b.initialValue) / 2;
+            }
+
+            if (a != null)
+            {
+                return a.initialValue;
+            }
+
+            return b != null ? b.initialValue : 50;
+        }
+
+        // =====================================================
+        // Conversation Log
+        // =====================================================
+
+        public void AddConversationTurn(string npcId, string speakerId, string text)
+        {
+            if (string.IsNullOrWhiteSpace(npcId) || string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            List<ConversationTurn> log;
+            if (!conversationLogs.TryGetValue(npcId, out log))
+            {
+                log = new List<ConversationTurn>();
+                conversationLogs[npcId] = log;
+            }
+
+            log.Add(new ConversationTurn { SpeakerId = speakerId, Text = text.Trim() });
+            if (log.Count > MaxConversationTurns)
+            {
+                log.RemoveRange(0, log.Count - MaxConversationTurns);
+            }
+        }
+
+        public IReadOnlyList<ConversationTurn> GetConversationLog(string npcId)
+        {
+            List<ConversationTurn> log;
+            if (string.IsNullOrWhiteSpace(npcId) ||
+                !conversationLogs.TryGetValue(npcId, out log))
+            {
+                return new List<ConversationTurn>();
+            }
+
+            return log;
         }
 
         private static string GetNpcPairKey(string firstNpcId, string secondNpcId)
@@ -626,7 +712,135 @@ namespace MysteryGame.Core
                 );
             }
 
+            foreach (KeyValuePair<string, int> pair in conversationCounts)
+            {
+                snapshot.ConversationCounts.Add(
+                    new RelationshipSnapshot { NpcId = pair.Key, Value = pair.Value }
+                );
+            }
+
+            foreach (KeyValuePair<string, List<ConversationTurn>> pair
+                     in conversationLogs)
+            {
+                snapshot.ConversationLogs.Add(
+                    new ConversationLogSnapshot
+                    {
+                        NpcId = pair.Key,
+                        Turns = new List<ConversationTurn>(pair.Value)
+                    }
+                );
+            }
+
             return snapshot;
+        }
+
+        /// <summary>
+        /// Replaces the whole runtime state with a saved snapshot. The scene
+        /// itself is not loaded here; the caller decides when to move there.
+        /// </summary>
+        public void RestoreSnapshot(StateSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return;
+            }
+
+            session.CurrentSceneId = snapshot.CurrentSceneId;
+            session.CurrentChapterId = snapshot.CurrentChapterId;
+            session.CurrentGoalId = snapshot.CurrentGoalId;
+
+            flags.Clear();
+            flags.UnionWith(snapshot.Flags);
+            inventory.Clear();
+            inventory.UnionWith(snapshot.Inventory);
+            playerHistory.Clear();
+            playerHistory.AddRange(snapshot.PlayerHistory);
+
+            relationships.Clear();
+            foreach (RelationshipSnapshot entry in snapshot.Relationships)
+            {
+                relationships[entry.NpcId] = entry.Value;
+            }
+
+            npcMemories.Clear();
+            foreach (NpcMemorySnapshot entry in snapshot.NpcMemories)
+            {
+                npcMemories[entry.NpcId] = new List<string>(entry.Memories);
+            }
+
+            npcNeeds.Clear();
+            foreach (NpcNeedSnapshot entry in snapshot.NpcNeeds)
+            {
+                if (!npcNeeds.ContainsKey(entry.NpcId))
+                {
+                    npcNeeds[entry.NpcId] = new Dictionary<string, float>();
+                }
+                npcNeeds[entry.NpcId][entry.NeedId] = entry.Value;
+            }
+
+            npcEmotions.Clear();
+            foreach (NpcEmotionSnapshot entry in snapshot.NpcEmotions)
+            {
+                if (!npcEmotions.ContainsKey(entry.NpcId))
+                {
+                    npcEmotions[entry.NpcId] = new Dictionary<string, float>();
+                }
+                npcEmotions[entry.NpcId][entry.EmotionId] = entry.Value;
+            }
+
+            npcRelationships.Clear();
+            foreach (NpcRelationshipSnapshot entry in snapshot.NpcRelationships)
+            {
+                string key = GetNpcPairKey(entry.FirstNpcId, entry.SecondNpcId);
+                if (!string.IsNullOrEmpty(key))
+                {
+                    npcRelationships[key] = entry.Value;
+                }
+            }
+
+            conversationCounts.Clear();
+            npcLastSeenRevision.Clear();
+            foreach (RelationshipSnapshot entry in snapshot.ConversationCounts)
+            {
+                conversationCounts[entry.NpcId] = entry.Value;
+            }
+
+            conversationLogs.Clear();
+            foreach (ConversationLogSnapshot entry in snapshot.ConversationLogs)
+            {
+                conversationLogs[entry.NpcId] =
+                    new List<ConversationTurn>(entry.Turns);
+            }
+
+            worldRevision++;
+        }
+
+        /// <summary>
+        /// Resets all runtime state for a completely fresh game session.
+        /// </summary>
+        public void ResetState()
+        {
+            session = new GameSession();
+            flags.Clear();
+            inventory.Clear();
+            playerHistory.Clear();
+            relationships.Clear();
+            conversationCounts.Clear();
+            npcLastSeenRevision.Clear();
+            worldRevision = 0;
+            npcMemories.Clear();
+            npcNeeds.Clear();
+            npcEmotions.Clear();
+            npcRelationships.Clear();
+            conversationLogs.Clear();
+
+            string activeScene = SceneManager.GetActiveScene().name;
+            if (!string.IsNullOrEmpty(activeScene))
+            {
+                SyncSceneState(activeScene);
+            }
+            AddHistory("Started new game");
         }
     }
 }
+

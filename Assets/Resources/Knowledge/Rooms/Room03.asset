@@ -1,0 +1,168 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b2c3d4e5f6478a9b0c1d2e3f4a5b60, type: 3}
+  m_Name: Room03
+  m_EditorClassIdentifier: 
+  roomId: "Room03"
+  roomName: "ห้องรับแขกร้าง"
+  roomDescription: "ห้องรับแขกเก่าในคฤหาสน์ร้าง หนาวผิดธรรมชาติ แสงจันทร์สีซีดลอดหน้าต่างที่กระจกร้าว เปลวเทียนบนเชิงเทียนเป็นสีฟ้าทั้งที่ไม่มีใครจุด ผนังด้านบนเรียงจากซ้ายไปขวา: เตาผิงที่ดับสนิท หน้าต่าง กระจกเงาบานใหญ่ที่ร้าวเป็นใยแมงมุม ภาพวาดเด็กหญิงในกรอบทอง นาฬิกาตั้งพื้น และประตูทางออกฝั่งขวาบน ข้างเตาผิงมีเก้าอี้โยก ฝั่งซ้ายล่างมีโซฟาคลุมผ้าขาว ฝั่งขวามีโต๊ะเครื่องแป้งที่มีกล่องดนตรีวางอยู่ บนพื้นมีรอยเท้าเปียกเล็กๆ เดินจากหน้ากระจกไปหยุดที่โต๊ะเครื่องแป้ง (ห้องแรกเป็นห้องทำงานธรรมดา ห้องที่สองเป็นหอสมุดเก่า แต่ห้องนี้คือห้องที่มีผี)"
+  background: {fileID: 21300000, guid: 5f0b8df4c6b94457be3b3340900f1fb1, type: 3}
+  facts:
+  - factId: "parlor_cold"
+    statement: "ห้องนี้หนาวผิดปกติ เปลวเทียนเป็นสีฟ้าซีดทั้งที่ไม่มีใครจุด และเก้าอี้โยกข้างเตาผิงโยกไปมาเองช้าๆ"
+    revealedWhen: []
+    isPuzzleAnswer: 0
+  - factId: "wet_footprints"
+    statement: "บนพื้นมีรอยเท้าเปล่าเล็กๆ ของเด็กที่ยังเปียกน้ำ เดินจากหน้ากระจกบานใหญ่ไปหยุดที่โต๊ะเครื่องแป้งฝั่งขวา"
+    revealedWhen: []
+    isPuzzleAnswer: 0
+  - factId: "exit_sealed"
+    statement: "ประตูทางออกฝั่งขวาบนเย็นเฉียบ มีรอยฝ่ามือเด็กขึ้นฝ้าเต็มบาน ลูกบิดไม่ขยับราวกับมีใครกดไว้จากอีกฝั่ง"
+    revealedWhen: []
+    isPuzzleAnswer: 0
+  - factId: "lullaby_nights"
+    statement: "ทุกครั้งที่เทียนกลายเป็นสีฟ้า จะมีเสียงเพลงกล่อมเด็กแผ่วๆ ดังมาจากที่ไหนสักแห่งในห้อง"
+    revealedWhen: []
+    isPuzzleAnswer: 0
+  - factId: "mirror_message"
+    statement: "บนกระจกบานใหญ่มีตัวหนังสือขึ้นฝ้าว่า 'เพลงของหนูหายไป... ใครก็ได้ ช่วยให้มันร้องอีกที' พร้อมรอยฝ่ามือเด็ก"
+    revealedWhen:
+    - type: 0
+      targetId: "saw_mirror_message"
+      secondaryId: ""
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: "music_box_missing_key"
+    statement: "กล่องดนตรีบนโต๊ะเครื่องแป้งขาดที่ไขลาน รูเสียบมีคราบเขม่าดำติดอยู่ เหมือนเขม่าในเตาผิง"
+    revealedWhen:
+    - type: 0
+      targetId: "music_box_needs_key"
+      secondaryId: ""
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: "key_in_ashes"
+    statement: "ที่ไขลานทองเหลืองอันเล็กจมอยู่ในกองขี้เถ้าของเตาผิงฝั่งซ้าย"
+    revealedWhen:
+    - type: 0
+      targetId: "found_winding_key"
+      secondaryId: ""
+      amount: 0
+    isPuzzleAnswer: 1
+  - factId: "girl_portrait"
+    statement: "ภาพวาดเด็กหญิงผมเปียในชุดนอน กอดกล่องดนตรีใบเดียวกับที่อยู่บนโต๊ะเครื่องแป้ง ป้ายใต้ภาพเขียนว่า 'ลิลี่ — ผู้ไม่ยอมหลับถ้าไม่มีเพลง'"
+    revealedWhen:
+    - type: 0
+      targetId: "inspected_girl_portrait"
+      secondaryId: ""
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: "stopped_clock"
+    statement: "นาฬิกาตั้งพื้นหยุดเดินที่ตีสามพอดี เข็มวินาทีสั่นอยู่กับที่"
+    revealedWhen:
+    - type: 0
+      targetId: "inspected_clock_r3"
+      secondaryId: ""
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: "rocking_chair"
+    statement: "เก้าอี้โยกหยุดทันทีที่มีคนเอื้อมมือไปจับ แต่เบาะยังอุ่นเหมือนเพิ่งมีคนลุกไป"
+    revealedWhen:
+    - type: 0
+      targetId: "inspected_rocking_chair"
+      secondaryId: ""
+      amount: 0
+    isPuzzleAnswer: 0
+  - factId: "ghost_calmed"
+    statement: "เมื่อไขลานกล่องดนตรี เพลงกล่อมเด็กก็บรรเลงจนจบ เปลวเทียนกลับเป็นสีส้ม และประตูทางออกปลดล็อกแล้ว"
+    revealedWhen:
+    - type: 0
+      targetId: "ghost_lullaby_played"
+      secondaryId: ""
+      amount: 0
+    isPuzzleAnswer: 0
+  steps:
+  - stepId: "read_mirror"
+    summary: "ดูกระจกบานใหญ่ตรงกลางผนังด้านบน ที่รอยเท้าเปียกเริ่มต้น"
+    interactionId: "read_mirror"
+    availableWhen: []
+    completedWhen:
+    - type: 0
+      targetId: "saw_mirror_message"
+      secondaryId: ""
+      amount: 0
+    vagueHint: "รอยเท้าเปียกพวกนั้น... มันเริ่มมาจากตรงไหนกันนะ"
+    normalHint: "รอยเท้าเริ่มที่หน้ากระจกบานใหญ่บนผนังด้านบน ลองไปดูใกล้ๆ"
+    explicitHint: "ไปกด E ที่กระจกบานใหญ่ตรงกลางผนังด้านบนก่อนเลย"
+  - stepId: "inspect_music_box"
+    summary: "ดูกล่องดนตรีบนโต๊ะเครื่องแป้งฝั่งขวา ที่รอยเท้าเดินไปหยุด"
+    interactionId: "inspect_music_box"
+    availableWhen:
+    - type: 0
+      targetId: "saw_mirror_message"
+      secondaryId: ""
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: "music_box_needs_key"
+      secondaryId: ""
+      amount: 0
+    vagueHint: "ข้อความบนกระจกพูดถึง 'เพลง'... ในห้องนี้มีอะไรที่ร้องเพลงได้บ้าง"
+    normalHint: "รอยเท้าเปียกไปหยุดที่โต๊ะเครื่องแป้งฝั่งขวา มีกล่องดนตรีวางอยู่ตรงนั้น"
+    explicitHint: "ไปกด E ที่กล่องดนตรีบนโต๊ะเครื่องแป้งฝั่งขวา"
+  - stepId: "search_fireplace"
+    summary: "หาที่ไขลานในขี้เถ้าของเตาผิงฝั่งซ้าย"
+    interactionId: "search_fireplace"
+    availableWhen:
+    - type: 0
+      targetId: "music_box_needs_key"
+      secondaryId: ""
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: "found_winding_key"
+      secondaryId: ""
+      amount: 0
+    vagueHint: "คราบดำๆ ที่รูไขลาน... เคยเห็นสีแบบนั้นที่ไหนในห้องนี้นะ"
+    normalHint: "คราบเขม่าแบบนั้นมาจากเตาผิงฝั่งซ้ายแน่ๆ ลองคุ้ยดู"
+    explicitHint: "ไปกด E ที่เตาผิงฝั่งซ้าย ที่ไขลานจมอยู่ในขี้เถ้า"
+  - stepId: "wind_music_box"
+    summary: "นำที่ไขลานไปไขกล่องดนตรีให้เล่นเพลงอีกครั้ง"
+    interactionId: "wind_music_box"
+    availableWhen:
+    - type: 2
+      targetId: "winding_key"
+      secondaryId: ""
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: "ghost_lullaby_played"
+      secondaryId: ""
+      amount: 0
+    vagueHint: "ได้ของที่หายไปคืนมาแล้วนี่ ก็เหลือแค่ให้มันร้องเพลงอีกที"
+    normalHint: "เอาที่ไขลานไปใส่กล่องดนตรีบนโต๊ะเครื่องแป้งสิ"
+    explicitHint: "กลับไปกด E ที่กล่องดนตรีบนโต๊ะเครื่องแป้ง แล้วไขลานให้มันเล่นเพลง"
+  - stepId: "open_exit"
+    summary: "ออกทางประตูฝั่งขวาบนที่ปลดล็อกแล้ว"
+    interactionId: "open_exit_r3"
+    availableWhen:
+    - type: 0
+      targetId: "room03_door_unlocked"
+      secondaryId: ""
+      amount: 0
+    completedWhen:
+    - type: 0
+      targetId: "room03_exit_opened"
+      secondaryId: ""
+      amount: 0
+    vagueHint: "เสียงสลักเมื่อกี้... มาจากทางไหนนะ"
+    normalHint: "ประตูทางออกน่าจะเปิดแล้ว ไปดูสิ"
+    explicitHint: "ไปกด E ที่ประตูทางออกฝั่งขวาบนได้เลย"

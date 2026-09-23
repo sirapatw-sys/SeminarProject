@@ -52,6 +52,7 @@ MonoBehaviour:
   steps:
   - stepId: inspect_painting
     summary: "ตรวจภาพวาดบนผนัง"
+    interactionId: inspect_painting
     availableWhen: []
     completedWhen:
     - type: 0
@@ -62,6 +63,7 @@ MonoBehaviour:
     explicitHint: "ไปตรวจภาพวาดบนผนังก่อนเลย มีอะไรซ่อนอยู่หลังกรอบแน่ๆ"
   - stepId: search_desk
     summary: "ตรวจโต๊ะทำงานตามทิศที่ลูกศรหลังภาพวาดชี้"
+    interactionId: inspect_desk
     availableWhen:
     - type: 0
       targetId: inspected_painting
@@ -75,6 +77,7 @@ MonoBehaviour:
     explicitHint: "ไปตรวจโต๊ะทำงาน มีกระดาษพับซ่อนอยู่ในซอกขอบโต๊ะ"
   - stepId: open_drawer
     summary: "ใส่รหัส 4592 เพื่อปลดล็อคลิ้นชักและเอากุญแจ"
+    interactionId: open_drawer
     availableWhen:
     - type: 0
       targetId: found_note
@@ -88,6 +91,7 @@ MonoBehaviour:
     explicitHint: "ไปที่ลิ้นชักแล้วกดรหัส 4592 ตามที่เขียนไว้ในกระดาษโน้ต"
   - stepId: unlock_door
     summary: "ใช้กุญแจทองเหลืองเปิดประตูทางออก"
+    interactionId: unlock_door
     availableWhen:
     - type: 2
       targetId: key

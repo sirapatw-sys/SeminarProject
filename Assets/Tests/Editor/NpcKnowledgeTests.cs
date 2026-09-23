@@ -11,50 +11,28 @@ namespace MysteryGame.Tests
     /// the player has not uncovered, may never skip a step of the ladder, and
     /// a gatekeeper may never hint at all.
     /// </summary>
-    public class NpcKnowledgeTests
+    public class NpcKnowledgeTests : GameStateFixture
     {
-        private GameObject host;
-
-        [SetUp]
-        public void SetUp()
-        {
-            KnowledgeLibrary.ClearCache();
-            host = new GameObject("TestGameState");
-            host.AddComponent<GameState>();
-            Assert.That(GameState.Instance, Is.Not.Null,
-                        "GameState singleton should be live for these tests.");
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            Object.DestroyImmediate(host);
-            KnowledgeLibrary.ClearCache();
-        }
-
-        private static NpcKnowledgeContext Build(
-            string npcId, string roomId, bool askedForHint = true)
-        {
-            GameState.Instance.SetCurrentScene(roomId);
-            return NpcKnowledgeContextBuilder.Build(
-                npcId, roomId, GameState.Instance, askedForHint);
-        }
-
         // ------------------------------------------------------------ assets
 
         [Test]
         public void AuthoredRoomsAndNpcsLoadFromResources()
         {
-            Assert.That(KnowledgeLibrary.GetRoom("Room01"), Is.Not.Null);
-            Assert.That(KnowledgeLibrary.GetRoom("Room02"), Is.Not.Null);
-            Assert.That(KnowledgeLibrary.GetNpc("Alice"), Is.Not.Null);
-            Assert.That(KnowledgeLibrary.GetNpc("Sena"), Is.Not.Null);
+            foreach (string roomId in new[] { "Room01", "Room02", "Room03" })
+            {
+                Assert.That(KnowledgeLibrary.GetRoom(roomId), Is.Not.Null, roomId);
+            }
+
+            foreach (string npcId in new[] { "Alice", "Sena", "Rina", "Stelle" })
+            {
+                Assert.That(KnowledgeLibrary.GetNpc(npcId), Is.Not.Null, npcId);
+            }
         }
 
         [Test]
         public void EveryStepHintReferencesAnAuthoredWording()
         {
-            foreach (string roomId in new[] { "Room01", "Room02" })
+            foreach (string roomId in new[] { "Room01", "Room02", "Room03" })
             {
                 RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
                 foreach (PuzzleStep step in room.steps)
@@ -253,11 +231,79 @@ namespace MysteryGame.Tests
         [Test]
         public void UnauthoredRoomsFallBackToAnEmptyContext()
         {
-            NpcKnowledgeContext ctx = Build("Alice", "Room03");
+            NpcKnowledgeContext ctx = Build("Alice", "Room99");
 
             Assert.That(ctx.HasData, Is.False);
+            Assert.That(ctx.HasProfile, Is.True,
+                        "the NPC's own profile still applies in an unauthored room");
             Assert.That(NpcKnowledgeContextBuilder.BuildOfflineReply(ctx),
                         Is.Empty);
+        }
+
+        // ------------------------------------------------------------ Room03
+
+        [Test]
+        public void Room03LadderWalksInOrder()
+        {
+            GameState state = State;
+            Assert.That(Build("Rina", "Room03").CurrentStep.stepId,
+                        Is.EqualTo("read_mirror"));
+
+            state.SetFlag("saw_mirror_message");
+            Assert.That(Build("Rina", "Room03").CurrentStep.stepId,
+                        Is.EqualTo("inspect_music_box"));
+
+            state.SetFlag("music_box_needs_key");
+            Assert.That(Build("Rina", "Room03").CurrentStep.stepId,
+                        Is.EqualTo("search_fireplace"));
+
+            state.SetFlag("found_winding_key");
+            state.AddItem("winding_key");
+            Assert.That(Build("Rina", "Room03").CurrentStep.stepId,
+                        Is.EqualTo("wind_music_box"));
+
+            state.RemoveItem("winding_key");
+            state.SetFlag("ghost_lullaby_played");
+            Assert.That(Build("Rina", "Room03").CurrentStep.stepId,
+                        Is.EqualTo("open_exit"));
+
+            state.SetFlag("room03_exit_opened");
+            Assert.That(Build("Rina", "Room03").CurrentStep, Is.Null);
+        }
+
+        [Test]
+        public void TheKeyInTheAshesStaysHiddenUntilItIsFound()
+        {
+            State.SetFlag("saw_mirror_message");
+            State.SetFlag("music_box_needs_key");
+            NpcKnowledgeContext ctx = Build("Rina", "Room03");
+
+            Assert.That(ctx.CanReference("music_box_missing_key"), Is.True);
+            Assert.That(ctx.CanReference("key_in_ashes"), Is.False,
+                        "the soot points at the fireplace; the key itself is found, not told");
+            Assert.That(ctx.DeterministicHint, Is.Not.Empty);
+        }
+
+        [Test]
+        public void StelleGivesNoHintWhileThePlayerIsAStranger()
+        {
+            NpcKnowledgeContext stranger = Build("Stelle", "Room03");
+            Assert.That(stranger.AllowedHintLevel, Is.EqualTo(HintLevel.None));
+
+            State.ChangeRelationship("Stelle", 25);   // 35 -> 60
+            NpcKnowledgeContext friend = Build("Stelle", "Room03");
+            Assert.That(friend.AllowedHintLevel, Is.EqualTo(HintLevel.Vague));
+        }
+
+        [Test]
+        public void EveryoneInRoom03KnowsTheRoomIsHaunted()
+        {
+            foreach (string npcId in new[] { "Alice", "Rina", "Stelle" })
+            {
+                State.SetFlag("room03_entered");
+                NpcKnowledgeContext ctx = Build(npcId, "Room03", askedForHint: false);
+                Assert.That(ctx.CanReference("parlor_cold"), Is.True, npcId);
+            }
         }
     }
 }

@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: MusicBoxWind_R3_Data
+  m_EditorClassIdentifier: 
+  interactionId: "wind_music_box"
+  displayName: "กล่องดนตรีเก่า (Music Box)"
+  interactionMessage: "คุณเสียบที่ไขลานแล้วหมุนช้าๆ... กริ๊ก กริ๊ก\nเพลงกล่อมเด็กแผ่วๆ ดังขึ้น ตุ๊กตานักบัลเล่ต์เริ่มหมุน\nเปลวเทียนสีฟ้าค่อยๆ กลับเป็นสีส้มทีละเล่ม เก้าอี้โยกหยุดนิ่ง แล้วเสียงกระซิบเบาๆ ก็ดังข้างหู: 'ขอบคุณนะ... ฝันดี'\nจากฝั่งขวาบนของห้อง มีเสียงสลักประตูดังคลิก"
+  failureMessage: "ที่ไขลานยังหายไปอยู่ รูเสียบมีคราบเขม่าดำติดอยู่ เหมือนเขม่าในเตาผิงฝั่งซ้าย"
+  repeatable: 0
+  alreadyCompletedMessage: "กล่องดนตรีบรรเลงเพลงกล่อมเด็กแผ่วๆ ตุ๊กตานักบัลเล่ต์หมุนช้าลงเรื่อยๆ ราวกับกำลังจะหลับ"
+  conditions:
+  - type: 2
+    targetId: "winding_key"
+    secondaryId: ""
+    amount: 0
+  actions:
+  - type: 3
+    targetId: "winding_key"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 0
+    targetId: "ghost_lullaby_played"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 0
+    targetId: "room03_door_unlocked"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 6
+    targetId: "chapter01_complete"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 5
+    targetId: ""
+    secondaryId: ""
+    amount: 0
+    text: "Wound the music box; the Room03 ghost calmed"
+  popupItemId: ""
+  popupItemName: ""
+  popupItemDescription: ""
+  transitionScene: ""
+  transitionMessage: ""
+  endsDemo: 0
+  scareOnSuccess: 0

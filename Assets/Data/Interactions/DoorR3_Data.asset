@@ -11,16 +11,33 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
   m_Name: DoorR3_Data
-  m_EditorClassIdentifier:
-  interactionId: inspect_gate_r3
-  displayName: "ประตูมิติถัดไป (Next Gate)"
-  interactionMessage: "ประตูบานนี้ยังปิดสนิท ลวดลายบนบานประตูยังไม่ตื่นขึ้น...\n(ห้องถัดไปยังอยู่ระหว่างการสร้าง — Coming soon)"
-  failureMessage: "ประตูบานนี้ยังไม่ตอบสนองคุณ"
+  m_EditorClassIdentifier: 
+  interactionId: "open_exit_r3"
+  displayName: "ประตูทางออก (Exit Door)"
+  interactionMessage: "ลูกบิดที่เคยแข็งเหมือนมีใครกดไว้ หมุนได้อย่างง่ายดาย รอยฝ่ามือบนบานประตูค่อยๆ จางหาย"
+  failureMessage: "ประตูเย็นเฉียบ มีรอยฝ่ามือเล็กๆ ขึ้นฝ้าเต็มบาน ลูกบิดไม่ขยับเลย ราวกับมีใครกดมันไว้จากอีกฝั่ง...\nเสียงเพลงกล่อมเด็กแผ่วๆ ดังมาจากที่ไหนสักแห่งในห้อง"
   repeatable: 1
   alreadyCompletedMessage: ""
-  conditions: []
+  conditions:
+  - type: 0
+    targetId: "room03_door_unlocked"
+    secondaryId: ""
+    amount: 0
   actions:
   - type: 0
-    targetId: inspected_gate_r3
+    targetId: "room03_exit_opened"
+    secondaryId: ""
     amount: 0
-    text:
+    text: ""
+  - type: 5
+    targetId: ""
+    secondaryId: ""
+    amount: 0
+    text: "Left the haunted parlor"
+  popupItemId: ""
+  popupItemName: ""
+  popupItemDescription: ""
+  transitionScene: ""
+  transitionMessage: "ประตูเปิดออกสู่ทางเดินมืดสนิท...\nเบื้องหลังคุณ เสียงกล่องดนตรีบรรเลงเพลงกล่อมเด็กจนจบเพลง แล้วทุกอย่างก็เงียบลง\n\nบทที่ 1 จบลงเพียงเท่านี้"
+  endsDemo: 1
+  scareOnSuccess: 0

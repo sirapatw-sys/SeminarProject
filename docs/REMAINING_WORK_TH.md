@@ -1,127 +1,88 @@
 # งานที่ยังไม่ได้ทำ
 
-สรุปจาก [PROJECT_HANDOFF_TH.md](PROJECT_HANDOFF_TH.md) โดยไล่ตรวจกับโค้ดจริงเมื่อ **21 กันยายน 2026** ทุกข้อในเอกสารนี้ยืนยันแล้วว่ายังค้างอยู่จริง ไม่ได้คัดลอกมาเฉยๆ
-
-เอกสาร handoff ยังเป็นภาพรวมของระบบ ส่วนไฟล์นี้เป็นรายการงานล้วนๆ
+อัปเดต **23 กันยายน 2026** หลังรอบที่ทำตามรายการเดิมจนครบ ภาพรวมของระบบอยู่ใน [PROJECT_HANDOFF_TH.md](PROJECT_HANDOFF_TH.md)
 
 ---
 
-## ตรวจแล้วว่าทำไปแล้ว — อย่าทำซ้ำ
+## ต้องทำก่อน: เปิด Unity ตรวจหนึ่งรอบ
 
-เอกสาร handoff ยังเขียนว่าค้างอยู่ แต่ตรวจโค้ดแล้วเสร็จไปแล้ว:
+รอบนี้ทำงานนอก Unity ทั้งหมด (Unity ในเครื่องรันแบบ batchmode ไม่ได้เพราะต้องล็อกอิน license) สิ่งที่ตรวจแล้ว:
 
-| รายการใน handoff | สถานะจริง |
+- คอมไพล์ `MysteryGame.Runtime` และ `MysteryGame.Tests.EditMode` ผ่านด้วย Roslyn ของ Unity 2021.3.16f1 ไม่มี error/warning
+- ทุก scene และ asset parse เป็น YAML ได้ ไม่มี fileID ซ้ำ ไม่มี reference ภายในที่ขาด และทุก GUID ที่อ้างถึงหาไฟล์เจอ (รวมของ package) — แปลว่าการลบ `TextMesh Pro/Examples & Extras` ไม่ได้ทิ้ง reference ค้างไว้
+- เงื่อนไขของ interaction ตรงกับ `steps[]` ทุกห้อง (ตรวจด้วยสคริปต์เดียวกับ test)
+- collider ของ Room03 วางทับภาพแล้ว flood-fill จากจุดเกิด: เดินถึงทุก interactable
+
+ที่ยังต้องทำใน Unity:
+
+1. เปิดโปรเจกต์ ให้ Unity import ภาพใหม่และสร้าง sprite
+2. รัน `Window > General > Test Runner > EditMode` ทั้งหมด (**ยังไม่เคยรันจริง**)
+3. เล่นตั้งแต่ Room01 จนจบ Room03 ดู Missing Script / สีชมพู / ขนาดตัวละคร Rina–Stelle / ตำแหน่ง "!" เหนือหัวเซนะ
+4. เช็กกล่องอารมณ์ของสเตลกับตัวเลือก 4 ข้อตอนทะเลาะว่าไม่ทับกัน
+
+---
+
+## ทำเสร็จในรอบนี้
+
+| รายการเดิม | ผลลัพธ์ |
 |---|---|
-| จำโมเดลที่เลือกข้ามรอบการเล่น (P1) | เสร็จแล้ว — มี `PlayerPrefs` คีย์ `ai.model` และ `ai.endpoint` |
-| ยังไม่มี Git remote | มีแล้ว — `origin` ชี้ไป `github.com/sirapatw-sys/SeminarProject` |
-| branch ปัจจุบันคือ `main` | ตอนนี้อยู่บน `develop` และมี 2 commit |
-| ลบ `Assets/TextMesh Pro/Examples & Extras/` | ลบไปแล้ว เหลือแค่เปิด Unity ยืนยันว่าไม่มี reference ขาด |
-| ชุดทดสอบ 14 เคส | จริงๆ มี 15 เคสใน `NpcKnowledgeTests.cs` |
+| P0-1 ส่งประวัติสนทนาหลายข้อความ | log แยกต่อ NPC, ส่ง 10 บรรทัดล่าสุดภายใน 1,400 ตัวอักษร |
+| P0-2 ประวัติและความลับใน `NpcProfileData` | `backstory[]`, `secrets[]` (โครง `KnowledgeGrant`), `situationalNotes[]`, `bonds[]` |
+| P0-3 ย้าย fallback ออกจาก `DialogueManager` | `fallbackReplies[]`, `neutralReplies[]`, `returnGreetings[]` ในข้อมูล + `NpcOfflineReplies` / prompt ของเซนะกับ Alice ย้ายเป็นข้อมูลด้วย |
+| P0-4 `Room03.asset` | สร้างแล้วพร้อมภาพพื้นหลังใหม่ ไม่ยืม `Room02_AssembledRoom.png` อีก |
+| P0 tests: API ล้ม / JSON ผิดรูป | `AiResponseParserTests` + แก้บั๊กจริง: `JsonUtility` throw ทำให้แชตค้าง, เพิ่ม timeout |
+| P0 tests: Interactions ↔ steps | `InteractionConsistencyTests` (เพิ่มช่อง `PuzzleStep.interactionId`) |
+| P1 แสดง quota | อ่านจาก header / body แสดงในหน้าตั้งค่า |
+| P1 mini event ของเซนะ | `Sena_Impatient`, `Sena_RiddleTaunt` |
+| P1 ความสัมพันธ์ระหว่าง NPC | `bonds[]` + เงื่อนไข `NpcRelationshipAtLeast/AtMost` |
+| P1 event ทะเลาะ | `Room03_Quarrel` รับฟัง / ไกล่เกลี่ย / เข้าข้างรินะ / เข้าข้างสเตล |
+| P1 event ตามความคืบหน้าด่าน | trigger `RoomProgress` + `storyBeat` |
+| P1 ผลระยะยาวของคำตอบ | flag, ความสัมพันธ์สองชั้น, memory, situational notes, event ถัดไปที่แยกตามทางเลือก |
+| P1 NPC ฝ่ายผู้เล่นคนที่สองใน Room03 | รินะและสเตล |
+| P1 Room03 | ปริศนา 5 ขั้นแบบไม่ต้องพิมพ์ตอบ ธีมสยองขวัญ |
+| P2 responsive UI | CanvasScaler match 0.5 + `UiScale` สำหรับ IMGUI |
+| P2 เสียงและ feedback | `SfxPlayer` + เสียงตกใจ/ambience ใน Room03 |
+| P2 save/load และเมนูเริ่มเกม | `SaveSystem`, `TitleMenu`, F5/F9, ฉากจบเดโม |
+| P2 placeholder art | Room03 ได้ภาพพื้นหลัง, Rina/Stelle ได้ภาพในฉาก + portrait, ไอเท็มที่ไขลาน |
+| `*_Old.png` | ตรวจแล้วไม่มีอะไรอ้างถึง ลบแล้ว |
+| Git | `CopyPasteAssets/` commit ขึ้นไป, `scratch/` ใส่ `.gitignore` |
 
 ---
 
-## P0 — ส่วนที่เหลือของ NPC World Knowledge
+## ยังค้าง
 
-### 1. ส่งประวัติสนทนาหลายข้อความให้ AI
+### ท่าเดิน (พักไว้ตามที่ตกลง)
 
-ตอนนี้ส่งความทรงจำให้แค่ **รายการเดียว** คือรายการล่าสุด NPC เลยจำบทสนทนาก่อนหน้าไม่ได้จริง
+ยังไม่ทำโดยตั้งใจ — รอ gen ชีทใหม่ก่อน
 
-- `Assets/Scripts/AI/AiDialogueGenerator.cs:854` — `memories[memories.Count - 1]` ใน `BuildReplyPrompt`
-- `Assets/Scripts/AI/AiDialogueGenerator.cs:959` — จุดเดียวกันในฝั่ง mini event
+- ชีทของ Zero จังหวะขาไม่สลับ หัวสั่น (วัดแล้วต่างกันแค่ 1.10–1.24 เท่า ควรเป็น 3–5 เท่า) ต้อง gen ใหม่โดยล็อกจังหวะขา contact-pass-down-pass และตรึงหัวกับลำตัว
+- Alice ยังใช้ภาพนิ่ง `Alice_Chibi.png` ชีท `CopyPasteAssets/.../Alice อลิซ.png` ใช้สคริปต์ตัดตัวเดียวกับ Zero ได้
+- ชีทของ Zero มีเงาติดมา Alice ไม่มี ทางที่สะอาดที่สุดคือ gen ใหม่แบบไม่มีเงา
+- Rina/Stelle ใช้ภาพนิ่งจากเฟรมแรกของชีทพร้อมการเด้งแบบ procedural (ชีทของสองคนนี้เป็นแนวนอนทิศเดียว ไม่ใช่ 8x4 แบบ Zero)
 
-ต้องเก็บ log บทสนทนาแยกต่อ NPC แล้วส่งท้าย N ข้อความ พร้อมจำกัดความยาว context ไม่ให้ prompt บวม
+### ภาพพื้นหลัง Room03
 
-### 2. เพิ่มประวัติและความลับใน `NpcProfileData`
+`Room03_HauntedParlor.png` วาดด้วยโค้ดที่ `tools/art/paint_room03.py` (รันซ้ำได้ ผลลัพธ์เหมือนเดิมทุกพิกเซล) โทนและองค์ประกอบเข้ากับ Room01 แต่รายละเอียดยังเรียบกว่าภาพวาดของ Room01/02 ถ้าจะ gen ภาพใหม่ ให้คงตำแหน่งเหล่านี้ (พิกเซลบนภาพ 1920x1080) เพื่อไม่ต้องย้าย collider:
 
-`Assets/Scripts/Knowledge/NpcProfileData.cs` ตอนนี้มีแค่ `persona` / `speechStyle` / `personalGoal` ยังไม่มีช่องสำหรับ:
+| วัตถุ | x0, y0 – x1, y1 |
+|---|---|
+| พื้นที่เดินได้ | 150, 300 – 1770, 960 |
+| เตาผิง | 250, 70 – 560, 330 |
+| หน้าต่าง | 640, 70 – 790, 262 |
+| กระจกบานใหญ่ | 870, 62 – 1050, 282 |
+| ภาพวาดเด็กหญิง | 1130, 88 – 1270, 238 |
+| นาฬิกาตั้งพื้น | 1330, 44 – 1410, 318 |
+| ประตูทางออก | 1480, 66 – 1660, 300 |
+| โต๊ะเครื่องแป้ง + กล่องดนตรี | 1570, 470 – 1762, 690 |
+| เก้าอี้โยก | 590, 360 – 700, 480 |
+| ตู้หนังสือแคบ | 158, 372 – 236, 600 |
+| โซฟาคลุมผ้า | 175, 700 – 455, 880 |
+| โต๊ะข้าง | 470, 790 – 560, 870 |
+| หีบของเล่น | 1540, 820 – 1700, 930 |
+| เชิงเทียน | 1110, 330 – 1170, 390 และ 310, 560 – 370, 620 |
 
-- backstory ที่ NPC เล่าได้เมื่อถูกถาม
-- ความลับที่ค่อยๆ เปิดเผยตามความสัมพันธ์หรือ flag
+### เล็กน้อย
 
-ใช้โครง `KnowledgeGrant` ที่มีอยู่แล้ว (แบบเดียวกับ `learnedFacts`) ได้เลย ไม่ต้องคิดใหม่
-
-### 3. ย้าย fallback ที่เขียนมือออกจาก `DialogueManager`
-
-`Assets/Scripts/DialogueManager.cs:970` — `BuildFallbackReply()` ยังฮาร์ดโค้ดส่วนทักทาย ตอบโต้คำหยาบ และการขอโทษไว้ในโค้ด ทำให้เพิ่ม NPC ใหม่ต้องแก้โค้ดตาม ควรย้ายไปเป็นรายการใน `NpcProfileData`
-
-### 4. สร้าง `Assets/Resources/Knowledge/Rooms/Room03.asset`
-
-ตอนนี้โฟลเดอร์มีแค่ `Room01.asset` กับ `Room02.asset` ทำให้ Room03 ตกไปใช้ prompt แบบฮาร์ดโค้ดเดิมโดยอัตโนมัติ
-
-ผลข้างเคียงที่เห็นได้ในเกม: `RoomVisualController` หา knowledge ของ Room03 ไม่เจอ เลยตกไปใช้ค่า fallback `room03Background` ซึ่งยังชี้ไปที่ `Room02_AssembledRoom.png` — อาร์ตชุดเก่าที่เลิกใช้กับ Room02 ไปแล้ว ห้องนี้เลยยืมฉากเก่ามาแสดงอยู่
-
----
-
-## P0 — ส่วนที่เหลือของการทดสอบ
-
-`Assets/Tests/Editor/NpcKnowledgeTests.cs` มี 15 เคสแล้ว ที่ยังขาด:
-
-- เคสที่ API ล้มเหลวหรือคืน JSON ผิดรูป แล้วบทสนทนาต้องไม่ค้าง — ต้อง mock `UnityWebRequest` หรือแยก parser ออกมาทดสอบเดี่ยว
-- เคสที่ตรวจว่าเงื่อนไขใน `Assets/Data/Interactions/` ตรงกับ `steps[]` ใน `RoomKnowledgeData` เพื่อกันข้อมูลสองชุดเพี้ยนจากกัน
-
----
-
-## P1 — ระบบ KKU
-
-- แสดง quota ที่เหลือ ถ้า response ของ provider มีข้อมูลนั้น ตอนนี้ `AiProviderDiagnostics.cs:25` แค่จับ pattern ว่า "โควตาหมด" จาก error เท่านั้น ยังไม่เคยอ่านโควตาคงเหลือ
-
----
-
-## P1 — เนื้อหา NPC และ mini event
-
-`Assets/Data/Events/` มีแค่สองไฟล์ ทั้งคู่เป็นของ Alice (`Alice_Thirst_Event`, `Alice_Homesick_Event`) ที่ยังขาด:
-
-- mini event ของเซนะ
-- ข้อมูลความสัมพันธ์ระหว่าง NPC ด้วยกันเอง
-- event ทะเลาะกัน ที่ผู้เล่นเลือกได้ว่าจะรับฟัง ไกล่เกลี่ย หรือเข้าข้าง
-- event ที่ตอบสนองต่อความคืบหน้าของด่าน แทนที่จะสุ่มโดยไม่สนสถานการณ์
-- ผลระยะยาวของคำตอบ (memory, relationship, การเปิด/ปิดบทสนทนาในอนาคต)
-- NPC ฝ่ายผู้เล่นคนที่สองใน Room03 (เซนะไม่นับ เพราะเป็นผู้เฝ้าประตู ไม่ใช่พวกเดียวกับผู้เล่น)
-
----
-
-## P1 — Room03
-
-ตอนนี้ยังเป็นโครงเปล่าจริงๆ: มี interactable แค่ชิ้นเดียวคือ `Door` และยังไม่มีปริศนา ต้องออกแบบเนื้อหาห้องก่อน แล้วค่อยทำ knowledge asset ตามข้อ P0-4
-
----
-
-## P2 — งาน polish
-
-- ปรับ responsive UI สำหรับหลายความละเอียด
-- เพิ่มเสียงและ feedback ขณะ interact
-- เพิ่ม save/load และเมนูเริ่มเกม
-- เปลี่ยน placeholder art ที่ยังเหลือเป็นภาพจริง
-
----
-
-## งานที่พบเพิ่มหลังเขียน handoff
-
-### ชีทท่าเดินของ Zero จังหวะขาไม่ถูก
-
-เฟรมทั้ง 32 ถูกตัดใหม่จากชีทต้นฉบับบนกริด 128px เรียบร้อยแล้ว (ตัวเต็มมีบู๊ตครบทุกทิศ) แต่ **ตัวชีทเองวาดจังหวะขามาไม่ถูก**
-
-วัดความต่างเฉพาะพื้นที่ขา: เฟรมที่ห่างกัน 4 ช่องควรเป็นจังหวะตรงข้ามกันและต่างกัน 3-5 เท่าของเฟรมที่ติดกัน แต่วัดได้แค่ 1.10-1.24 เท่า (Down 528 vs 652, Right 686 vs 756) แปลว่าขาแทบไม่สลับกัน ส่วนพื้นที่หัวเปลี่ยนพอๆ กับขา (Down: หัว 600 vs ขา 528) เพราะแต่ละเฟรมถูกวาดแยกกัน หน้ากับผมเลยสั่นตลอด
-
-ต้อง gen ชีทใหม่โดยระบุให้ล็อกจังหวะขา (contact-pass-down-pass) และตรึงหัวกับลำตัว แล้วตัดใหม่ด้วยวิธีเดิม
-
-### Alice ยังไม่มีท่าเดิน
-
-`CopyPasteAssets/Characters/Female In Scene/Alice อลิซ.png` เป็นชีท 8 เฟรม × 4 ทิศ เลย์เอาต์เหมือนของ Zero เป๊ะ แต่ตอนนี้ Alice ยังใช้ภาพนิ่ง `Alice_Chibi.png` อยู่ ใช้สคริปต์ตัดตัวเดียวกันได้เลย
-
-### เงาใต้เท้าที่ติดมากับชีท
-
-ชีทต้นฉบับวาดเงาติดมาในตัวภาพ ตัดออกไม่ได้แบบสะอาด (ขอบเงาที่ฟุ้งรอดทุก threshold ที่ไม่กินพื้นรองเท้า และการไล่เศษด้วย connectivity ทำให้เฟรม Down ขาดครึ่งตัว) ตอนนี้จึงเก็บเงาไว้ตามต้นฉบับ ส่วน Alice ไม่มีเงา สองตัวเลยไม่เข้าชุดกันเล็กน้อย — ถ้าจะแก้ ทางที่สะอาดที่สุดคือ gen ชีทใหม่โดยสั่งไม่ให้วาดเงา
-
-### `Assets/Art/Portraits/*_Old.png`
-
-มีไฟล์ `Alice_Old` / `Alice_Chibi_Old` / `Player_Old` / `Player_Chibi_Old` ค้างอยู่ ยังไม่ได้ตรวจว่ามีอะไรอ้างถึงหรือไม่ ถ้าไม่มีควรลบก่อน commit
-
----
-
-## เรื่อง Git ที่ต้องตัดสินใจก่อน commit
-
-- **`CopyPasteAssets/` (18 MB) ยังไม่ถูก track และไม่ได้อยู่ใน `.gitignore`** ต้องเลือกว่าจะ commit หรือ ignore — แต่มันคือต้นฉบับของชีทท่าเดิน ถ้า ignore แล้วเพื่อนที่ clone ไปจะตัดเฟรมใหม่เองไม่ได้
-- **`scratch/` (1.2 MB)** เป็นภาพ preview ที่ใช้ทดลองระหว่างทาง ควรใส่ `.gitignore` ไม่ใช่ commit
-- `api_keys.json` อยู่ใน `.gitignore` แล้ว ตรวจแล้วปลอดภัย
-- ก่อน commit ควรเปิด Unity ตรวจ Missing Script / material สีชมพู / asset reference ที่หายก่อนหนึ่งรอบ
+- `Assets/Art/Backgrounds/Room02_AssembledRoom.png`, `Room01_2D.png`, `Room01_Study.png`, `Room02_GrandChamber.png` ไม่มีอะไรอ้างถึงแล้ว ลบได้ถ้าไม่ต้องการเก็บไว้เทียบ
+- KKU ยังไม่เคยเห็นว่าส่ง header โควตามาหรือไม่ ถ้าไม่ส่ง หน้าตั้งค่าจะบอกตามจริงว่าไม่มีข้อมูล
+- ชื่อเกมบนเมนูเริ่ม ("ห้องที่จำใบหน้าเราได้") ตั้งชั่วคราว แก้ได้ที่ `Assets/Scripts/UI/TitleMenu.cs`

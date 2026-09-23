@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: Mirror_R3_Data
+  m_EditorClassIdentifier: 
+  interactionId: "read_mirror"
+  displayName: "กระจกเงาบานใหญ่ (Cracked Mirror)"
+  interactionMessage: "กระจกเย็นเฉียบจนลมหายใจขึ้นเป็นไอ... แล้วตัวหนังสือก็ค่อยๆ ปรากฏบนฝ้าทีละตัว ราวกับมีนิ้วเล็กๆ เขียนจากอีกฝั่ง:\n'เพลงของหนูหายไป... ใครก็ได้ ช่วยให้มันร้องอีกที'\nใต้ข้อความมีรอยฝ่ามือเด็กประทับอยู่ และรอยเท้าเปียกบนพื้นเริ่มต้นจากตรงนี้ เดินไปทางโต๊ะเครื่องแป้งฝั่งขวา"
+  failureMessage: "ตอนนี้ฉันยังทำสิ่งนี้ไม่ได้..."
+  repeatable: 0
+  alreadyCompletedMessage: "ตัวหนังสือบนกระจกยังอยู่: 'เพลงของหนูหายไป... ใครก็ได้ ช่วยให้มันร้องอีกที' รอยเท้าเปียกเดินจากตรงนี้ไปหาโต๊ะเครื่องแป้งฝั่งขวา"
+  conditions: []
+  actions:
+  - type: 0
+    targetId: "saw_mirror_message"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  - type: 5
+    targetId: ""
+    secondaryId: ""
+    amount: 0
+    text: "Read the fogged message on the Room03 mirror"
+  popupItemId: ""
+  popupItemName: ""
+  popupItemDescription: ""
+  transitionScene: ""
+  transitionMessage: ""
+  endsDemo: 0
+  scareOnSuccess: 1

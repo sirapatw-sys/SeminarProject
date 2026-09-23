@@ -43,6 +43,31 @@ public class AiSettingsPanel : MonoBehaviour
     private Texture2D buttonTexture;
     private Texture2D accentTexture;
 
+    private static AiSettingsPanel active;
+
+    /// <summary>Opens the panel from elsewhere, e.g. the title menu.</summary>
+    public static void Open()
+    {
+        if (active != null)
+        {
+            active.isOpen = true;
+            IsOpen = true;
+        }
+    }
+
+    private void OnEnable()
+    {
+        active = this;
+    }
+
+    private void OnDisable()
+    {
+        if (active == this)
+        {
+            active = null;
+        }
+    }
+
     private void Start()
     {
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
@@ -95,9 +120,10 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void OnGUI()
     {
+        UiScale.Apply();
         EnsureStyles();
 
-        if (!isOpen && !DialogueManager.IsDialogueOpen)
+        if (!isOpen && !DialogueManager.IsDialogueOpen && !TitleMenu.IsOpen)
         {
             GUI.Box(
                 new Rect(22f, 22f, 285f, 70f),
@@ -107,14 +133,14 @@ public class AiSettingsPanel : MonoBehaviour
             if (!string.IsNullOrEmpty(InteractionPrompt))
             {
                 GUI.Box(
-                    new Rect((Screen.width - 420f) * 0.5f, Screen.height - 118f, 420f, 54f),
+                    new Rect((UiScale.Width - 420f) * 0.5f, UiScale.Height - 118f, 420f, 54f),
                     InteractionPrompt,
                     hudStyle
                 );
             }
         }
 
-        Rect buttonRect = new Rect(Screen.width - 178f, 22f, 156f, 44f);
+        Rect buttonRect = new Rect(UiScale.Width - 178f, 22f, 156f, 44f);
         if (GUI.Button(buttonRect, "⚙  ตั้งค่า AI", launcherStyle))
         {
             isOpen = !isOpen;
@@ -127,14 +153,14 @@ public class AiSettingsPanel : MonoBehaviour
         }
 
         GUI.DrawTexture(
-            new Rect(0f, 0f, Screen.width, Screen.height),
+            new Rect(0f, 0f, UiScale.Width, UiScale.Height),
             dimTexture,
             ScaleMode.StretchToFill
         );
-        windowRect.width = Mathf.Min(620f, Screen.width - 40f);
-        windowRect.height = Mathf.Min(590f, Screen.height - 40f);
-        windowRect.x = (Screen.width - windowRect.width) * 0.5f;
-        windowRect.y = (Screen.height - windowRect.height) * 0.5f;
+        windowRect.width = Mathf.Min(620f, UiScale.Width - 40f);
+        windowRect.height = Mathf.Min(590f, UiScale.Height - 40f);
+        windowRect.x = (UiScale.Width - windowRect.width) * 0.5f;
+        windowRect.y = (UiScale.Height - windowRect.height) * 0.5f;
         windowRect = GUI.Window(9182, windowRect, DrawWindow, string.Empty, windowStyle);
     }
 
@@ -291,6 +317,12 @@ public class AiSettingsPanel : MonoBehaviour
 
         GUILayout.Space(12f);
         GUILayout.Label(status, noteStyle);
+        GUILayout.Label(
+            string.IsNullOrEmpty(AiDialogueGenerator.LastQuota)
+                ? "โควตาคงเหลือ: ผู้ให้บริการยังไม่ได้ส่งข้อมูลโควตามา (จะแสดงหลังคำขอแรกถ้ามี)"
+                : "โควตาคงเหลือ: " + AiDialogueGenerator.LastQuota,
+            noteStyle
+        );
         GUILayout.Label(
             "Provider presets set the protocol and endpoint. A different service may also require a different model ID.",
             noteStyle

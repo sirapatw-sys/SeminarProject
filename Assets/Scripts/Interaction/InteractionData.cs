@@ -43,4 +43,21 @@ public class InteractionData : ScriptableObject
 
     [TextArea(2, 4)]
     public string popupItemDescription;
+
+    [Header("Room Transition")]
+    [Tooltip(
+        "Scene to move to after a successful interaction, e.g. Room02. " +
+        "Leave empty to stay in the room."
+    )]
+    public string transitionScene;
+
+    [TextArea(2, 4)]
+    public string transitionMessage;
+
+    [Tooltip("Ends the demo instead of loading a scene: fades out on the message.")]
+    public bool endsDemo;
+
+    [Header("Feedback")]
+    [Tooltip("Plays the scare sting on success, for the haunted room's jump moments.")]
+    public bool scareOnSuccess;
 }

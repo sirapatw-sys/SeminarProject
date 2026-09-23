@@ -11,28 +11,45 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3b75aa9e7779470c889557275485c8a2, type: 3}
   m_Name: Alice_Room03
-  m_EditorClassIdentifier:
-  dialogueId: alice_room03
-  speakerId: Alice
-  speakerName: Alice
+  m_EditorClassIdentifier: 
+  dialogueId: "alice_room03"
+  speakerId: "Alice"
+  speakerName: "Alice"
   speakerPortrait: {fileID: 21300000, guid: ab111111111111111111111111111111, type: 3}
-  personalityPrompt:
+  personalityPrompt: ""
   lines:
-  - "...เราผ่านนางฟ้านั่นมาได้จริงๆ ด้วย"
-  - "ห้องนี้ยังเงียบเกินไป เหมือนยังไม่มีอะไรตื่นขึ้นมาเลยสักอย่าง"
-  - "...พักก่อนก็ได้นะ ที่เหลือค่อยว่ากันทีหลัง"
-  overrideReturnLines: 1
-  returnLines:
-  - "...ยังไม่มีอะไรใหม่ในห้องนี้หรอก"
-  - "รอไปก่อนแล้วกัน"
+  - "...ห้องนี้หนาวผิดปกติ ทั้งที่ไม่มีลมเข้ามาเลย"
+  - "เทียนพวกนั้น... ไฟเป็นสีฟ้า ห้องก่อนๆ ยังไม่เป็นแบบนี้"
+  - "แล้วก็มีคนอยู่ในห้องนี้ก่อนเราด้วย... สองคน"
+  overrideReturnLines: 0
+  returnLines: []
   choices:
-  - optionText: "พักก่อนก็ได้"
-    responseText: "...อืม พักเถอะ"
+  - optionText: "อยู่ใกล้ๆ ฉันไว้นะ"
+    responseText: "...ไม่ได้กลัวหรอก แต่ก็... จะอยู่ใกล้ๆ ละกัน"
     actions:
     - type: 4
-      targetId: Alice
-      amount: 2
-      text:
-  - optionText: "ลองสำรวจรอบๆ กันดีกว่า"
-    responseText: "...ก็ได้ แต่ฉันว่ายังไม่มีอะไรให้ดูหรอกนะ"
-    actions: []
+      targetId: "Alice"
+      secondaryId: ""
+      amount: 3
+      text: ""
+    - type: 7
+      targetId: "Alice"
+      secondaryId: ""
+      amount: 0
+      text: "ผู้เล่นบอกให้อลิซอยู่ใกล้ๆ ในห้องที่มีผี"
+  - optionText: "ไปคุยกับสองคนนั้นกันเถอะ"
+    responseText: "...อืม ระวังตัวด้วยล่ะ เราไม่รู้ว่าพวกนั้นเป็นใคร"
+    actions:
+    - type: 4
+      targetId: "Alice"
+      secondaryId: ""
+      amount: 1
+      text: ""
+  - optionText: "เธอกลัวเหรอ?"
+    responseText: "...ใครกลัว ฉันแค่หนาว"
+    actions:
+    - type: 4
+      targetId: "Alice"
+      secondaryId: ""
+      amount: -1
+      text: ""

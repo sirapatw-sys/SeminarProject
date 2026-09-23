@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: RockingChair_R3_Data
+  m_EditorClassIdentifier: 
+  interactionId: "inspect_rocking_chair"
+  displayName: "เก้าอี้โยก (Rocking Chair)"
+  interactionMessage: "เก้าอี้โยกไปมาเองช้าๆ... พอเอื้อมมือไปจับ มันก็หยุดทันที\nเบาะยังอุ่นอยู่ เหมือนเพิ่งมีใครตัวเล็กๆ ลุกไปเมื่อครู่"
+  failureMessage: "ตอนนี้ฉันยังทำสิ่งนี้ไม่ได้..."
+  repeatable: 0
+  alreadyCompletedMessage: "เก้าอี้โยกนิ่งสนิท แต่ทุกครั้งที่คุณหันหลัง ก็ได้ยินเสียงเอี๊ยดอ๊าดเบาๆ"
+  conditions: []
+  actions:
+  - type: 0
+    targetId: "inspected_rocking_chair"
+    secondaryId: ""
+    amount: 0
+    text: ""
+  popupItemId: ""
+  popupItemName: ""
+  popupItemDescription: ""
+  transitionScene: ""
+  transitionMessage: ""
+  endsDemo: 0
+  scareOnSuccess: 1
