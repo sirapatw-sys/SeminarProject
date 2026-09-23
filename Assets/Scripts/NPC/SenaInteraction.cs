@@ -8,7 +8,7 @@ using UnityEngine;
 ///   2. she accepts the offering and poses the riddle,
 ///   3. the riddle is answered and she dissolves, unlocking the gate.
 /// </summary>
-public class SenaInteraction : MonoBehaviour
+public class SenaInteraction : MonoBehaviour, IFocusable
 {
     public const string OfferingItemId = "tome";
     public const string WantsOfferingFlag = "sena_wants_tome";
@@ -65,7 +65,6 @@ public class SenaInteraction : MonoBehaviour
     [SerializeField] private float readReplyDelay = 2.4f;
     [SerializeField] private float fadeDuration = 2.0f;
 
-    private bool playerInRange;
     private bool isFading;
     private NpcEventController eventController;
     private bool hasBeenPassed;
@@ -104,17 +103,32 @@ public class SenaInteraction : MonoBehaviour
         }
     }
 
-    private void Update()
-    {
-        if (isFading || InputGate.IsBlocked)
-        {
-            return;
-        }
+    // ------------------------------------------------------------ IFocusable
+    // InteractionFocus picks the nearest interactable and calls Interact().
 
-        if (playerInRange && Input.GetKeyDown(KeyCode.E))
+    private const string TalkPrompt = "กด E เพื่อสนทนากับเซนะ";
+
+    public bool CanFocus
+    {
+        get { return !isFading && !hasBeenPassed; }
+    }
+
+    public string FocusPrompt
+    {
+        get { return TalkPrompt; }
+    }
+
+    public Vector2 FocusPoint
+    {
+        get
         {
-            InteractWithSena();
+            return senaCollider != null ? (Vector2)senaCollider.bounds.center : (Vector2)transform.position;
         }
+    }
+
+    public void Interact()
+    {
+        InteractWithSena();
     }
 
     public void InteractWithSena()
@@ -234,9 +248,16 @@ public class SenaInteraction : MonoBehaviour
     }
 
     /// <summary>
-    /// Checks if a given text is the correct answer to Sena's riddle.
-    /// Accepted answers: "tomorrow", "วันพรุ่งนี้", "พรุ่งนี้".
+    /// Every answer that opens the gate, compared with spaces removed. Sena's
+    /// profile (Sena.asset) quotes the same list to the AI, so she never
+    /// praises an answer this check would then refuse.
     /// </summary>
+    public static readonly string[] AcceptedAnswers =
+    {
+        "พรุ่งนี้", "วันพรุ่งนี้", "วันถัดไป", "วันต่อไป", "วันรุ่งขึ้น", "อนาคต",
+        "tomorrow", "nextday", "future", "tmr",
+    };
+
     public static bool IsCorrectRiddleAnswer(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -244,10 +265,17 @@ public class SenaInteraction : MonoBehaviour
             return false;
         }
 
-        string normalized = text.Trim().ToLowerInvariant();
-        return normalized.Contains("tomorrow") ||
-               normalized.Contains("วันพรุ่งนี้") ||
-               normalized.Contains("พรุ่งนี้");
+        string normalized = System.Text.RegularExpressions.Regex.Replace(
+            text.ToLowerInvariant(), @"\s+", string.Empty);
+        foreach (string answer in AcceptedAnswers)
+        {
+            if (normalized.Contains(answer))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -282,7 +310,7 @@ public class SenaInteraction : MonoBehaviour
             senaCollider.enabled = false;
         }
 
-        playerInRange = false;
+        InteractionFocus.Exit(this);
         StartCoroutine(SenaSolvedSequence());
     }
 
@@ -368,8 +396,7 @@ public class SenaInteraction : MonoBehaviour
     {
         if (other.CompareTag("Player") && !isFading)
         {
-            playerInRange = true;
-            AiSettingsPanel.SetInteractionPrompt("กด E เพื่อสนทนากับเซนะ");
+            InteractionFocus.Enter(this);
         }
     }
 
@@ -377,8 +404,12 @@ public class SenaInteraction : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            playerInRange = false;
-            AiSettingsPanel.SetInteractionPrompt(string.Empty);
+            InteractionFocus.Exit(this);
         }
+    }
+
+    private void OnDisable()
+    {
+        InteractionFocus.Exit(this);
     }
 }

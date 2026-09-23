@@ -14,6 +14,7 @@ public static class InputGate
                    DialogueManager.IsDialogueOpen ||
                    AiSettingsPanel.IsOpen ||
                    KeypadLockUI.IsOpen ||
+                   JournalUI.IsOpen ||
                    RoomTransitionManager.IsBusy;
         }
     }

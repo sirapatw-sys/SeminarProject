@@ -60,4 +60,10 @@ public class InteractionData : ScriptableObject
     [Header("Feedback")]
     [Tooltip("Plays the scare sting on success, for the haunted room's jump moments.")]
     public bool scareOnSuccess;
+
+    [Tooltip("Music played once on success (the music box's lullaby); room loops duck under it.")]
+    public AudioClip successClip;
+
+    [Range(0f, 1f)]
+    public float successClipVolume = 0.8f;
 }

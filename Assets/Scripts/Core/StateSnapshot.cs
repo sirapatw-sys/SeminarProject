@@ -62,6 +62,25 @@ namespace MysteryGame.Core
 
         public List<ConversationLogSnapshot> ConversationLogs =
             new List<ConversationLogSnapshot>();
+
+        // =====================================================
+        // Journal
+        // =====================================================
+
+        public List<JournalEntry> Journal = new List<JournalEntry>();
+    }
+
+    /// <summary>
+    /// Something the player read and may want to read again: an object's
+    /// description or an item card. Id is "interaction.&lt;id&gt;" or "item.&lt;id&gt;".
+    /// </summary>
+    [Serializable]
+    public class JournalEntry
+    {
+        public string Id;
+        public string RoomId;
+        public string Title;
+        public string Text;
     }
 
     /// <summary>One line of a conversation. SpeakerId is "player" or an NPC id.</summary>

@@ -33,6 +33,13 @@ public class DialogueData : ScriptableObject
 
     public List<DialogueChoiceData> choices =
         new List<DialogueChoiceData>();
+
+    [Tooltip(
+        "Offer the choices only the first time; later visits open straight " +
+        "into free chat, so 'what is your name?' is not asked again (and " +
+        "cannot be farmed for relationship points)."
+    )]
+    public bool firstMeetingChoicesOnly;
 }
 
 [Serializable]

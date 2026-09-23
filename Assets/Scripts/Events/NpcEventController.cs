@@ -63,6 +63,11 @@ public class NpcEventController : MonoBehaviour
             {
                 ClearPendingEvent();
             }
+            else if (pendingEvent.autoStart && !InputGate.IsBlocked &&
+                     !ItemPopupUI.IsBusy && !KeypadLockUI.IsOpen)
+            {
+                TryStartPendingEvent();
+            }
 
             return;
         }

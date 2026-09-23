@@ -25,6 +25,7 @@ MonoBehaviour:
   repeatable: 0
   useAiDialogue: 0
   storyBeat: 1
+  autoStart: 1
   situationPrompt: "ข้อความบนกระจกเพิ่งปรากฏ สเตลตกใจสุดขีด"
   tonePrompt: "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ"
   dialogue: {fileID: 11400000, guid: 72df8c53dc334869b2cb41dd5e01e4ea, type: 2}

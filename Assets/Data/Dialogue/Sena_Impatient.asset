@@ -52,3 +52,4 @@ MonoBehaviour:
       secondaryId: ""
       amount: 0
       text: "มนุษย์ผู้นี้บังอาจสั่งให้ข้าเงียบ"
+  firstMeetingChoicesOnly: 0

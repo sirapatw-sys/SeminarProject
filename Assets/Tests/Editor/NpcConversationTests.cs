@@ -135,16 +135,23 @@ namespace MysteryGame.Tests
         }
 
         [Test]
-        public void StelleStaysBlankFacedWithAStranger()
+        public void StelleIsShyAndShowsHerFeelingsFromTheFirstTalk()
         {
-            GeneratedChatReply stranger = NpcOfflineReplies.Build(Build("Stelle", "Room03", false), "กลัวไหม", State);
-            Assert.That(string.IsNullOrEmpty(stranger.emotion), Is.True);
+            NpcProfileData profile = KnowledgeLibrary.GetNpc("Stelle");
+            foreach (string message in new[] { "กลัวไหม", "สวัสดี", "ชื่ออะไร", "อืม" })
+            {
+                GeneratedChatReply reply = NpcOfflineReplies.Build(Build("Stelle", "Room03", false), message, State);
+                Assert.That(reply.emotion, Is.Not.Empty, message);
+                Assert.That(profile.FindEmotion(reply.emotion), Is.Not.Null,
+                            "every emotion a rule uses needs a face in the emotion box");
+            }
 
-            State.ChangeRelationship("Stelle", 20);   // 35 -> 55, no longer a stranger
-            GeneratedChatReply friend = NpcOfflineReplies.Build(Build("Stelle", "Room03", false), "กลัวไหม", State);
-            Assert.That(friend.emotion, Is.EqualTo("cry"));
-            Assert.That(KnowledgeLibrary.GetNpc("Stelle").FindEmotion(friend.emotion), Is.Not.Null,
-                        "every emotion a rule uses needs a face in the emotion box");
+            GeneratedChatReply greeting = NpcOfflineReplies.Build(Build("Stelle", "Room03", false), "สวัสดี", State);
+            Assert.That(greeting.reply, Does.Contain("สะ...สวัสดี"), "she stammers before she warms up");
+
+            State.ChangeRelationship("Stelle", 20);   // 35 -> 55, warmed up
+            GeneratedChatReply friend = NpcOfflineReplies.Build(Build("Stelle", "Room03", false), "สวัสดี", State);
+            Assert.That(friend.reply, Does.Not.Contain("สะ...สวัสดี"));
         }
 
         [Test]
@@ -156,6 +163,67 @@ namespace MysteryGame.Tests
             State.SetFlag("sena_offering_given");
             GeneratedChatReply late = NpcOfflineReplies.Build(Build("Sena", "Room02", false), "พรุ่งนี้", State);
             Assert.That(late.reply, Does.Contain("ตอบถูก"));
+        }
+
+        [TestCase("พรุ่งนี้")]
+        [TestCase("วันพรุ่งนี้")]
+        [TestCase("วันถัดไป")]
+        [TestCase("วันต่อไป")]
+        [TestCase("วันรุ่งขึ้น")]
+        [TestCase("Tomorrow")]
+        [TestCase("the next day")]
+        public void SenaAcceptsEveryWayOfSayingTomorrow(string answer)
+        {
+            Assert.That(SenaInteraction.IsCorrectRiddleAnswer(answer), Is.True, answer);
+
+            // and what she says offline agrees with what the gate does
+            State.SetFlag("sena_offering_given");
+            GeneratedChatReply reply = NpcOfflineReplies.Build(Build("Sena", "Room02", false), answer, State);
+            Assert.That(reply.reply, Does.Contain("ตอบถูก"), answer);
+        }
+
+        [Test]
+        public void SpacesInsideTheAnswerDoNotMatter()
+        {
+            Assert.That(SenaInteraction.IsCorrectRiddleAnswer("วัน ถัด ไป"), Is.True);
+            Assert.That(SenaInteraction.IsCorrectRiddleAnswer("พรุ่ง นี้"), Is.True);
+        }
+
+        [TestCase("หนังสือ")]
+        [TestCase("เมื่อวาน")]
+        [TestCase("")]
+        public void SenaRejectsWrongAnswers(string answer)
+        {
+            Assert.That(SenaInteraction.IsCorrectRiddleAnswer(answer), Is.False, answer);
+        }
+
+        [Test]
+        public void SenasPromptListsExactlyTheAnswersTheGateAccepts()
+        {
+            string notes = string.Join("\n", KnowledgeLibrary.GetNpc("Sena").situationalNotes.ConvertAll(n => n.note));
+            foreach (string answer in new[] { "พรุ่งนี้", "วันถัดไป", "วันต่อไป", "วันรุ่งขึ้น", "อนาคต", "Tomorrow" })
+            {
+                Assert.That(notes, Does.Contain(answer));
+            }
+        }
+
+        [Test]
+        public void Room03StoryBeatsPlayWithoutWaitingForThePlayer()
+        {
+            foreach (string name in new[] { "Stelle_Scare_Event", "Room03_Quarrel_Event", "Stelle_Relief_Event", "Stelle_Hurt_Event" })
+            {
+                MiniEventData data = LoadEvent(name);
+                Assert.That(data.storyBeat && data.autoStart, Is.True, name);
+            }
+        }
+
+        [Test]
+        public void FirstMeetingChoicesAreNotOfferedAgain()
+        {
+            foreach (string name in new[] { "Rina_Room03", "Stelle_Room03", "Alice_Room03", "Alice_Intro", "Alice_Room02" })
+            {
+                Assert.That(LoadDialogue(name).firstMeetingChoicesOnly, Is.True, name);
+            }
         }
 
         [Test]
@@ -194,7 +262,7 @@ namespace MysteryGame.Tests
         {
             Assert.That(State.GetNpcRelationship("Rina", "Stelle"), Is.EqualTo(38));
             Assert.That(State.GetNpcRelationship("Stelle", "Rina"), Is.EqualTo(38));
-            Assert.That(State.GetRelationship("Stelle"), Is.EqualTo(35), "Stelle starts wary of strangers");
+            Assert.That(State.GetRelationship("Stelle"), Is.EqualTo(35), "Stelle starts shy with someone she just met");
         }
 
         [Test]

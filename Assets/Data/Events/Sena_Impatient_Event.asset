@@ -25,6 +25,7 @@ MonoBehaviour:
   repeatable: 1
   useAiDialogue: 1
   storyBeat: 0
+  autoStart: 0
   situationPrompt: "ผู้เล่นใช้เวลานานในการหาจารึกของถวาย เซนะจึงเยาะเย้ยความเชื่องช้าของมนุษย์ โดยไม่บอกใบ้ใดๆ ทั้งสิ้น"
   tonePrompt: "สำนวนโบราณ หยิ่งยโส เยาะเย้ย ห้ามใบ้ตำแหน่งหนังสือเด็ดขาด"
   dialogue: {fileID: 11400000, guid: 2c18e8f9f2e1451fa3fefb24a9553164, type: 2}

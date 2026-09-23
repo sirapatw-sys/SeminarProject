@@ -67,3 +67,4 @@ MonoBehaviour:
       secondaryId: ""
       amount: 0
       text: "ผู้เล่นไม่ง้อสเตล เดินไปก่อน"
+  firstMeetingChoicesOnly: 0

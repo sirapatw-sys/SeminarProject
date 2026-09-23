@@ -25,6 +25,7 @@ MonoBehaviour:
   repeatable: 0
   useAiDialogue: 0
   storyBeat: 1
+  autoStart: 1
   situationPrompt: "สเตลกลัวว่าการยุ่งกับกล่องดนตรีจะทำให้ผีโกรธ ส่วนรินะยืนยันว่าต้องทำเพื่อออกไป ทั้งคู่ทะเลาะกันและหันมาถามผู้เล่น"
   tonePrompt: "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ"
   dialogue: {fileID: 11400000, guid: 89ef798c7727418fb05b709d727bccc9, type: 2}
@@ -34,6 +35,6 @@ MonoBehaviour:
     secondaryId: ""
     amount: 0
   - type: 1
-    targetId: "ghost_lullaby_played"
+    targetId: "found_winding_key"
     secondaryId: ""
     amount: 0

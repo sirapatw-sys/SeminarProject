@@ -62,3 +62,4 @@ MonoBehaviour:
       secondaryId: ""
       amount: 0
       text: "ผู้เล่นแกล้งหลอกสเตลว่ามีผีอยู่ข้างหลัง"
+  firstMeetingChoicesOnly: 0

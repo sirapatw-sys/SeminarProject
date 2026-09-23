@@ -25,7 +25,8 @@ MonoBehaviour:
   repeatable: 0
   useAiDialogue: 0
   storyBeat: 1
-  situationPrompt: "เพลงกล่อมเด็กเล่นจบ ผีสงบลง สเตลโล่งใจและอยากขอบคุณผู้เล่น"
+  autoStart: 1
+  situationPrompt: "เพลงกล่อมเด็กจากกล่องดนตรียังเล่นอยู่แผ่วๆ ผีสงบลง สเตลโล่งใจและอยากขอบคุณผู้เล่น ห้ามพูดว่าเพลงหยุดหรือจบแล้ว"
   tonePrompt: "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ"
   dialogue: {fileID: 11400000, guid: 7a294ffd136849659986188bc6fec7d4, type: 2}
   conditions:

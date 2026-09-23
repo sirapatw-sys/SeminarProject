@@ -18,14 +18,13 @@ MonoBehaviour:
   speakerPortrait: {fileID: 21300000, guid: c9c59aaa5dbe4114a1e627ffb5454328, type: 3}
   personalityPrompt: ""
   lines:
-  - "..."
-  - "...คุณเป็นใครคะ"
-  - "อย่าเข้ามาใกล้นักนะคะ"
+  - "[:shock] ว้าย! ...อ๊ะ ขะ...ขอโทษค่ะ นึกว่าผี..."
+  - "[:flustered] คะ...คุณเป็นใครคะ? ติดอยู่ที่นี่เหมือนกันเหรอคะ?"
   overrideReturnLines: 0
   returnLines: []
   choices:
   - optionText: "ไม่ต้องกลัว ฉันก็ติดอยู่ที่นี่เหมือนกัน"
-    responseText: "...งั้นเหรอคะ ...ค่ะ"
+    responseText: "[:cry] จะ...จริงเหรอคะ ฮือ... ดีจังที่มีคนมาเพิ่มอีกคน"
     actions:
     - type: 4
       targetId: "Stelle"
@@ -38,7 +37,7 @@ MonoBehaviour:
       amount: 0
       text: "ผู้เล่นบอกสเตลว่าไม่ต้องกลัว ตอนเจอกันครั้งแรก"
   - optionText: "เธอชื่ออะไรเหรอ?"
-    responseText: "...สเตลค่ะ"
+    responseText: "[:flustered] สะ...สเตลค่ะ! ชื่อสเตล... ยะ...ยินดีที่ได้รู้จักค่ะ"
     actions:
     - type: 4
       targetId: "Stelle"
@@ -46,5 +45,6 @@ MonoBehaviour:
       amount: 2
       text: ""
   - optionText: "(เดินจากไปเงียบๆ)"
-    responseText: "..."
+    responseText: "[:cry] อ๊ะ... ไปแล้วเหรอคะ..."
     actions: []
+  firstMeetingChoicesOnly: 1

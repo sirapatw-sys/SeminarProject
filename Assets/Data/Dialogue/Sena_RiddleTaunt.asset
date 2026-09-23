@@ -34,3 +34,4 @@ MonoBehaviour:
       secondaryId: ""
       amount: -2
       text: ""
+  firstMeetingChoicesOnly: 0

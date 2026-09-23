@@ -22,6 +22,9 @@ public class KeypadLockUI : MonoBehaviour
         }
     }
 
+    // Drawn larger than the other overlays so the keys are easy to hit.
+    private const float PopupMagnify = 1.4f;
+
     public static bool IsOpen { get; private set; }
 
     private string targetCode = "4592";
@@ -189,7 +192,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void OnGUI()
     {
-        UiScale.Apply();
+        UiScale.Apply(PopupMagnify, 540f);
         if (!IsOpen)
         {
             return;

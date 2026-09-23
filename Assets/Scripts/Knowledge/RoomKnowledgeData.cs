@@ -14,6 +14,16 @@ namespace MysteryGame.Knowledge
         Explicit = 3,
     }
 
+    /// <summary>One looping sound layer of a room.</summary>
+    [Serializable]
+    public class RoomSound
+    {
+        public AudioClip clip;
+
+        [Range(0f, 1f)]
+        public float volume = 0.5f;
+    }
+
     /// <summary>
     /// One canonical statement about the room. An NPC may only ever repeat a
     /// fact whose reveal conditions are already satisfied, which is what stops
@@ -163,6 +173,13 @@ namespace MysteryGame.Knowledge
             "knowledge asset."
         )]
         public Sprite background;
+
+        [Header("Audio")]
+        [Tooltip("Looping layers (music, rain, clock ticking) played while in this room.")]
+        public List<RoomSound> sounds = new List<RoomSound>();
+
+        [Tooltip("Adds the synthesised haunted drone with far-off music-box notes.")]
+        public bool hauntedDrone;
 
         public List<RoomFact> facts = new List<RoomFact>();
         public List<PuzzleStep> steps = new List<PuzzleStep>();

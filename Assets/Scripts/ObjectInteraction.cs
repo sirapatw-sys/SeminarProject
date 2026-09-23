@@ -1,7 +1,7 @@
 using MysteryGame.Core;
 using UnityEngine;
 
-public class ObjectInteraction : MonoBehaviour
+public class ObjectInteraction : MonoBehaviour, IFocusable
 {
     [SerializeField]
     private InteractionData interactionData;
@@ -13,20 +13,46 @@ public class ObjectInteraction : MonoBehaviour
     [SerializeField]
     private InteractionData followUpInteraction;
 
-    private bool playerInRange;
+    private Collider2D area;
 
-    private void Update()
+    // ------------------------------------------------------------ IFocusable
+    // InteractionFocus picks the nearest interactable and calls Interact().
+
+    public bool CanFocus
     {
-        if (InputGate.IsBlocked || KeypadLockUI.IsOpen)
+        get
         {
-            return;
+            InteractionData data = ActiveData;
+            // Sena answers E at the gate while she still guards it.
+            return data != null && !(IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor);
         }
+    }
 
-        if (playerInRange &&
-            Input.GetKeyDown(KeyCode.E))
+    public string FocusPrompt
+    {
+        get
         {
-            TryInteract();
+            InteractionData data = ActiveData;
+            return data != null ? "กด E เพื่อสำรวจ " + data.displayName : string.Empty;
         }
+    }
+
+    public Vector2 FocusPoint
+    {
+        get
+        {
+            if (area == null)
+            {
+                area = GetComponent<Collider2D>();
+            }
+
+            return area != null ? (Vector2)area.bounds.center : (Vector2)transform.position;
+        }
+    }
+
+    public void Interact()
+    {
+        TryInteract();
     }
 
     /// <summary>The interaction this object offers right now.</summary>
@@ -121,11 +147,25 @@ public class ObjectInteraction : MonoBehaviour
         SfxPlayer.Play(success
             ? (data.scareOnSuccess ? SfxPlayer.Cue.Scare : SfxPlayer.Cue.Interact)
             : SfxPlayer.Cue.Locked);
+        if (success && data.successClip != null)
+        {
+            SfxPlayer.PlayFeature(data.successClip, data.successClipVolume);
+        }
 
         ShowDialogue(
             data.displayName,
             responseMessage
         );
+
+        // What the player just read goes in the journal, so a clue that was
+        // skipped past too quickly (or sits in a book they carried off) can
+        // be read again with J. Doors that lead on are not clues.
+        if (success && state != null && string.IsNullOrWhiteSpace(data.transitionScene) &&
+            !data.endsDemo && state.AddJournalEntry(
+                "interaction." + data.interactionId, data.displayName, responseMessage))
+        {
+            JournalUI.NotifyNewEntry();
+        }
 
         // 2. Any interaction may hand the player an item to look at.
         if (success && !string.IsNullOrWhiteSpace(data.popupItemId))
@@ -178,14 +218,16 @@ public class ObjectInteraction : MonoBehaviour
             return;
         }
 
-        DialogueManager.Instance.StartDialogue(
-            speaker,
-            new string[]
-            {
-                message
-            },
-            false
-        );
+        // Each written line is its own page, so a long description (the
+        // music box, the tome) never spills out of the dialogue box.
+        string[] pages = (message ?? string.Empty).Split(
+            new[] { '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+        if (pages.Length == 0)
+        {
+            return;
+        }
+
+        DialogueManager.Instance.StartDialogue(speaker, pages, false);
     }
 
     private void OnTriggerEnter2D(
@@ -193,21 +235,7 @@ public class ObjectInteraction : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            playerInRange = true;
-
-            InteractionData data = ActiveData;
-            if (IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor)
-            {
-                // Sena's own prompt wins while she is blocking the gate.
-                return;
-            }
-
-            if (data != null)
-            {
-                AiSettingsPanel.SetInteractionPrompt(
-                    "กด E เพื่อสำรวจ " + data.displayName
-                );
-            }
+            InteractionFocus.Enter(this);
         }
     }
 
@@ -216,8 +244,12 @@ public class ObjectInteraction : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            playerInRange = false;
-            AiSettingsPanel.SetInteractionPrompt(string.Empty);
+            InteractionFocus.Exit(this);
         }
+    }
+
+    private void OnDisable()
+    {
+        InteractionFocus.Exit(this);
     }
 }

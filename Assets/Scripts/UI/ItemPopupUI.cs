@@ -31,7 +31,18 @@ public class ItemPopupUI : MonoBehaviour
 
     private static readonly Queue<ItemInfo> pendingItems = new Queue<ItemInfo>();
 
+    private const string GenericItemPrefix = "ไอเท็ม: ";
+
+    // Drawn larger than the other overlays: players read the item text here.
+    private const float PopupMagnify = 1.45f;
+
     private bool isShowing = false;
+
+    /// <summary>True while an item card is on screen (or queued to be).</summary>
+    public static bool IsBusy
+    {
+        get { return (_instance != null && _instance.isShowing) || pendingItems.Count > 0; }
+    }
     private ItemInfo currentItem;
     private Sprite[] currentFrames;
     private float animationFps = 20f;
@@ -79,11 +90,11 @@ public class ItemPopupUI : MonoBehaviour
                      itemId.Equals("note", System.StringComparison.OrdinalIgnoreCase))
             {
                 displayName = "บันทึกของผู้รอดชีวิตคนก่อน (Survivor's Note)";
-                description = "\"วันที่เท่าไหร่แล้วก็ไม่รู้... ฉันติดอยู่ในห้องบ้าๆ นี่มานานเกินไป ความเครียดจะบดขยี้สติฉันอยู่แล้ว!\nฉันพยายามทุกวิถีทางเพื่อเปิดลิ้นชักนั่น... ในที่สุดหลังจากการลองสุ่ม Combination ตัวเลข 4 หลักนับร้อยครั้ง... ฉันถอดรหัสมันได้แล้ว!\nรหัสเปิดลิ้นชักคือ  [ 4 5 9 2 ]\n...ใครก็ตามที่มาพบโน้ตนี้ รีบเอากุญแจข้างในแล้วหนีออกไปซะ!\"";
+                description = "\"วันที่เท่าไหร่แล้วก็ไม่รู้... ฉันติดอยู่ในห้องบ้าๆ นี่มานานเกินไป ความเครียดจะบดขยี้สติฉันอยู่แล้ว!\nฉันพยายามทุกวิถีทางเพื่อเปิดลิ้นชักนั่น... ในที่สุดหลังจากการลองสุ่มตัวเลข 4 หลักนับร้อยครั้ง... ฉันถอดรหัสมันได้แล้ว!\nรหัสเปิดลิ้นชักคือ  [ 4 5 9 2 ]\n...ใครก็ตามที่มาพบโน้ตนี้ รีบเอากุญแจข้างในแล้วหนีออกไปซะ!\"";
             }
             else
             {
-                displayName = "ไอเท็ม: " + itemId;
+                displayName = GenericItemPrefix + itemId;
                 description = "คุณได้รับ " + itemId + " เก็บไว้ในช่องเก็บของแล้ว";
             }
         }
@@ -94,6 +105,8 @@ public class ItemPopupUI : MonoBehaviour
             displayName = displayName,
             description = description ?? string.Empty
         };
+
+        RecordInJournal(info, hasExplicitName);
 
         // An interaction that hands out an item queues this twice: once from
         // GameState.AddItem, which only knows the id, and once from the
@@ -137,6 +150,39 @@ public class ItemPopupUI : MonoBehaviour
         SfxPlayer.Play(SfxPlayer.Cue.Item);
         // Ensure instance exists
         _ = Instance;
+    }
+
+    /// <summary>
+    /// The card's text (the drawer code, the tome's inscription) stays
+    /// readable in the journal after the card is closed. A call that only
+    /// knows the item id must not overwrite the written-up text, and the
+    /// generic "you got X" card is not worth keeping.
+    /// </summary>
+    private static void RecordInJournal(ItemInfo info, bool hasExplicitName)
+    {
+        MysteryGame.Core.GameState state = MysteryGame.Core.GameState.Instance;
+        if (state == null || string.IsNullOrWhiteSpace(info.description) ||
+            (!hasExplicitName && info.displayName.StartsWith(GenericItemPrefix)))
+        {
+            return;
+        }
+
+        string id = "item." + info.itemId.ToLowerInvariant();
+        if (!hasExplicitName)
+        {
+            foreach (MysteryGame.Core.JournalEntry entry in state.GetJournal())
+            {
+                if (entry.Id == id)
+                {
+                    return;
+                }
+            }
+        }
+
+        if (state.AddJournalEntry(id, info.displayName, info.description))
+        {
+            JournalUI.NotifyNewEntry();
+        }
     }
 
     private void Update()
@@ -186,7 +232,7 @@ public class ItemPopupUI : MonoBehaviour
 
     private void OnGUI()
     {
-        UiScale.Apply();
+        UiScale.Apply(PopupMagnify, 540f);
         if (!isShowing)
         {
             return;

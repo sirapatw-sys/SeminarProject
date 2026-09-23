@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactionId: inspect_painting
   displayName: Painting
-  interactionMessage: "ด้านหลังกรอบรูปมีรูปลูกศรสลักไว้... มันชี้ตรงไปที่ซอกขอบโต๊ะทำงานข้างๆ!"
+  interactionMessage: "คุณยกกรอบภาพที่แขวนเอียงขึ้นดู... ด้านหลังมีลายมือเขียนด้วยดินสอจางๆ:\n'ถ้ายังออกไปไม่ได้ ลองตรวจขอบโต๊ะทำงานให้ดี ฉันซ่อนไว้ตรงนั้น'"
   failureMessage: "\u0E15\u0E2D\u0E19\u0E19\u0E35\u0E49\u0E09\u0E31\u0E19\u0E22\u0E31\u0E07\u0E17\u0E33\u0E2A\u0E34\u0E48\u0E07\u0E19\u0E35\u0E49\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49..."
   repeatable: 1
-  alreadyCompletedMessage: "ด้านหลังกรอบรูปมีรูปลูกศรสลักไว้ ชี้ตรงไปที่ซอกขอบโต๊ะทำงานข้างๆ"
+  alreadyCompletedMessage: "ข้อความหลังภาพวาดยังอยู่: 'ลองตรวจขอบโต๊ะทำงานให้ดี ฉันซ่อนไว้ตรงนั้น'"
   conditions: []
   actions:
   - type: 0

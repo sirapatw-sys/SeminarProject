@@ -47,3 +47,4 @@ MonoBehaviour:
       targetId: Alice
       amount: -5
       text:
+  firstMeetingChoicesOnly: 1

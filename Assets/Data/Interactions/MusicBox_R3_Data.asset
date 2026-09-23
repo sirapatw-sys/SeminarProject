@@ -41,3 +41,5 @@ MonoBehaviour:
   transitionMessage: ""
   endsDemo: 0
   scareOnSuccess: 0
+  successClip: {fileID: 0}
+  successClipVolume: 0.14

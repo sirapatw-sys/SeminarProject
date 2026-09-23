@@ -219,6 +219,17 @@ public class DialogueManager : MonoBehaviour
 
         showingChoiceResponse = false;
         activeChoices = BuildRuntimeChoices(data, generated);
+        // Per dialogue, not per speaker: Alice's Room02 choices must still
+        // appear the first time even though she was met in Room01.
+        string metFlag = "dialogue." + data.dialogueId + ".met";
+        if (GameState.Instance != null)
+        {
+            if (data.firstMeetingChoicesOnly && GameState.Instance.HasFlag(metFlag))
+            {
+                activeChoices = new List<DialogueChoiceData>();
+            }
+            GameState.Instance.SetFlag(metFlag);
+        }
         activeDialogueId = data.dialogueId;
         activeNpcId = data.speakerId;
         activeSpeakerName = data.speakerName;
@@ -311,6 +322,12 @@ public class DialogueManager : MonoBehaviour
         textRect.offsetMin = new Vector2(0f, 92f);
         textRect.offsetMax = new Vector2(-150f, -72f);
         dialogueText.fontSize = 25f;
+        // Long replies shrink to fit instead of spilling past the box.
+        dialogueText.enableAutoSizing = true;
+        dialogueText.fontSizeMax = 25f;
+        dialogueText.fontSizeMin = 15f;
+        dialogueText.enableWordWrapping = true;
+        dialogueText.overflowMode = TextOverflowModes.Truncate;
         dialogueText.lineSpacing = 5f;
         dialogueText.color = new Color(1f, 1f, 1f, 1f);
 
@@ -393,8 +410,10 @@ public class DialogueManager : MonoBehaviour
         emotionBoxRect.pivot = new Vector2(0f, 0f);
         emotionBoxRect.anchoredPosition = new Vector2(0f, 12f);
         emotionBoxRect.sizeDelta = new Vector2(196f, 196f);
+        // No frame: the faces have transparent backgrounds and float on
+        // their own above the dialogue box.
         Image frameImage = frame.GetComponent<Image>();
-        frameImage.color = new Color(0.94f, 0.73f, 0.28f, 1f);
+        frameImage.enabled = false;
         frameImage.raycastTarget = false;
 
         GameObject face = new GameObject(
@@ -408,8 +427,8 @@ public class DialogueManager : MonoBehaviour
         RectTransform faceRect = face.GetComponent<RectTransform>();
         faceRect.anchorMin = Vector2.zero;
         faceRect.anchorMax = Vector2.one;
-        faceRect.offsetMin = new Vector2(5f, 5f);
-        faceRect.offsetMax = new Vector2(-5f, -5f);
+        faceRect.offsetMin = Vector2.zero;
+        faceRect.offsetMax = Vector2.zero;
         emotionBoxImage = face.GetComponent<Image>();
         emotionBoxImage.preserveAspect = true;
         emotionBoxImage.raycastTarget = false;
@@ -749,6 +768,10 @@ public class DialogueManager : MonoBehaviour
         if (text != null)
         {
             text.fontSize = 22f;
+            text.enableAutoSizing = true;
+            text.fontSizeMax = 22f;
+            text.fontSizeMin = 14f;
+            text.enableWordWrapping = true;
             text.color = new Color(0.92f, 0.95f, 1f);
         }
     }
@@ -874,6 +897,7 @@ public class DialogueManager : MonoBehaviour
             string name = profile != null && !string.IsNullOrWhiteSpace(profile.displayName)
                 ? profile.displayName
                 : data.speakerName;
+            name = Regex.Replace(name, @"\s*\([^)]*\)", string.Empty);   // "สเตล (Stelle)" -> "สเตล"
             lines.Add("(" + name + " ยังจำได้ว่าครั้งก่อนคุณพูดว่า \"" +
                       lastPlayerLine + "\")");
         }
@@ -953,6 +977,18 @@ public class DialogueManager : MonoBehaviour
 
         if (activeChoices == null || activeChoices.Count == 0)
         {
+            // A conversation with a chat box stays open on its last line so
+            // the player can type; plain descriptions simply close.
+            if (chatComposerObject != null && chatComposerObject.activeSelf)
+            {
+                currentLine = dialogueLines.Length - 1;
+                if (chatInput != null)
+                {
+                    chatInput.ActivateInputField();
+                }
+                return;
+            }
+
             HideDialogue();
             return;
         }

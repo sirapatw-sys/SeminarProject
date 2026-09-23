@@ -285,10 +285,10 @@ namespace MysteryGame.Tests
         }
 
         [Test]
-        public void StelleGivesNoHintWhileThePlayerIsAStranger()
+        public void StelleGivesNoHintWhileSheIsStillShy()
         {
-            NpcKnowledgeContext stranger = Build("Stelle", "Room03");
-            Assert.That(stranger.AllowedHintLevel, Is.EqualTo(HintLevel.None));
+            NpcKnowledgeContext shy = Build("Stelle", "Room03");
+            Assert.That(shy.AllowedHintLevel, Is.EqualTo(HintLevel.None));
 
             State.ChangeRelationship("Stelle", 25);   // 35 -> 60
             NpcKnowledgeContext friend = Build("Stelle", "Room03");

@@ -56,3 +56,5 @@ MonoBehaviour:
   transitionMessage: ""
   endsDemo: 0
   scareOnSuccess: 0
+  successClip: {fileID: 8300000, guid: 80ebadfe7d154befbab182837d807189, type: 3}
+  successClipVolume: 0.14

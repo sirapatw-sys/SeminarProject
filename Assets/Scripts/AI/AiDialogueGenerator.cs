@@ -142,7 +142,67 @@ public class AiDialogueGenerator : MonoBehaviour
         }
     }
 
+    // The primary key whose quota ran out this session. Only while the key in
+    // use is exactly this one does the backup key take over; nothing else
+    // (a wrong key, a rate limit, a network error) ever switches to it.
+    private static string exhaustedApiKey;
+
+    /// <summary>True while requests go out with the backup key.</summary>
+    public bool UsingBackupKey
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(exhaustedApiKey))
+            {
+                return false;
+            }
+
+            string primary = GetPrimaryApiKey();
+            return !string.IsNullOrEmpty(exhaustedApiKey) && primary == exhaustedApiKey &&
+                   ChooseKey(primary, GetBackupApiKey(), exhaustedApiKey) != primary;
+        }
+    }
+
+    /// <summary>
+    /// The backup key is used only when the primary key is the one that ran
+    /// out of quota, and only if it is a different key.
+    /// </summary>
+    public static string ChooseKey(string primary, string backup, string exhausted)
+    {
+        if (!string.IsNullOrWhiteSpace(primary) && !string.IsNullOrWhiteSpace(exhausted) &&
+            primary == exhausted && !string.IsNullOrWhiteSpace(backup) && backup != primary)
+        {
+            return backup;
+        }
+
+        return primary ?? string.Empty;
+    }
+
     public string GetApiKey()
+    {
+        return ChooseKey(GetPrimaryApiKey(), GetBackupApiKey(), exhaustedApiKey);
+    }
+
+    /// <summary>
+    /// Called when a request made with <paramref name="keyUsed"/> failed
+    /// because its quota is used up. Switches to the backup key if there is
+    /// one; returns false (and changes nothing) otherwise.
+    /// </summary>
+    private bool TrySwitchToBackupKey(string keyUsed)
+    {
+        string backup = GetBackupApiKey();
+        if (string.IsNullOrWhiteSpace(keyUsed) || keyUsed != GetPrimaryApiKey() ||
+            string.IsNullOrWhiteSpace(backup) || backup == keyUsed)
+        {
+            return false;
+        }
+
+        exhaustedApiKey = keyUsed;
+        Debug.LogWarning("โควตาของ API key หลักหมดแล้ว — เปลี่ยนไปใช้ key สำรองจนกว่าจะปิดเกม");
+        return true;
+    }
+
+    private string GetPrimaryApiKey()
     {
         if (!string.IsNullOrWhiteSpace(sessionApiKey))
         {
@@ -151,6 +211,27 @@ public class AiDialogueGenerator : MonoBehaviour
 
         string environmentName;
         string fileName;
+        KeyLocation(out environmentName, out fileName);
+        return ReadKey(environmentName, fileName);
+    }
+
+    /// <summary>
+    /// KKU_API_KEY_BACKUP / UserSettings/kku_api_key_backup.txt /
+    /// "KKU_API_KEY_BACKUP" in api_keys.json (all outside git), and the
+    /// same pattern for the other providers.
+    /// </summary>
+    private string GetBackupApiKey()
+    {
+        string environmentName;
+        string fileName;
+        KeyLocation(out environmentName, out fileName);
+        return ReadKey(
+            environmentName + "_BACKUP",
+            System.IO.Path.GetFileNameWithoutExtension(fileName) + "_backup.txt");
+    }
+
+    private void KeyLocation(out string environmentName, out string fileName)
+    {
         switch (provider)
         {
             case AiProviderType.OpenAiResponses:
@@ -170,7 +251,10 @@ public class AiDialogueGenerator : MonoBehaviour
                 fileName = "custom_api_key.txt";
                 break;
         }
+    }
 
+    private static string ReadKey(string environmentName, string fileName)
+    {
         // 1. Check environment variable (never in git)
         string envKey = Environment.GetEnvironmentVariable(environmentName);
         if (!string.IsNullOrWhiteSpace(envKey))
@@ -291,25 +375,15 @@ public class AiDialogueGenerator : MonoBehaviour
             yield break;
         }
 
-        string apiKey = GetApiKey();
         string prompt = BuildPrompt(eventData);
         string requestJson = provider == AiProviderType.OpenAiResponses
             ? BuildRequestJson(prompt, eventData.dialogue.choices.Count)
             : BuildCompatibleChatRequestJson(prompt);
 
-        UnityWebRequest request = new UnityWebRequest(apiUrl, "POST");
-        request.uploadHandler = new UploadHandlerRaw(
-            Encoding.UTF8.GetBytes(requestJson)
-        );
-        request.downloadHandler = new DownloadHandlerBuffer();
-        request.timeout = timeoutSeconds;
-        request.SetRequestHeader("Content-Type", "application/json");
-        request.SetRequestHeader("Authorization", "Bearer " + apiKey);
-
-        yield return request.SendWebRequest();
+        UnityWebRequest request = null;
+        yield return Post(requestJson, sent => request = sent);
 
         GeneratedDialogueContent result = null;
-        RecordQuota(request);
         if (string.IsNullOrEmpty(request.error))
         {
             result = AiResponseParser.ParseDialogue(
@@ -368,19 +442,10 @@ public class AiDialogueGenerator : MonoBehaviour
             ? BuildReplyRequestJson(prompt)
             : BuildCompatibleReplyRequestJson(prompt);
 
-        UnityWebRequest request = new UnityWebRequest(apiUrl, "POST");
-        request.uploadHandler = new UploadHandlerRaw(
-            Encoding.UTF8.GetBytes(requestJson)
-        );
-        request.downloadHandler = new DownloadHandlerBuffer();
-        request.timeout = timeoutSeconds;
-        request.SetRequestHeader("Content-Type", "application/json");
-        request.SetRequestHeader("Authorization", "Bearer " + GetApiKey());
-
-        yield return request.SendWebRequest();
+        UnityWebRequest request = null;
+        yield return Post(requestJson, sent => request = sent);
 
         GeneratedChatReply result = null;
-        RecordQuota(request);
         if (string.IsNullOrEmpty(request.error))
         {
             result = AiResponseParser.ParseReply(
@@ -420,7 +485,65 @@ public class AiDialogueGenerator : MonoBehaviour
         onComplete(result);
     }
 
+    /// <summary>
+    /// Sends a chat request and hands back the finished request (the caller
+    /// disposes it). When the key in use has run out of quota and a separate
+    /// backup key exists, the same request is sent once more with the backup.
+    /// No other failure ever touches the backup key.
+    /// </summary>
+    private IEnumerator Post(string requestJson, Action<UnityWebRequest> onDone)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            string key = GetApiKey();
+            UnityWebRequest request = new UnityWebRequest(apiUrl, "POST");
+            request.uploadHandler = new UploadHandlerRaw(
+                Encoding.UTF8.GetBytes(requestJson)
+            );
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.timeout = timeoutSeconds;
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.SetRequestHeader("Authorization", "Bearer " + key);
+
+            yield return request.SendWebRequest();
+            RecordQuota(request);
+
+            if (attempt == 0 && !string.IsNullOrEmpty(request.error) &&
+                ClassifyFailure(request) == AiFailureKind.DailyLimitReached &&
+                TrySwitchToBackupKey(key))
+            {
+                request.Dispose();
+                continue;
+            }
+
+            onDone(request);
+            yield break;
+        }
+    }
+
+    private static AiFailureKind ClassifyFailure(UnityWebRequest request)
+    {
+        return AiProviderDiagnostics.Classify(request.responseCode, ReadErrorDetail(request));
+    }
+
     private static string GetRequestError(UnityWebRequest request)
+    {
+        string detail = ReadErrorDetail(request);
+        AiFailureKind kind =
+            AiProviderDiagnostics.Classify(request.responseCode, detail);
+        string advice = AiProviderDiagnostics.Explain(kind);
+
+        LastFailureKind = kind;
+
+        string summary = "HTTP " + request.responseCode + ": " +
+                         AiProviderDiagnostics.Redact(detail);
+        return string.IsNullOrEmpty(advice)
+            ? summary
+            : advice + " (" + summary + ")";
+    }
+
+    /// <summary>The provider's own error message, whatever shape it uses.</summary>
+    private static string ReadErrorDetail(UnityWebRequest request)
     {
         string detail = request.error;
         string body = request.downloadHandler != null
@@ -454,19 +577,17 @@ public class AiDialogueGenerator : MonoBehaviour
             {
                 detail = Regex.Unescape(flatError.Groups["value"].Value);
             }
+
+            // OpenAI-style bodies say "insufficient_quota" in a code field
+            // next to the message; keep it so the quota check can see it.
+            Match code = Regex.Match(body, "\\\"code\\\"\\s*:\\s*\\\"(?<value>[^\\\"]+)\\\"");
+            if (code.Success && (detail == null || !detail.Contains(code.Groups["value"].Value)))
+            {
+                detail = detail + " [" + code.Groups["value"].Value + "]";
+            }
         }
 
-        AiFailureKind kind =
-            AiProviderDiagnostics.Classify(request.responseCode, detail);
-        string advice = AiProviderDiagnostics.Explain(kind);
-
-        LastFailureKind = kind;
-
-        string summary = "HTTP " + request.responseCode + ": " +
-                         AiProviderDiagnostics.Redact(detail);
-        return string.IsNullOrEmpty(advice)
-            ? summary
-            : advice + " (" + summary + ")";
+        return detail;
     }
 
     /// <summary>

@@ -132,13 +132,52 @@ public class RoomVisualController : MonoBehaviour
                 0f
             );
 
-            float cameraHeight = targetCamera.orthographicSize * 2f;
-            float cameraWidth = cameraHeight * targetCamera.aspect;
-            float scale = Mathf.Max(
-                cameraWidth / selectedSprite.bounds.size.x,
-                cameraHeight / selectedSprite.bounds.size.y
+            // The room always occupies the same world rectangle, because the
+            // colliders are placed in world units against the painting. It
+            // used to be scaled to cover the screen instead, which on any
+            // non-16:9 window slid the art away from its hitboxes.
+            float scale = Mathf.Min(
+                RoomWorldWidth / selectedSprite.bounds.size.x,
+                RoomWorldHeight / selectedSprite.bounds.size.y
             );
             currentBackgroundObject.transform.localScale = new Vector3(scale, scale, 1f);
+        }
+
+        FitCamera(targetCamera);
+    }
+
+    /// <summary>World size of every room background (1920x1080 at 108 px per unit).</summary>
+    public const float RoomWorldWidth = 17.7778f;
+    public const float RoomWorldHeight = 10f;
+
+    private float fittedAspect;
+
+    /// <summary>
+    /// Shows the whole room on any window shape: wide screens get dark bars
+    /// at the sides, tall ones above and below, and nothing is ever cropped.
+    /// </summary>
+    private void FitCamera(Camera targetCamera)
+    {
+        if (targetCamera == null || !targetCamera.orthographic)
+        {
+            return;
+        }
+
+        fittedAspect = targetCamera.aspect;
+        targetCamera.orthographicSize = Mathf.Max(
+            RoomWorldHeight * 0.5f,
+            RoomWorldWidth * 0.5f / Mathf.Max(fittedAspect, 0.1f)
+        );
+        targetCamera.backgroundColor = new Color(0.02f, 0.025f, 0.04f, 1f);
+        targetCamera.clearFlags = CameraClearFlags.SolidColor;
+    }
+
+    private void LateUpdate()
+    {
+        Camera targetCamera = Camera.main;
+        if (targetCamera != null && !Mathf.Approximately(targetCamera.aspect, fittedAspect))
+        {
+            FitCamera(targetCamera);
         }
     }
 

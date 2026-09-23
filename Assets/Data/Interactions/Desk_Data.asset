@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactionId: inspect_desk
   displayName: Desk
-  interactionMessage: "ลองสำรวจตามรอยลูกศรที่ซอกขอบโต๊ะ... เจอกระดาษโน้ตแผ่นหนึ่งพับซ่อนอยู่ข้างใต้!"
+  interactionMessage: "คุณไล่มือไปตามขอบโต๊ะทำงานตามที่ข้อความหลังภาพบอก... ตรงซอกใต้ขอบโต๊ะมีกระดาษโน้ตแผ่นหนึ่งพับซ่อนอยู่!"
   failureMessage: "โต๊ะทำงานไม้ตัวเก่า ดูเผินๆ เหมือนไม่มีอะไรผิดปกติ..."
   repeatable: 1
   alreadyCompletedMessage: "กระดาษโน้ตที่ซ่อนอยู่ตรงซอกขอบโต๊ะ... ลองหยิบขึ้นมาอ่านดูอีกครั้ง"

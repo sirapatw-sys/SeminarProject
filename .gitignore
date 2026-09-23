@@ -36,3 +36,4 @@ gemini_api_key.txt
 
 # Scratch previews from art experiments (not part of the game)
 scratch/
+*_api_key*.txt

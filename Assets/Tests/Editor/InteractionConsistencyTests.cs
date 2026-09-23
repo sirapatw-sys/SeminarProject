@@ -167,6 +167,31 @@ namespace MysteryGame.Tests
         }
 
         [Test]
+        public void EveryRoomHasItsOwnBackgroundAndSound()
+        {
+            HashSet<UnityEngine.Sprite> backgrounds = new HashSet<UnityEngine.Sprite>();
+            foreach (string roomId in Rooms)
+            {
+                RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
+                Assert.That(room.background, Is.Not.Null, roomId + " has no background");
+                Assert.That(backgrounds.Add(room.background), Is.True,
+                            roomId + " borrows another room's background");
+                Assert.That(room.sounds.Count > 0 || room.hauntedDrone, Is.True, roomId + " is silent");
+                foreach (RoomSound sound in room.sounds)
+                {
+                    Assert.That(sound.clip, Is.Not.Null, roomId + " has an empty sound layer");
+                }
+            }
+        }
+
+        [Test]
+        public void TheMusicBoxPlaysWhenItIsWound()
+        {
+            InteractionData wind = LoadInteractions()["wind_music_box"];
+            Assert.That(wind.successClip, Is.Not.Null);
+        }
+
+        [Test]
         public void EveryMiniEventHasADialogueWithTheRightShape()
         {
             foreach (string guid in AssetDatabase.FindAssets("t:MiniEventData", new[] { "Assets/Data/Events" }))

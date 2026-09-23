@@ -18,7 +18,7 @@ MonoBehaviour:
   speakerPortrait: {fileID: 21300000, guid: c9c59aaa5dbe4114a1e627ffb5454328, type: 3}
   personalityPrompt: ""
   lines:
-  - "[:cry] เพลงนั้น... เล่นจนจบแล้ว ฮือ..."
+  - "[:cry] เทียนกลับเป็นสีส้มแล้ว... ผีคงหลับไปแล้วใช่ไหมคะ ฮือ..."
   - "[:flustered] ขะ...ขอบคุณนะคะ ที่ไม่ทิ้งสเตลไว้ตอนนั้น"
   overrideReturnLines: 0
   returnLines: []
@@ -52,3 +52,4 @@ MonoBehaviour:
   - optionText: "ไปกันได้แล้ว"
     responseText: "[:blank] ...ค่ะ"
     actions: []
+  firstMeetingChoicesOnly: 0

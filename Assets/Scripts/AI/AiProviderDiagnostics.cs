@@ -18,11 +18,28 @@ public enum AiFailureKind
 
 public static class AiProviderDiagnostics
 {
+    // The key's allowance (tokens, credits, budget, daily requests) is used
+    // up. This is the only failure that lets the backup key take over, so it
+    // stays narrow: context-length and per-minute rate-limit errors, which
+    // also mention tokens, do not match.
+    private const string QuotaUsedUpPattern =
+        "daily|per[- ]day|quota exceeded|exceeded (your )?(current )?quota|insufficient[_ ]quota|" +
+        "out of (credits?|tokens?|quota)|insufficient (credits?|balance|funds|tokens?)|credit balance is too low|" +
+        "budget (has been |was )?exceeded|exceeded (the |your )?budget|over budget|budget_exceeded|" +
+        "tokens? (quota|allowance) (exceeded|reached|exhausted|used up)|tokens? (exhausted|used up)|" +
+        "no (remaining )?(tokens|credits) (left|remaining)|" +
+        "โควต|โทเค็นหมด|โทเคนหมด|เครดิตหมด";
+
+    public static bool IsQuotaUsedUp(string message)
+    {
+        return Regex.IsMatch((message ?? string.Empty).ToLowerInvariant(), QuotaUsedUpPattern);
+    }
+
     public static AiFailureKind Classify(long statusCode, string message)
     {
         string text = (message ?? string.Empty).ToLowerInvariant();
 
-        if (Regex.IsMatch(text, "daily|per[- ]day|quota exceeded|out of credit|โควต"))
+        if (IsQuotaUsedUp(text))
         {
             return AiFailureKind.DailyLimitReached;
         }

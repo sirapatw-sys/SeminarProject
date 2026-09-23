@@ -41,3 +41,5 @@ MonoBehaviour:
   transitionMessage: "ประตูเปิดออกสู่ทางเดินมืดสนิท...\nเบื้องหลังคุณ เสียงกล่องดนตรีบรรเลงเพลงกล่อมเด็กจนจบเพลง แล้วทุกอย่างก็เงียบลง\n\nบทที่ 1 จบลงเพียงเท่านี้"
   endsDemo: 1
   scareOnSuccess: 0
+  successClip: {fileID: 0}
+  successClipVolume: 0.14

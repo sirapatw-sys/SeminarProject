@@ -91,7 +91,7 @@ MonoBehaviour:
       targetId: "ghost_lullaby_played"
       secondaryId: ""
       amount: 0
-    note: "ผีสงบแล้วหลังกล่องดนตรีเล่นเพลงจบ ประตูเปิดได้ รินะผ่อนคลายขึ้นจนเผลอยิ้มบ้าง"
+    note: "ผีสงบแล้วหลังกล่องดนตรีเริ่มเล่นเพลงกล่อมเด็ก (เพลงยังเล่นอยู่ ห้ามพูดว่าเพลงหยุดหรือจบแล้ว) ประตูเปิดได้ รินะผ่อนคลายขึ้นจนเผลอยิ้มบ้าง"
   bonds:
   - otherNpcId: "Stelle"
     initialValue: 38
@@ -290,7 +290,7 @@ MonoBehaviour:
       secondaryId: ""
       amount: 0
     replies:
-    - "เพลงหยุดแล้ว ...ทำได้ดีนี่ นาย"
+    - "เทียนกลับเป็นสีส้มแล้ว ...ทำได้ดีนี่ นาย"
     relationshipDelta: 0
     emotion: ""
   - ruleId: "close"

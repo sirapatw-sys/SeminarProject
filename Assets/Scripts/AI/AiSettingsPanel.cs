@@ -126,8 +126,8 @@ public class AiSettingsPanel : MonoBehaviour
         if (!isOpen && !DialogueManager.IsDialogueOpen && !TitleMenu.IsOpen)
         {
             GUI.Box(
-                new Rect(22f, 22f, 285f, 70f),
-                "WASD / ลูกศร  •  เดิน\nE  •  สำรวจหรือคุย",
+                new Rect(22f, 22f, 285f, 94f),
+                "WASD / ลูกศร  •  เดิน\nE  •  สำรวจหรือคุย\nJ  •  สมุดบันทึก",
                 hudStyle
             );
             if (!string.IsNullOrEmpty(InteractionPrompt))
@@ -323,6 +323,10 @@ public class AiSettingsPanel : MonoBehaviour
                 : "โควตาคงเหลือ: " + AiDialogueGenerator.LastQuota,
             noteStyle
         );
+        if (AiDialogueGenerator.Instance != null && AiDialogueGenerator.Instance.UsingBackupKey)
+        {
+            GUILayout.Label("กำลังใช้ API key สำรอง เพราะโควตาของ key หลักหมดแล้ว", noteStyle);
+        }
         GUILayout.Label(
             "Provider presets set the protocol and endpoint. A different service may also require a different model ID.",
             noteStyle
@@ -541,6 +545,18 @@ public class AiSettingsPanel : MonoBehaviour
     public static void SetInteractionPrompt(string prompt)
     {
         InteractionPrompt = prompt ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Clears the prompt only if it is still the caller's own, so leaving one
+    /// trigger does not wipe the prompt of another the player is still in.
+    /// </summary>
+    public static void ClearInteractionPrompt(string prompt)
+    {
+        if (InteractionPrompt == prompt)
+        {
+            InteractionPrompt = string.Empty;
+        }
     }
 
     private static Texture2D CreateColorTexture(Color color)

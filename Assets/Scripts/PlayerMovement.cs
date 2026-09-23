@@ -13,6 +13,19 @@ public class PlayerMovement : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+
+        // Friction against walls and furniture made the player stick when
+        // pushing diagonally into them; with none they slide along instead.
+        PhysicsMaterial2D slippery = new PhysicsMaterial2D("PlayerNoFriction")
+        {
+            friction = 0f,
+            bounciness = 0f,
+        };
+        rb.sharedMaterial = slippery;
+        foreach (Collider2D col in GetComponents<Collider2D>())
+        {
+            col.sharedMaterial = slippery;
+        }
     }
 
     private void Update()

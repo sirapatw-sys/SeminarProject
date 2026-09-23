@@ -25,6 +25,7 @@ MonoBehaviour:
   repeatable: 0
   useAiDialogue: 0
   storyBeat: 1
+  autoStart: 1
   situationPrompt: "ประตูเปิดแล้ว แต่สเตลยังน้อยใจที่ผู้เล่นเข้าข้างรินะตอนทะเลาะ"
   tonePrompt: "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ"
   dialogue: {fileID: 11400000, guid: 96482693bab24ccc9ec236eaae10b664, type: 2}

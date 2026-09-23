@@ -77,6 +77,9 @@ namespace MysteryGame.Core
         private readonly Dictionary<string, List<ConversationTurn>> conversationLogs =
             new Dictionary<string, List<ConversationTurn>>();
 
+        // Everything the player has read, in the order first read.
+        private readonly List<JournalEntry> journal = new List<JournalEntry>();
+
         // =====================================================
         // Unity Lifecycle
         // =====================================================
@@ -293,6 +296,47 @@ namespace MysteryGame.Core
         public IReadOnlyList<string> GetPlayerHistory()
         {
             return playerHistory;
+        }
+
+        // =====================================================
+        // Journal
+        // =====================================================
+
+        /// <summary>
+        /// Records text the player read so it can be read again later. The
+        /// same id overwrites its text but keeps its place in the list.
+        /// Returns true when the entry is new.
+        /// </summary>
+        public bool AddJournalEntry(string id, string title, string text)
+        {
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            foreach (JournalEntry existing in journal)
+            {
+                if (existing.Id == id)
+                {
+                    existing.Title = title ?? string.Empty;
+                    existing.Text = text;
+                    return false;
+                }
+            }
+
+            journal.Add(new JournalEntry
+            {
+                Id = id,
+                RoomId = session.CurrentSceneId ?? string.Empty,
+                Title = title ?? string.Empty,
+                Text = text,
+            });
+            return true;
+        }
+
+        public IReadOnlyList<JournalEntry> GetJournal()
+        {
+            return journal;
         }
 
         // =====================================================
@@ -731,6 +775,17 @@ namespace MysteryGame.Core
                 );
             }
 
+            foreach (JournalEntry entry in journal)
+            {
+                snapshot.Journal.Add(new JournalEntry
+                {
+                    Id = entry.Id,
+                    RoomId = entry.RoomId,
+                    Title = entry.Title,
+                    Text = entry.Text,
+                });
+            }
+
             return snapshot;
         }
 
@@ -812,6 +867,18 @@ namespace MysteryGame.Core
                     new List<ConversationTurn>(entry.Turns);
             }
 
+            journal.Clear();
+            if (snapshot.Journal != null)   // saves from before the journal
+            {
+                foreach (JournalEntry entry in snapshot.Journal)
+                {
+                    if (entry != null && !string.IsNullOrWhiteSpace(entry.Id))
+                    {
+                        journal.Add(entry);
+                    }
+                }
+            }
+
             worldRevision++;
         }
 
@@ -833,6 +900,7 @@ namespace MysteryGame.Core
             npcEmotions.Clear();
             npcRelationships.Clear();
             conversationLogs.Clear();
+            journal.Clear();
 
             string activeScene = SceneManager.GetActiveScene().name;
             if (!string.IsNullOrEmpty(activeScene))

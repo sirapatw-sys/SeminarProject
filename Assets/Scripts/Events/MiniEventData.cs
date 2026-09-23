@@ -31,6 +31,12 @@ public class MiniEventData : ScriptableObject
     )]
     public bool storyBeat;
 
+    [Tooltip(
+        "Plays by itself as soon as nothing else is on screen, instead of " +
+        "waiting behind a \"!\" for the player to walk over and press E."
+    )]
+    public bool autoStart;
+
     [TextArea(2, 5)] public string situationPrompt;
     public string tonePrompt = "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ";
 
