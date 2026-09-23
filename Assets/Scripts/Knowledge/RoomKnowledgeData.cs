@@ -178,7 +178,7 @@ namespace MysteryGame.Knowledge
         [Tooltip("Looping layers (music, rain, clock ticking) played while in this room.")]
         public List<RoomSound> sounds = new List<RoomSound>();
 
-        [Tooltip("Adds the synthesised haunted drone with far-off music-box notes.")]
+        [Tooltip("Adds the synthesised low heartbeat drone and quiet random room noises (creaks, footsteps, a knock, a scrape).")]
         public bool hauntedDrone;
 
         public List<RoomFact> facts = new List<RoomFact>();

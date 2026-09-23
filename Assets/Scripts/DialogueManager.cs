@@ -41,6 +41,13 @@ public class DialogueManager : MonoBehaviour
     private Vector2 playerPortraitBasePosition;
     private float speakerTalkingUntil;
     private float playerTalkingUntil;
+    private float speakerTalkAmount;
+    private float playerTalkAmount;
+
+    // The talking portrait bobs gently: under one bob a second, a few pixels
+    // high, easing in and out instead of hopping and snapping back.
+    private const float TalkBobPerSecond = 0.9f;
+    private const float TalkBobPixels = 6f;
     private TMP_InputField chatInput;
     private Button sendButton;
     private Button closeButton;
@@ -121,12 +128,14 @@ public class DialogueManager : MonoBehaviour
         AnimatePortrait(
             speakerPortraitImage,
             speakerPortraitBasePosition,
-            speakerTalkingUntil
+            speakerTalkingUntil,
+            ref speakerTalkAmount
         );
         AnimatePortrait(
             playerPortraitImage,
             playerPortraitBasePosition,
-            playerTalkingUntil
+            playerTalkingUntil,
+            ref playerTalkAmount
         );
     }
 
@@ -456,10 +465,6 @@ public class DialogueManager : MonoBehaviour
         emotionBoxImage.sprite = emotion.sprite;
         emotionBoxRect.gameObject.SetActive(true);
         emotionBoxShownAt = Time.unscaledTime;
-        if (emotionId == "shock")
-        {
-            SfxPlayer.Play(SfxPlayer.Cue.Scare);
-        }
     }
 
     private void HideEmotion()
@@ -1380,25 +1385,21 @@ public class DialogueManager : MonoBehaviour
     private static void AnimatePortrait(
         Image portrait,
         Vector2 basePosition,
-        float talkingUntil)
+        float talkingUntil,
+        ref float talkAmount)
     {
         if (portrait == null || !portrait.gameObject.activeInHierarchy)
         {
+            talkAmount = 0f;
             return;
         }
 
-        RectTransform portraitRect = portrait.GetComponent<RectTransform>();
-        if (Time.unscaledTime < talkingUntil)
-        {
-            float bounce = Mathf.Abs(
-                Mathf.Sin(Time.unscaledTime * 10f)
-            ) * 13f;
-            portraitRect.anchoredPosition =
-                basePosition + new Vector2(0f, bounce);
-        }
-        else
-        {
-            portraitRect.anchoredPosition = basePosition;
-        }
+        float target = Time.unscaledTime < talkingUntil ? 1f : 0f;
+        talkAmount = Mathf.MoveTowards(talkAmount, target, Time.unscaledDeltaTime * 2.5f);
+
+        float wave = 0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * TalkBobPerSecond * 2f * Mathf.PI);
+        float bob = wave * TalkBobPixels * Mathf.SmoothStep(0f, 1f, talkAmount);
+        portrait.GetComponent<RectTransform>().anchoredPosition =
+            basePosition + new Vector2(0f, bob);
     }
 }

@@ -333,6 +333,42 @@ namespace MysteryGame.Tests
         // ------------------------------------------------------------ save / load
 
         [Test]
+        public void OnlyStelleIsStartledByRoomNoisesAndOnlySometimes()
+        {
+            NpcProfileData stelle = KnowledgeLibrary.GetNpc("Stelle");
+            Assert.That(stelle.startleLines, Is.Not.Empty);
+            Assert.That(stelle.startleChance, Is.GreaterThan(0f).And.LessThanOrEqualTo(0.35f),
+                        "a flinch now and then, not at every creak");
+
+            foreach (string npcId in new[] { "Alice", "Sena", "Rina" })
+            {
+                Assert.That(KnowledgeLibrary.GetNpc(npcId).startleChance, Is.EqualTo(0f), npcId);
+            }
+        }
+
+        [Test]
+        public void SenasRiddleAlwaysComesWithItsTranslation()
+        {
+            foreach (string name in new[] { "Sena_Riddle", "Sena_RiddleTaunt" })
+            {
+                DialogueData dialogue = LoadDialogue(name);
+                List<string> all = new List<string>(dialogue.lines);
+                all.AddRange(dialogue.returnLines);
+                int restated = 0;
+                foreach (string line in all)
+                {
+                    if (line.Contains("วิ่งนำหน้า"))
+                    {
+                        restated++;
+                        Assert.That(line, Does.Contain(SenaInteraction.RiddleEnglish), name);
+                    }
+                }
+
+                Assert.That(restated, Is.GreaterThan(0), name + " should restate the riddle");
+            }
+        }
+
+        [Test]
         public void ASnapshotRoundTripsThroughJson()
         {
             State.SetCurrentScene("Room03");

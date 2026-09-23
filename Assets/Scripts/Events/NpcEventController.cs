@@ -237,7 +237,12 @@ public class NpcEventController : MonoBehaviour
         pendingDialogue = generated;
         pendingUntil = Time.time + candidate.expiresSeconds;
         indicatorText.gameObject.SetActive(true);
-        SfxPlayer.Play(SfxPlayer.Cue.EventPing);
+        // The chime calls the player over; an event that starts by itself
+        // (Room03's story beats) needs no call.
+        if (!candidate.autoStart)
+        {
+            SfxPlayer.Play(SfxPlayer.Cue.EventPing);
+        }
     }
 
     private void ClearPendingEvent()

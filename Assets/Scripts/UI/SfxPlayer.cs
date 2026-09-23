@@ -26,7 +26,7 @@ public class SfxPlayer : MonoBehaviour
         Item,
         Talk,
         EventPing,
-        Scare,
+        Creak,
         Save,
     }
 
@@ -41,8 +41,14 @@ public class SfxPlayer : MonoBehaviour
 
     private static SfxPlayer instance;
 
+    /// <summary>Raised when a random room noise starts (a creak, footsteps).</summary>
+    public static event System.Action RoomNoisePlayed;
+
     [SerializeField, Range(0f, 1f)] private float effectsVolume = 0.55f;
-    [SerializeField, Range(0f, 1f)] private float hauntedDroneVolume = 0.32f;
+    [SerializeField, Range(0f, 1f)] private float hauntedDroneVolume = 0.42f;
+    [Tooltip("Loudest a random room noise (creak, footsteps) gets; kept under the room's loops.")]
+    [SerializeField, Range(0f, 1f)] private float roomNoiseVolume = 0.16f;
+    [SerializeField] private Vector2 roomNoiseGapSeconds = new Vector2(9f, 22f);
 
     private class Layer
     {
@@ -57,6 +63,10 @@ public class SfxPlayer : MonoBehaviour
     private AudioSource effects;
     private AudioSource feature;
     private AudioClip hauntedAmbience;
+    private readonly List<AudioClip> roomNoises = new List<AudioClip>();
+    private AudioSource noiseSource;
+    private bool roomHasNoises;
+    private float nextNoiseTime;
     private float lastTalkTime;
     private float roomMix;
     private float featureDuck = 1f;
@@ -126,6 +136,17 @@ public class SfxPlayer : MonoBehaviour
         AudioReverbFilter reverb = featureHost.AddComponent<AudioReverbFilter>();
         reverb.reverbPreset = AudioReverbPreset.Cave;
 
+        // Random room noises come from somewhere in the room, not from the
+        // speakers: muffled a little and given a small room's reverb.
+        GameObject noiseHost = new GameObject("RoomNoises");
+        noiseHost.transform.SetParent(transform, false);
+        noiseSource = noiseHost.AddComponent<AudioSource>();
+        noiseSource.playOnAwake = false;
+        AudioLowPassFilter noiseMuffle = noiseHost.AddComponent<AudioLowPassFilter>();
+        noiseMuffle.cutoffFrequency = 2600f;
+        AudioReverbFilter noiseRoom = noiseHost.AddComponent<AudioReverbFilter>();
+        noiseRoom.reverbPreset = AudioReverbPreset.Room;
+
         BuildClips();
         SceneManager.sceneLoaded += HandleSceneLoaded;
     }
@@ -161,6 +182,9 @@ public class SfxPlayer : MonoBehaviour
                 wanted.Add(new KeyValuePair<AudioClip, float>(hauntedAmbience, hauntedDroneVolume));
             }
         }
+
+        roomHasNoises = room != null && room.hauntedDrone;
+        nextNoiseTime = Time.unscaledTime + Random.Range(5f, 10f);
 
         // Keep layers the new room shares with the old one (rain from room
         // to room does not restart), fade out the rest, fade in the new.
@@ -205,6 +229,11 @@ public class SfxPlayer : MonoBehaviour
         float duckTarget = feature.isPlaying ? 0.6f : 1f;
         featureDuck = Mathf.MoveTowards(featureDuck, duckTarget, 0.8f * Time.unscaledDeltaTime);
 
+        if (roomHasNoises && roomMix > 0.5f && Time.unscaledTime >= nextNoiseTime)
+        {
+            PlayRoomNoise();
+        }
+
         // A slow, uneven wow in the pitch: the tune sags and recovers like a
         // spring that is running down.
         if (feature.isPlaying)
@@ -231,6 +260,30 @@ public class SfxPlayer : MonoBehaviour
                 Destroy(layer.source);
                 layers.RemoveAt(i);
             }
+        }
+    }
+
+    /// <summary>
+    /// Somebody else is in the house: a floorboard, a few steps, something
+    /// being moved. Always quiet, from a random side, never two at once.
+    /// </summary>
+    private void PlayRoomNoise()
+    {
+        nextNoiseTime = Time.unscaledTime + Random.Range(roomNoiseGapSeconds.x, roomNoiseGapSeconds.y);
+        if (roomNoises.Count == 0 || noiseSource.isPlaying)
+        {
+            return;
+        }
+
+        noiseSource.clip = roomNoises[Random.Range(0, roomNoises.Count)];
+        noiseSource.panStereo = Random.Range(-0.7f, 0.7f);
+        noiseSource.pitch = Random.Range(0.92f, 1.06f);
+        noiseSource.volume = roomNoiseVolume * Random.Range(0.6f, 1f) * roomMix;
+        noiseSource.Play();
+
+        if (RoomNoisePlayed != null)
+        {
+            RoomNoisePlayed();
         }
     }
 
@@ -270,10 +323,7 @@ public class SfxPlayer : MonoBehaviour
         clips[Cue.EventPing] = Tone("sfx_event", 0.3f, t =>
             Env(t, 0.004f, 0.12f) * Sine(t, 988f) * 0.25f +
             Env(t - 0.12f, 0.004f, 0.16f) * Sine(t, 1319f) * 0.25f);
-        clips[Cue.Scare] = Tone("sfx_scare", 1.4f, t =>
-            Env(t, 0.02f, 1.3f) * (Sine(t, 55f + 30f * t) * 0.4f +
-                                   Sine(t, 233f + 7f * Mathf.Sin(t * 40f)) * 0.18f +
-                                   Noise() * 0.08f));
+        clips[Cue.Creak] = Creak("sfx_creak", 0.9f, 38f, 620f, 11);
         clips[Cue.Save] = Tone("sfx_save", 0.25f, t =>
             Env(t, 0.004f, 0.2f) * Sine(t, 660f + 400f * t) * 0.25f);
 
@@ -286,23 +336,160 @@ public class SfxPlayer : MonoBehaviour
             }
         }
 
-        // Room03's drone: every partial completes a whole number of cycles in
-        // the 12 s loop and the swell is one full period, so the loop point
-        // is seamless instead of dipping to silence every 12 seconds.
+        // Room03's slow throb: two low tones 0.75 Hz apart beat against each
+        // other, a pulse a little slower than a heartbeat. No swell on top,
+        // so the level stays put instead of fading in and out. Every partial
+        // completes a whole number of cycles in the 12 s loop, so it loops
+        // without a seam.
         const float loop = 12f;
-        float[] times = { 1.5f, 5.2f, 5.6f, 9.1f };
-        float[] notes = { 1046.5f, 1318.5f, 1174.7f, 987.8f };
         hauntedAmbience = Tone("amb_haunted", loop, t =>
+            (Sine(t, 55f) * 0.25f + Sine(t, 55.75f) * 0.25f + Sine(t, 82.5f) * 0.08f) * 0.8f);
+
+        roomNoises.Clear();
+        roomNoises.Add(Footsteps("amb_steps_a", 3, 0.62f, 1));
+        roomNoises.Add(Footsteps("amb_steps_b", 5, 0.55f, 2));
+        roomNoises.Add(Creak("amb_creak_a", 1.1f, 32f, 540f, 3));
+        roomNoises.Add(Creak("amb_creak_b", 0.7f, 55f, 760f, 4));
+        roomNoises.Add(Knock("amb_knock", 5));
+        roomNoises.Add(Scrape("amb_scrape", 6));
+    }
+
+    // ------------------------------------------------------------ room noises
+    // Built sample by sample (they need filter state), each from its own
+    // seed so the same noises come out every run.
+
+    private static AudioClip Footsteps(string clipName, int steps, float gap, int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        float[] data = new float[Mathf.CeilToInt((steps * gap + 0.4f) * SampleRate)];
+        for (int step = 0; step < steps; step++)
         {
-            float swell = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * t / loop);
-            float drone = Sine(t, 55f) * 0.25f + Sine(t, 55.75f) * 0.25f + Sine(t, 82.5f) * 0.08f;
-            float chime = 0f;
-            for (int i = 0; i < times.Length; i++)
+            float jitter = 1f + ((float)rng.NextDouble() - 0.5f) * 0.12f;
+            int start = Mathf.RoundToInt(step * gap * jitter * SampleRate);
+            float loudness = Mathf.Pow(0.82f, step);          // walking away
+            float low = 0f;
+            for (int i = 0; start + i < data.Length && i < SampleRate / 4; i++)
             {
-                chime += Env(t - times[i], 0.003f, 1.6f) * Sine(t, notes[i]) * 0.05f;
+                float t = i / (float)SampleRate;
+                // heel thud: a low body and lowpassed noise, then a soft scuff
+                low += 0.08f * ((float)(rng.NextDouble() * 2.0 - 1.0) - low);
+                float thud = Env(t, 0.003f, 0.09f) * (Sine(t, 72f) * 0.6f + low * 2.2f);
+                float scuff = Env(t - 0.05f, 0.01f, 0.06f) * low * 0.8f;
+                data[start + i] += (thud + scuff) * loudness;
             }
-            return (drone * swell + chime) * 0.8f;
-        });
+        }
+
+        return Finish(clipName, data, 0.6f);
+    }
+
+    /// <summary>Stick-slip clicks ringing in wood: a floorboard or a chair.</summary>
+    private static AudioClip Creak(string clipName, float seconds, float clicksPerSecond, float body, int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        float[] excite = new float[Mathf.CeilToInt(seconds * SampleRate)];
+        float next = 0f;
+        while (next < seconds)
+        {
+            float phase = next / seconds;
+            float rate = clicksPerSecond * (0.7f + 0.6f * Mathf.Sin(phase * Mathf.PI));
+            int index = Mathf.Min(excite.Length - 1, Mathf.RoundToInt(next * SampleRate));
+            excite[index] += 0.6f + 0.4f * (float)rng.NextDouble();
+            next += (1f / rate) * (0.75f + 0.5f * (float)rng.NextDouble());
+        }
+
+        float[] data = new float[excite.Length];
+        Resonator wood = new Resonator();
+        Resonator grain = new Resonator();
+        for (int i = 0; i < data.Length; i++)
+        {
+            float t = i / (float)SampleRate;
+            float fade = Mathf.Sin(Mathf.PI * Mathf.Clamp01(t / seconds));
+            float bend = body * (1f + 0.08f * Mathf.Sin(t * 5f));   // the board flexes
+            data[i] = (wood.Step(excite[i], bend, 9f) + grain.Step(excite[i], bend * 2.3f, 6f) * 0.4f) * fade;
+        }
+
+        return Finish(clipName, data, 0.5f);
+    }
+
+    /// <summary>Two dull knocks on wood, like something set down in another room.</summary>
+    private static AudioClip Knock(string clipName, int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        float[] data = new float[Mathf.CeilToInt(0.8f * SampleRate)];
+        foreach (float at in new[] { 0f, 0.34f })
+        {
+            int start = Mathf.RoundToInt(at * SampleRate);
+            for (int i = 0; i < 40; i++)
+            {
+                data[start + i] += (float)(rng.NextDouble() * 2.0 - 1.0) * (1f - i / 40f);
+            }
+        }
+
+        Resonator low = new Resonator();
+        Resonator high = new Resonator();
+        for (int i = 0; i < data.Length; i++)
+        {
+            float x = data[i];
+            data[i] = low.Step(x, 170f, 7f) + high.Step(x, 410f, 5f) * 0.5f;
+        }
+
+        return Finish(clipName, data, 0.55f);
+    }
+
+    /// <summary>Something heavy dragged a short way across the floor.</summary>
+    private static AudioClip Scrape(string clipName, int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        const float seconds = 0.7f;
+        float[] data = new float[Mathf.CeilToInt(seconds * SampleRate)];
+        Resonator band = new Resonator();
+        for (int i = 0; i < data.Length; i++)
+        {
+            float t = i / (float)SampleRate;
+            float x = (float)(rng.NextDouble() * 2.0 - 1.0);
+            float grit = 0.6f + 0.4f * Mathf.Sin(t * 2f * Mathf.PI * 23f);
+            data[i] = band.Step(x * grit, Mathf.Lerp(900f, 520f, t / seconds), 4f) *
+                      Mathf.Sin(Mathf.PI * t / seconds);
+        }
+
+        return Finish(clipName, data, 0.4f);
+    }
+
+    /// <summary>Two-pole band-pass (RBJ cookbook): the body a click or a hiss rings in.</summary>
+    private class Resonator
+    {
+        private float x1, x2, y1, y2;
+
+        public float Step(float x, float hz, float q)
+        {
+            float w0 = 2f * Mathf.PI * hz / SampleRate;
+            float alpha = Mathf.Sin(w0) / (2f * q);
+            float y = (alpha * x - alpha * x2 + 2f * Mathf.Cos(w0) * y1 - (1f - alpha) * y2) / (1f + alpha);
+            x2 = x1;
+            x1 = x;
+            y2 = y1;
+            y1 = y;
+            return y;
+        }
+    }
+
+    /// <summary>Scales to a fixed peak so every noise sits at a known level.</summary>
+    private static AudioClip Finish(string clipName, float[] data, float peak)
+    {
+        float max = 0.0001f;
+        foreach (float v in data)
+        {
+            max = Mathf.Max(max, Mathf.Abs(v));
+        }
+
+        for (int i = 0; i < data.Length; i++)
+        {
+            data[i] = data[i] / max * peak;
+        }
+
+        AudioClip clip = AudioClip.Create(clipName, data.Length, 1, SampleRate, false);
+        clip.SetData(data, 0);
+        return clip;
     }
 
     private static readonly System.Random noise = new System.Random(7);

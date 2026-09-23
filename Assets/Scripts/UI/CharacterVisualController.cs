@@ -36,6 +36,9 @@ public class CharacterVisualController : MonoBehaviour
     private float frameTimer;
     private int currentFrameIndex;
     private PlayerMovement playerMovement;
+    private float startledAt = -10f;
+
+    private const float StartleSeconds = 0.45f;
 
     public enum Direction { Down, Up, Left, Right }
     private Direction currentDirection = Direction.Down;
@@ -205,9 +208,33 @@ public class CharacterVisualController : MonoBehaviour
             UpdateProceduralMotion(worldDelta, isMoving);
         }
 
+        ApplyStartle();
+
         // Lower characters render in front, matching a top-down room.
         visualRenderer.sortingOrder =
             sortingOrder - Mathf.RoundToInt(transform.position.y * 10f);
+    }
+
+    /// <summary>A small jump and shiver, for when something makes them flinch.</summary>
+    public void Startle()
+    {
+        startledAt = Time.time;
+    }
+
+    private void ApplyStartle()
+    {
+        float t = Time.time - startledAt;
+        if (visualTransform == null || t < 0f || t > StartleSeconds)
+        {
+            return;
+        }
+
+        // Offsets are in world units: undo the character's own scale.
+        float sx = Mathf.Max(Mathf.Abs(transform.lossyScale.x), 0.01f);
+        float sy = Mathf.Max(Mathf.Abs(transform.lossyScale.y), 0.01f);
+        float hop = Mathf.Sin(Mathf.PI * Mathf.Clamp01(t / 0.28f)) * 0.16f;
+        float shiver = Mathf.Sin(t * 75f) * 0.025f * (1f - t / StartleSeconds);
+        visualTransform.localPosition += new Vector3(shiver / sx, hop / sy, 0f);
     }
 
     private void UpdateWalkAnimation(Vector2 moveVector, bool isMoving)

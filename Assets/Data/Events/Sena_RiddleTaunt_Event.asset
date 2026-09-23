@@ -23,7 +23,7 @@ MonoBehaviour:
   cooldownSeconds: 150
   expiresSeconds: 40
   repeatable: 1
-  useAiDialogue: 1
+  useAiDialogue: 0
   storyBeat: 0
   autoStart: 0
   situationPrompt: "เซนะเอ่ยปริศนาไปแล้วแต่ผู้เล่นยังตอบไม่ได้ นางจึงเยาะเย้ยและทวนปริศนาครึ่งแรก โดยไม่บอกคำตอบ"

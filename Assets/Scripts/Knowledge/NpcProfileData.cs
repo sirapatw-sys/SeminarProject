@@ -205,6 +205,13 @@ namespace MysteryGame.Knowledge
         [Tooltip("Opening line when the player comes back. Picked by relationship; first match wins.")]
         public List<FallbackReplyRule> returnGreetings = new List<FallbackReplyRule>();
 
+        [Header("Startled by room noises")]
+        [Tooltip("Short lines popped above the NPC when a random room noise makes them jump. Empty = never startled.")]
+        public List<string> startleLines = new List<string>();
+
+        [Tooltip("Chance a single room noise startles this NPC.")]
+        [Range(0f, 1f)] public float startleChance;
+
         public bool KnowsFact(string factId, GameState state)
         {
             if (string.IsNullOrWhiteSpace(factId))

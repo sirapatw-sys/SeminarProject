@@ -62,6 +62,11 @@ public class SenaInteraction : MonoBehaviour, IFocusable
         "เจ้าเฝ้ารอข้าไปทั้งชีวิต แต่ครานที่ข้ามาถึงเจ้าจริงๆ " +
         "ชื่อของข้าก็เปลี่ยนไปเสียแล้ว... ข้าคือสิ่งใด?";
 
+    /// <summary>The riddle is always shown with this translation under it.</summary>
+    public const string RiddleEnglish =
+        "(I am always running ahead of you, yet I never arrive. You spend your life " +
+        "anticipating me, but the moment I reach you, my name has already changed. What am I?)";
+
     [SerializeField] private float readReplyDelay = 2.4f;
     [SerializeField] private float fadeDuration = 2.0f;
 
@@ -242,7 +247,7 @@ public class SenaInteraction : MonoBehaviour, IFocusable
         return new string[]
         {
             "ข้ายอมรับของถวายของเจ้าแล้ว จงฟังปริศนาให้ดี:",
-            "\"" + riddleText + "\"",
+            "\"" + riddleText + "\"\n" + RiddleEnglish,
             "จงพิมพ์คำตอบลงในช่องเบื้องล่างแล้วกดส่งมาเถิด"
         };
     }

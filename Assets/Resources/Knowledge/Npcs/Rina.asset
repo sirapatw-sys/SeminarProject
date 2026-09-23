@@ -313,3 +313,5 @@ MonoBehaviour:
     - "มีอะไรอีกล่ะ"
     relationshipDelta: 0
     emotion: ""
+  startleLines: []
+  startleChance: 0.0

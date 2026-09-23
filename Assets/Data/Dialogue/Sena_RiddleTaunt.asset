@@ -19,7 +19,9 @@ MonoBehaviour:
   personalityPrompt: ""
   lines:
   - "เงียบงันเช่นนี้ แปลว่าเจ้ายังคิดมิออกฤๅ"
-  - "ข้าจะเอ่ยซ้ำให้อีกคราเดียว: 'สิ่งที่วิ่งนำหน้าเจ้าเสมอ ทว่ามิเคยมาถึง'... จงพิมพ์คำตอบมาเถิด"
+  - "ข้าจะเอ่ยซ้ำให้อีกคราเดียว:"
+  - "'ข้าวิ่งนำหน้าเจ้าอยู่เสมอ ทว่ามิเคยไปถึงแห่งหนใด เจ้าเฝ้ารอข้าไปทั้งชีวิต แต่ครานที่ข้ามาถึงเจ้าจริงๆ ชื่อของข้าก็เปลี่ยนไปเสียแล้ว... ข้าคือสิ่งใด?'\n(I am always running ahead of you, yet I never arrive. You spend your life anticipating me, but the moment I reach you, my name has already changed. What am I?)"
+  - "จงพิมพ์คำตอบมาเถิด"
   overrideReturnLines: 0
   returnLines: []
   choices:

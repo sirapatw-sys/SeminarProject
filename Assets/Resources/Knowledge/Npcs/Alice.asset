@@ -363,3 +363,5 @@ MonoBehaviour:
     - "กลับมาแล้วเหรอ ระหว่างนี้สถานการณ์ในห้องเปลี่ยนไปพอสมควรนะ"
     relationshipDelta: 0
     emotion: ""
+  startleLines: []
+  startleChance: 0.0

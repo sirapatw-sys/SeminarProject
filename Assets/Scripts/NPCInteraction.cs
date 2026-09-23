@@ -12,6 +12,7 @@ public class NPCInteraction : MonoBehaviour, IFocusable
     {
         eventController = GetComponent<NpcEventController>();
         talkArea = GetComponent<Collider2D>();
+        NpcStartleReaction.AttachIfWanted(gameObject, dialogueData != null ? dialogueData.speakerId : null);
     }
 
     private string Prompt

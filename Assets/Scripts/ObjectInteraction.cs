@@ -145,7 +145,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         );
 
         SfxPlayer.Play(success
-            ? (data.scareOnSuccess ? SfxPlayer.Cue.Scare : SfxPlayer.Cue.Interact)
+            ? (data.scareOnSuccess ? SfxPlayer.Cue.Creak : SfxPlayer.Cue.Interact)
             : SfxPlayer.Cue.Locked);
         if (success && data.successClip != null)
         {
