@@ -15,6 +15,10 @@ using UnityEngine.SceneManagement;
 /// Short effects are synthesised at start-up so the project does not depend
 /// on recordings. Swap a cue for a real clip by dropping it at
 /// Resources/Audio/&lt;Cue&gt; (for example Resources/Audio/Item.wav).
+///
+/// Recordings: Resources/Audio/Door plays on every door the player walks
+/// through, and every clip in Resources/Audio/Noises is a candidate for the
+/// haunted room's random noises (knocks, groans, things moving).
 /// </summary>
 public class SfxPlayer : MonoBehaviour
 {
@@ -26,7 +30,6 @@ public class SfxPlayer : MonoBehaviour
         Item,
         Talk,
         EventPing,
-        Creak,
         Save,
     }
 
@@ -46,9 +49,11 @@ public class SfxPlayer : MonoBehaviour
 
     [SerializeField, Range(0f, 1f)] private float effectsVolume = 0.55f;
     [SerializeField, Range(0f, 1f)] private float hauntedDroneVolume = 0.42f;
-    [Tooltip("Loudest a random room noise (creak, footsteps) gets; kept under the room's loops.")]
-    [SerializeField, Range(0f, 1f)] private float roomNoiseVolume = 0.16f;
-    [SerializeField] private Vector2 roomNoiseGapSeconds = new Vector2(9f, 22f);
+    [Tooltip("Loudest a random room noise (a knock, a groan) gets; kept under the room's loops.")]
+    [SerializeField, Range(0f, 1f)] private float roomNoiseVolume = 0.11f;
+    [Tooltip("Seconds between random room noises: rare enough that each one is noticed.")]
+    [SerializeField] private Vector2 roomNoiseGapSeconds = new Vector2(40f, 90f);
+    [SerializeField, Range(0f, 1f)] private float doorVolume = 0.3f;
 
     private class Layer
     {
@@ -65,6 +70,8 @@ public class SfxPlayer : MonoBehaviour
     private AudioClip hauntedAmbience;
     private readonly List<AudioClip> roomNoises = new List<AudioClip>();
     private AudioSource noiseSource;
+    private AudioSource eerieSource;
+    private AudioClip doorClip;
     private bool roomHasNoises;
     private float nextNoiseTime;
     private float lastTalkTime;
@@ -111,6 +118,51 @@ public class SfxPlayer : MonoBehaviour
         instance.feature.Play();
     }
 
+    /// <summary>The door opening and closing as the player walks through it.</summary>
+    public static void PlayDoor()
+    {
+        if (instance == null || instance.doorClip == null)
+        {
+            return;
+        }
+
+        instance.effects.pitch = 1f;
+        instance.effects.PlayOneShot(instance.doorClip, instance.doorVolume);
+    }
+
+    /// <summary>
+    /// A sound that belongs to something the player just did, heard as if
+    /// from somewhere in the room behind them (the giggle in the fireplace).
+    /// The random room noises hold off until it has finished.
+    /// </summary>
+    public static void PlayEerie(AudioClip clip, float volume)
+    {
+        if (instance == null || clip == null)
+        {
+            return;
+        }
+
+        instance.eerieSource.panStereo = Random.value < 0.5f ? -0.45f : 0.45f;
+        instance.eerieSource.PlayOneShot(clip, volume);
+        instance.nextNoiseTime = Mathf.Max(instance.nextNoiseTime, Time.unscaledTime + clip.length + 8f);
+    }
+
+    /// <summary>
+    /// Touching something in the haunted room sometimes gets an answer: with
+    /// the given chance, the next random room noise comes a few seconds
+    /// later instead of at its usual time. Most of the time nothing happens,
+    /// so no object is guaranteed to make a sound.
+    /// </summary>
+    public static void MaybeRoomNoiseSoon(float chance)
+    {
+        if (instance == null || !instance.roomHasNoises || Random.value >= chance)
+        {
+            return;
+        }
+
+        instance.nextNoiseTime = Mathf.Min(instance.nextNoiseTime, Time.unscaledTime + Random.Range(1.5f, 4f));
+    }
+
     private void Awake()
     {
         if (instance != null && instance != this)
@@ -146,6 +198,19 @@ public class SfxPlayer : MonoBehaviour
         noiseMuffle.cutoffFrequency = 2600f;
         AudioReverbFilter noiseRoom = noiseHost.AddComponent<AudioReverbFilter>();
         noiseRoom.reverbPreset = AudioReverbPreset.Room;
+
+        // Sounds tied to an action (the giggle at the fireplace) come from
+        // further away still: heavily muffled, a long stone corridor's echo,
+        // a touch slow, off to one side. Faint enough to doubt you heard it.
+        GameObject eerieHost = new GameObject("EerieVoices");
+        eerieHost.transform.SetParent(transform, false);
+        eerieSource = eerieHost.AddComponent<AudioSource>();
+        eerieSource.playOnAwake = false;
+        eerieSource.pitch = 0.94f;
+        AudioLowPassFilter eerieMuffle = eerieHost.AddComponent<AudioLowPassFilter>();
+        eerieMuffle.cutoffFrequency = 1800f;
+        AudioReverbFilter eerieRoom = eerieHost.AddComponent<AudioReverbFilter>();
+        eerieRoom.reverbPreset = AudioReverbPreset.StoneCorridor;
 
         BuildClips();
         SceneManager.sceneLoaded += HandleSceneLoaded;
@@ -264,8 +329,9 @@ public class SfxPlayer : MonoBehaviour
     }
 
     /// <summary>
-    /// Somebody else is in the house: a floorboard, a few steps, something
-    /// being moved. Always quiet, from a random side, never two at once.
+    /// Somebody else is in the house: a knock, a groan, something being
+    /// moved. Always quiet, from a random side, never two at once, and never
+    /// the same clip twice in a row.
     /// </summary>
     private void PlayRoomNoise()
     {
@@ -275,9 +341,16 @@ public class SfxPlayer : MonoBehaviour
             return;
         }
 
-        noiseSource.clip = roomNoises[Random.Range(0, roomNoises.Count)];
+        AudioClip previous = noiseSource.clip;
+        AudioClip next = roomNoises[Random.Range(0, roomNoises.Count)];
+        if (next == previous && roomNoises.Count > 1)
+        {
+            next = roomNoises[(roomNoises.IndexOf(next) + 1 + Random.Range(0, roomNoises.Count - 1)) % roomNoises.Count];
+        }
+
+        noiseSource.clip = next;
         noiseSource.panStereo = Random.Range(-0.7f, 0.7f);
-        noiseSource.pitch = Random.Range(0.92f, 1.06f);
+        noiseSource.pitch = Random.Range(0.94f, 1.04f);
         noiseSource.volume = roomNoiseVolume * Random.Range(0.6f, 1f) * roomMix;
         noiseSource.Play();
 
@@ -323,7 +396,6 @@ public class SfxPlayer : MonoBehaviour
         clips[Cue.EventPing] = Tone("sfx_event", 0.3f, t =>
             Env(t, 0.004f, 0.12f) * Sine(t, 988f) * 0.25f +
             Env(t - 0.12f, 0.004f, 0.16f) * Sine(t, 1319f) * 0.25f);
-        clips[Cue.Creak] = Creak("sfx_creak", 0.9f, 38f, 620f, 11);
         clips[Cue.Save] = Tone("sfx_save", 0.25f, t =>
             Env(t, 0.004f, 0.2f) * Sine(t, 660f + 400f * t) * 0.25f);
 
@@ -345,13 +417,20 @@ public class SfxPlayer : MonoBehaviour
         hauntedAmbience = Tone("amb_haunted", loop, t =>
             (Sine(t, 55f) * 0.25f + Sine(t, 55.75f) * 0.25f + Sine(t, 82.5f) * 0.08f) * 0.8f);
 
+        doorClip = Resources.Load<AudioClip>("Audio/Door");
+
+        // Recorded noises when there are any. The synthesised set is only a
+        // fallback, and it leaves out the old wooden creak: stretched thin
+        // and quiet it sounded like a frog, not a floorboard.
         roomNoises.Clear();
-        roomNoises.Add(Footsteps("amb_steps_a", 3, 0.62f, 1));
-        roomNoises.Add(Footsteps("amb_steps_b", 5, 0.55f, 2));
-        roomNoises.Add(Creak("amb_creak_a", 1.1f, 32f, 540f, 3));
-        roomNoises.Add(Creak("amb_creak_b", 0.7f, 55f, 760f, 4));
-        roomNoises.Add(Knock("amb_knock", 5));
-        roomNoises.Add(Scrape("amb_scrape", 6));
+        roomNoises.AddRange(Resources.LoadAll<AudioClip>("Audio/Noises"));
+        if (roomNoises.Count == 0)
+        {
+            roomNoises.Add(Footsteps("amb_steps_a", 3, 0.62f, 1));
+            roomNoises.Add(Footsteps("amb_steps_b", 5, 0.55f, 2));
+            roomNoises.Add(Knock("amb_knock", 5));
+            roomNoises.Add(Scrape("amb_scrape", 6));
+        }
     }
 
     // ------------------------------------------------------------ room noises
@@ -380,35 +459,6 @@ public class SfxPlayer : MonoBehaviour
         }
 
         return Finish(clipName, data, 0.6f);
-    }
-
-    /// <summary>Stick-slip clicks ringing in wood: a floorboard or a chair.</summary>
-    private static AudioClip Creak(string clipName, float seconds, float clicksPerSecond, float body, int seed)
-    {
-        System.Random rng = new System.Random(seed);
-        float[] excite = new float[Mathf.CeilToInt(seconds * SampleRate)];
-        float next = 0f;
-        while (next < seconds)
-        {
-            float phase = next / seconds;
-            float rate = clicksPerSecond * (0.7f + 0.6f * Mathf.Sin(phase * Mathf.PI));
-            int index = Mathf.Min(excite.Length - 1, Mathf.RoundToInt(next * SampleRate));
-            excite[index] += 0.6f + 0.4f * (float)rng.NextDouble();
-            next += (1f / rate) * (0.75f + 0.5f * (float)rng.NextDouble());
-        }
-
-        float[] data = new float[excite.Length];
-        Resonator wood = new Resonator();
-        Resonator grain = new Resonator();
-        for (int i = 0; i < data.Length; i++)
-        {
-            float t = i / (float)SampleRate;
-            float fade = Mathf.Sin(Mathf.PI * Mathf.Clamp01(t / seconds));
-            float bend = body * (1f + 0.08f * Mathf.Sin(t * 5f));   // the board flexes
-            data[i] = (wood.Step(excite[i], bend, 9f) + grain.Step(excite[i], bend * 2.3f, 6f) * 0.4f) * fade;
-        }
-
-        return Finish(clipName, data, 0.5f);
     }
 
     /// <summary>Two dull knocks on wood, like something set down in another room.</summary>

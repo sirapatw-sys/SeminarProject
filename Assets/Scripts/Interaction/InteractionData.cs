@@ -58,8 +58,14 @@ public class InteractionData : ScriptableObject
     public bool endsDemo;
 
     [Header("Feedback")]
-    [Tooltip("Plays a wooden creak instead of the usual click on success, for the haunted room's uneasy moments.")]
+    [Tooltip("The haunted room sometimes answers: after a success there is a chance a quiet room noise follows a few seconds later.")]
     public bool scareOnSuccess;
+
+    [Tooltip("A short sound on success heard from somewhere in the room (the fireplace's giggle). Plays as-is, not as music.")]
+    public AudioClip successSound;
+
+    [Range(0f, 1f)]
+    public float successSoundVolume = 0.1f;
 
     [Tooltip("Music played once on success (the music box's lullaby); room loops duck under it.")]
     public AudioClip successClip;

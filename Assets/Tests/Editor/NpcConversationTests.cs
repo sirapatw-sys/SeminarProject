@@ -333,6 +333,22 @@ namespace MysteryGame.Tests
         // ------------------------------------------------------------ save / load
 
         [Test]
+        public void KindnessRaisesTheRelationshipFasterThanAuthored()
+        {
+            // a comforting choice worth +6 on paper
+            new ActionCommand { type = ActionType.ChangeRelationship, targetId = "Stelle", amount = 6 }.Execute(State);
+            Assert.That(State.GetRelationship("Stelle"), Is.EqualTo(35 + 9));
+
+            // losses are not scaled
+            new ActionCommand { type = ActionType.ChangeRelationship, targetId = "Stelle", amount = -6 }.Execute(State);
+            Assert.That(State.GetRelationship("Stelle"), Is.EqualTo(35 + 9 - 6));
+
+            Assert.That(RelationshipTuning.ScaleGain(2, RelationshipTuning.OfflineGainScale), Is.EqualTo(4));
+            Assert.That(RelationshipTuning.ClampMessage(40), Is.EqualTo(RelationshipTuning.MaxGainPerMessage));
+            Assert.That(RelationshipTuning.ClampMessage(-40), Is.EqualTo(-RelationshipTuning.MaxLossPerMessage));
+        }
+
+        [Test]
         public void OnlyStelleIsStartledByRoomNoisesAndOnlySometimes()
         {
             NpcProfileData stelle = KnowledgeLibrary.GetNpc("Stelle");
@@ -344,6 +360,79 @@ namespace MysteryGame.Tests
             {
                 Assert.That(KnowledgeLibrary.GetNpc(npcId).startleChance, Is.EqualTo(0f), npcId);
             }
+        }
+
+        [Test]
+        public void EveryNpcCanCallThePlayerOverAboutATopicOfItsOwn()
+        {
+            string[] scenes = { "Room01", "Room02", "Room03" };
+            var homes = new Dictionary<string, string[]>
+            {
+                { "Alice", scenes },
+                { "Sena", new[] { "Room02" } },
+                { "Rina", new[] { "Room03" } },
+                { "Stelle", new[] { "Room03" } },
+            };
+
+            foreach (KeyValuePair<string, string[]> npc in homes)
+            {
+                string name = npc.Key + "_Chatter_Event";
+                MiniEventData chatter = LoadEvent(name);
+                Assert.That(chatter.freeTopic, Is.True, name + " lets the AI pick the topic");
+                Assert.That(chatter.storyBeat, Is.False, name + " waits for the random roll");
+                Assert.That(chatter.autoStart, Is.False, name + " shows a \"!\" instead of starting by itself");
+                Assert.That(chatter.repeatable, Is.True, name);
+                Assert.That(chatter.npcId, Is.EqualTo(npc.Key), name);
+                Assert.That(chatter.dialogue.speakerId, Is.EqualTo(npc.Key), name);
+
+                // Warm, neutral, brush-off: whatever the topic, the effect follows the stance.
+                List<DialogueChoiceData> choices = chatter.dialogue.choices;
+                Assert.That(choices.Count, Is.EqualTo(3), name);
+                Assert.That(choices[0].actions[0].amount, Is.GreaterThan(0), name);
+                Assert.That(choices[2].actions[0].amount, Is.LessThan(0), name);
+
+                string guid = AssetDatabase.AssetPathToGUID("Assets/Data/Events/" + name + ".asset");
+                foreach (string room in npc.Value)
+                {
+                    Assert.That(System.IO.File.ReadAllText("Assets/Scenes/" + room + ".unity"), Does.Contain(guid),
+                                name + " is on " + npc.Key + " in " + room);
+                }
+            }
+
+            // The ones met in a room wait until the player has talked to them.
+            MiniEventData stelle = LoadEvent("Stelle_Chatter_Event");
+            Assert.That(ConditionRule.AllHold(stelle.conditions, State), Is.False);
+            State.SetFlag("dialogue.stelle_room03.met");
+            Assert.That(ConditionRule.AllHold(stelle.conditions, State), Is.True);
+        }
+
+        [Test]
+        public void RecordedSoundsAreInPlaceAndShort()
+        {
+            AudioClip[] noises = Resources.LoadAll<AudioClip>("Audio/Noises");
+            Assert.That(noises.Length, Is.GreaterThanOrEqualTo(9), "the knocks and the haunted-house sounds");
+            foreach (AudioClip noise in noises)
+            {
+                Assert.That(noise.length, Is.LessThan(12f), noise.name);
+            }
+
+            Assert.That(Resources.Load<AudioClip>("Audio/Door"), Is.Not.Null);
+
+            InteractionData fireplace = AssetDatabase.LoadAssetAtPath<InteractionData>(
+                "Assets/Data/Interactions/Fireplace_R3_Data.asset");
+            Assert.That(fireplace.successSound, Is.Not.Null, "the giggle when the key is found");
+            Assert.That(fireplace.successSound.length, Is.LessThan(5f), "a short laugh");
+            Assert.That(fireplace.successSoundVolume, Is.LessThanOrEqualTo(0.12f), "barely there");
+        }
+
+        [Test]
+        public void KkuModelsAreGroupedByTheirMaker()
+        {
+            Assert.That(AiSettingsPanel.VendorOf(AiDialogueGenerator.DefaultKkuModel), Is.EqualTo("OpenAI"));
+            Assert.That(AiSettingsPanel.VendorOf("claude-sonnet-5"), Is.EqualTo("Anthropic"));
+            Assert.That(AiSettingsPanel.VendorOf("gemini-3.8-flash"), Is.EqualTo("Google"));
+            Assert.That(AiSettingsPanel.VendorOf("qwen3.7-max"), Is.EqualTo("Qwen"));
+            Assert.That(AiSettingsPanel.VendorOf("12345"), Is.EqualTo("อื่นๆ"));
         }
 
         [Test]

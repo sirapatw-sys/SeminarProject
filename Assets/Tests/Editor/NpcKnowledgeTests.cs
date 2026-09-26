@@ -272,6 +272,22 @@ namespace MysteryGame.Tests
         }
 
         [Test]
+        public void EveryoneInRoom03KnowsTheLullabyIsStillPlaying()
+        {
+            // The music box keeps playing once wound. A note that only said
+            // "the ghost calmed after the box played" let Alice's AI decide
+            // the music had stopped and the room was quiet.
+            State.SetFlag("room03_entered");
+            State.SetFlag("ghost_lullaby_played");
+            foreach (string npcId in new[] { "Alice", "Rina", "Stelle" })
+            {
+                string notes = string.Join(" ", Build(npcId, "Room03").ActiveNotes);
+                Assert.That(notes, Does.Contain("ยังเล่นอยู่"), npcId);
+                Assert.That(notes, Does.Contain("ห้ามพูดว่าเพลงหยุด"), npcId);
+            }
+        }
+
+        [Test]
         public void TheKeyInTheAshesStaysHiddenUntilItIsFound()
         {
             State.SetFlag("saw_mirror_message");

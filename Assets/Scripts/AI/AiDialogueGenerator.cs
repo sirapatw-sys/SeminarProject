@@ -19,11 +19,16 @@ public class AiDialogueGenerator : MonoBehaviour
     public const string GeminiChatCompletionsUrl =
         "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
+    /// <summary>KKU IntelSphere model the game uses unless the player picks another.</summary>
+    public const string DefaultKkuModel = "gpt-5.6-terra";
+
+    private const string TerraMigrationKey = "ai.model.movedToTerra";
+
     public static AiDialogueGenerator Instance { get; private set; }
 
     [SerializeField] private bool enableAiGeneration = true;
     [SerializeField] private AiProviderType provider = AiProviderType.KkuIntelsphere;
-    [SerializeField] private string model = "gpt-5.6-luna";
+    [SerializeField] private string model = DefaultKkuModel;
     [SerializeField] private string apiUrl = KkuChatCompletionsUrl;
     [SerializeField, Min(5)] private int timeoutSeconds = 20;
 
@@ -106,12 +111,19 @@ public class AiDialogueGenerator : MonoBehaviour
         else if (provider == AiProviderType.KkuIntelsphere)
         {
             apiUrl = KkuChatCompletionsUrl;
-            if (string.IsNullOrWhiteSpace(model))
+            // gpt-5.6-terra became the default: move an empty model, an
+            // OpenAI-only name KKU does not serve, or the old default over to
+            // it once. Picking luna again after that is respected.
+            bool movedToTerra = PlayerPrefs.GetInt(TerraMigrationKey, 0) == 1;
+            if (string.IsNullOrWhiteSpace(model) || model == "gpt-4o-mini" ||
+                (!movedToTerra && model == "gpt-5.6-luna"))
             {
-                model = "gpt-5.6-luna";
+                model = DefaultKkuModel;
                 PlayerPrefs.SetString("ai.model", model);
-                PlayerPrefs.Save();
             }
+
+            PlayerPrefs.SetInt(TerraMigrationKey, 1);
+            PlayerPrefs.Save();
         }
         else if (provider == AiProviderType.Gemini)
         {
@@ -378,7 +390,7 @@ public class AiDialogueGenerator : MonoBehaviour
         string prompt = BuildPrompt(eventData);
         string requestJson = provider == AiProviderType.OpenAiResponses
             ? BuildRequestJson(prompt, eventData.dialogue.choices.Count)
-            : BuildCompatibleChatRequestJson(prompt);
+            : BuildCompatibleChatRequestJson(prompt, eventData.dialogue.choices.Count);
 
         UnityWebRequest request = null;
         yield return Post(requestJson, sent => request = sent);
@@ -761,11 +773,15 @@ public class AiDialogueGenerator : MonoBehaviour
         }
         else if (hostile)
         {
-            prompt.AppendLine("[พูดจาไม่ดี / ก้าวร้าว / ไล่] ตอบกลับตามนิสัยตัวละคร (เคือง เย็นชา หรือตอกกลับ) ห้ามให้คำใบ้ และ relationshipDelta ต้องติดลบ");
+            prompt.AppendLine("[พูดจาไม่ดี / ก้าวร้าว / ไล่] ตอบกลับตามนิสัยตัวละคร (เคือง เย็นชา หรือตอกกลับ) ห้ามให้คำใบ้ playerTone ต้องเป็น hostile และ relationshipDelta ต้องติดลบ");
+        }
+        else if ((intent & PlayerIntent.Cold) != 0)
+        {
+            prompt.AppendLine("[ผลักไส / ทำตัวห่างเหิน / ปฏิเสธความสนิท] ตอบตามนิสัยตัวละคร (น้อยใจ เคือง หรือถอยห่าง) playerTone ต้องเป็น cold หรือ hostile และ relationshipDelta ต้องติดลบ");
         }
         else
         {
-            prompt.AppendLine("[ทักทาย / คุยทั่วไป / ถามเรื่องส่วนตัว] ตอบตามนิสัยตัวละคร ห้ามใส่คำใบ้ปริศนา");
+            prompt.AppendLine("[ตัวตรวจคำไม่พบคำหยาบหรือคำผลักไส แต่ไม่ได้แปลว่าเป็นมิตร — ให้ตัดสินเจตนาเองจากความหมายตามกฎในหัวข้อ playerTone ด้านล่าง] ตอบตามนิสัยตัวละคร ห้ามใส่คำใบ้ปริศนา");
         }
         prompt.AppendLine();
 
@@ -785,8 +801,19 @@ public class AiDialogueGenerator : MonoBehaviour
             prompt.Append(knowledge.ToHistorySection());
         }
 
-        prompt.AppendLine("=== relationshipDelta ===");
-        prompt.AppendLine("ประเมินผลของข้อความนี้ต่อความสัมพันธ์: ด่า/ไล่/ดูถูก -5 ถึง -15, สุภาพหรือคุยทั่วไป 0 ถึง 2, ใส่ใจ ปลอบใจ หรือขอโทษอย่างจริงใจ 2 ถึง 5");
+        prompt.AppendLine("=== playerTone และ relationshipDelta ===");
+        prompt.AppendLine("ตัดสินจากความหมายของข้อความที่ผู้เล่นพูดกับตัวละครนี้ในบทสนทนานี้ ไม่ใช่จากคำใดคำหนึ่ง:");
+        prompt.AppendLine("- ข้อความสั้นๆ ที่เป็นคำติ คำลบ หรือคำประชด (เช่น 'แย่มาก', 'น่าเบื่อ', 'ก็งั้นๆ') ที่ผู้เล่นพูดตอบโดยไม่ได้บอกว่าหมายถึงสิ่งอื่น ให้ถือว่าติตัวละครนี้หรือสิ่งที่ตัวละครเพิ่งพูด ห้ามตีความเข้าข้างผู้เล่นว่าหมายถึงสถานการณ์");
+        prompt.AppendLine("- การผลักไส ปฏิเสธความสนิท หรือทำตัวห่างเหิน (เช่น 'อย่ามาพูดเหมือนเราสนิทกัน', 'เราไม่ใช่เพื่อนกัน') คือ cold ไม่ใช่ neutral");
+        prompt.AppendLine("- ข้อความที่ติสิ่งของ ห้อง ปริศนา สถานการณ์ หรือตัวผู้เล่นเอง (เช่น 'กลไกนี่ไร้สาระ', 'ผมโง่เองที่ไม่เห็น') และคำตอบกลางๆ อย่าง 'แล้วแต่', 'ช่างมันเถอะ', 'โอเค' คือ neutral ไม่ใช่ cold เว้นแต่พูดเพื่อตัดบทหรือไล่ตัวละครชัดเจน");
+        prompt.AppendLine("- friendly/kind ต้องเป็นสิ่งที่ผู้เล่นทำต่อตัวละครนี้โดยตรง (ทักทาย ถามถึงเขา เสนอช่วย ใส่ใจ ชม ขอบคุณ ปลอบ ขอโทษ) ถ้าผู้เล่นแค่เล่าเรื่องหรือความกลัวของตัวเอง หรือชวนไปทำสิ่งต่อไป ให้เป็น neutral");
+        prompt.AppendLine("- ถ้าไม่แน่ใจว่าเป็นมิตรหรือไม่ ให้เลือก neutral ไม่ใช่ friendly แต่ข้อความที่สุภาพหรือเป็นมิตรต่อตัวละครชัดเจนให้ใจกว้าง อย่าให้ 0");
+        prompt.AppendLine("playerTone และช่วง relationshipDelta ที่ต้องอยู่ภายใน: " +
+                          "hostile (ด่า ดูถูก ไล่) -15 ถึง -5, " +
+                          "cold (เย็นชา ผลักไส ประชด ติ) -8 ถึง -2, " +
+                          "neutral (คุยเรื่องทั่วไปที่ไม่ได้เป็นมิตรหรือไม่เป็นมิตรกับตัวละคร) 0 ถึง +1, " +
+                          "friendly (สุภาพ เป็นมิตร ถามถึงตัวเขา สนใจเรื่องของเขา) +1 ถึง +6, " +
+                          "kind (ปลอบใจ ชม ขอบคุณ ปกป้อง ขอโทษอย่างจริงใจ) +4 ถึง +10");
         prompt.AppendLine();
 
         prompt.AppendLine("บริบทของบทสนทนานี้: " + dialogueContext);
@@ -805,6 +832,11 @@ public class AiDialogueGenerator : MonoBehaviour
             state,
             false
         );
+
+        if (eventData.freeTopic)
+        {
+            return BuildFreeTopicPrompt(eventData, knowledge);
+        }
 
         prompt.AppendLine("เขียนบทสนทนา mini event ภาษาไทยสำหรับเกม escape room");
         prompt.AppendLine("NPC: " + eventData.dialogue.speakerName);
@@ -855,6 +887,59 @@ public class AiDialogueGenerator : MonoBehaviour
         }
 
         prompt.Append(knowledge.ToHistorySection());
+        prompt.AppendLine("variation_id: " + Guid.NewGuid().ToString("N"));
+        return prompt.ToString();
+    }
+
+    /// <summary>
+    /// The NPC walks up to the player with something on its mind. The topic
+    /// is the model's pick, but only from this NPC's own canon: what it knows
+    /// about the room, what has happened, its bonds, what it remembers of the
+    /// player. The recent conversation is included so it does not bring up
+    /// the same thing twice. No hints: the player did not ask for any.
+    /// </summary>
+    private static string BuildFreeTopicPrompt(
+        MiniEventData eventData,
+        NpcKnowledgeContext knowledge)
+    {
+        StringBuilder prompt = new StringBuilder();
+        prompt.AppendLine("เขียนบทสนทนาภาษาไทยในเกม escape room แนวลึกลับ ที่ NPC เป็นฝ่ายเดินมาชวนผู้เล่นคุยเอง");
+        prompt.AppendLine("NPC: " + eventData.dialogue.speakerName);
+        if (knowledge.HasProfile)
+        {
+            prompt.Append(knowledge.ToCharacterSection());
+        }
+        prompt.AppendLine();
+
+        if (knowledge.HasData)
+        {
+            prompt.AppendLine(knowledge.ToPromptSection());
+        }
+
+        prompt.Append(knowledge.ToHistorySection());
+
+        prompt.AppendLine("=== สิ่งที่ต้องเขียน ===");
+        prompt.AppendLine("เลือกหัวข้อเองหนึ่งเรื่องที่ตัวละครนี้อยากคุยกับผู้เล่นจริงๆ ตอนนี้ ตามนิสัยและอารมณ์ของตัวละคร โดยหยิบจากข้อมูลข้างบนเท่านั้น เช่น:");
+        prompt.AppendLine("- สิ่งในห้องที่ตัวละครรู้ หรือสิ่งที่เพิ่งเกิดขึ้น (ดูสถานการณ์ตอนนี้และความคืบหน้า)");
+        prompt.AppendLine("- ความรู้สึกต่อผู้เล่น หรือต่อตัวละครอื่นในรายการความสัมพันธ์");
+        prompt.AppendLine("- เรื่องของตัวเองที่เล่าได้ หรือเรื่องที่จำได้เกี่ยวกับผู้เล่น");
+        prompt.AppendLine("กฎ: ห้ามซ้ำหัวข้อที่อยู่ในบทสนทนาล่าสุด ให้เลือกเรื่องใหม่");
+        prompt.AppendLine("กฎ: ห้ามให้คำใบ้หรือเฉลยปริศนา ห้ามชวนไปสำรวจสิ่งใด ห้ามสร้างเบาะแส ไอเท็ม ตัวละคร หรือข้อเท็จจริงใหม่ และห้ามเล่าความลับที่ยังห้ามเล่า");
+        prompt.AppendLine("กฎ: lines 1-3 บรรทัด สั้นและเป็นธรรมชาติ บรรทัดแรกเปิดหัวข้อให้ผู้เล่นรู้ว่าอยากคุยเรื่องอะไร ถ้าจะแสดงสีหน้า ให้ขึ้นต้นบรรทัดด้วย [:emotionId] จากรายการสีหน้าเท่านั้น");
+        prompt.AppendLine("กฎ: ทุกบรรทัดใน lines และ responseText เป็นคำพูดของตัวละครเท่านั้น ห้ามเขียนบรรยายท่าทางหรือเล่าแบบบุคคลที่สาม");
+        prompt.AppendLine("กฎ: ห้ามใช้คำว่า 'ทวาร' ให้ใช้ 'ประตู'");
+        prompt.AppendLine("กฎ: เขียนตัวเลือกของผู้เล่นและคำตอบของ NPC ใหม่ให้เข้ากับหัวข้อ แต่ต้องคงท่าทีของแต่ละข้อตามลำดับนี้ (ตัวอย่างด้านล่างเป็นแค่แนว):");
+
+        for (int index = 0; index < eventData.dialogue.choices.Count; index++)
+        {
+            DialogueChoiceData choice = eventData.dialogue.choices[index];
+            prompt.AppendLine(
+                (index + 1) + ". ผู้เล่น: " + choice.optionText +
+                " | NPC ตอบ: " + choice.responseText
+            );
+        }
+
+        prompt.AppendLine("ไม่ต้องส่ง referencedFactIds ส่งแค่ lines และ choices");
         prompt.AppendLine("variation_id: " + Guid.NewGuid().ToString("N"));
         return prompt.ToString();
     }
@@ -912,13 +997,26 @@ public class AiDialogueGenerator : MonoBehaviour
                "\"additionalProperties\":false}}}}";
     }
 
-    private string BuildCompatibleChatRequestJson(string prompt)
+    /// <summary>
+    /// The exact shape the parser reads. Without it, models on the chat
+    /// endpoints named the choice fields themselves ("text"/"response",
+    /// "player"/"npc"), every event failed to parse, and the game quietly
+    /// used the written lines instead.
+    /// </summary>
+    public static string CompatibleDialogueFormat(int choiceCount)
+    {
+        return "Return only valid JSON in exactly this shape: " +
+               "{\"lines\":[\"...\"],\"choices\":[{\"optionText\":\"...\",\"responseText\":\"...\"}]} " +
+               "with 1-3 lines and exactly " + choiceCount + " choices, in the order given. Keep game canon.";
+    }
+
+    private string BuildCompatibleChatRequestJson(string prompt, int choiceCount)
     {
         return "{" +
                "\"model\":" + FormatCompatibleModel(model) + "," +
                "\"messages\":[{" +
                "\"role\":\"system\",\"content\":\"" +
-               "Return only valid JSON with lines and choices. Keep game canon.\"" +
+               EscapeJson(CompatibleDialogueFormat(choiceCount)) + "\"" +
                "},{\"role\":\"user\",\"content\":\"" +
                EscapeJson(prompt) + "\"}]," +
                "\"temperature\":0.85}";
@@ -943,12 +1041,13 @@ public class AiDialogueGenerator : MonoBehaviour
                "\"type\":\"object\",\"properties\":{" +
                "\"reply\":{\"type\":\"string\"}," +
                "\"relationshipDelta\":{\"type\":\"integer\"," +
-               "\"minimum\":-15,\"maximum\":5}," +
+               "\"minimum\":-15,\"maximum\":10}," +
                "\"referencedFactIds\":{\"type\":\"array\"," +
                "\"items\":{\"type\":\"string\"}}," +
-               "\"emotion\":{\"type\":\"string\"}}," +
+               "\"emotion\":{\"type\":\"string\"}," +
+               "\"playerTone\":{\"type\":\"string\",\"enum\":[\"hostile\",\"cold\",\"neutral\",\"friendly\",\"kind\"]}}," +
                "\"required\":[\"reply\",\"relationshipDelta\"," +
-               "\"referencedFactIds\",\"emotion\"]," +
+               "\"referencedFactIds\",\"emotion\",\"playerTone\"]," +
                "\"additionalProperties\":false}}}}";
     }
 
@@ -958,7 +1057,7 @@ public class AiDialogueGenerator : MonoBehaviour
                "\"model\":" + FormatCompatibleModel(model) + "," +
                "\"messages\":[{" +
                "\"role\":\"system\",\"content\":\"" +
-               "Return only JSON with reply, relationshipDelta (-15 to 5), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string).\"}," +
+               "Return only JSON with reply, relationshipDelta (-15 to 10), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string) and playerTone (hostile, cold, neutral, friendly or kind).\"}," +
                "{\"role\":\"user\",\"content\":\"" +
                EscapeJson(prompt) + "\"}],\"temperature\":0.8}";
     }
@@ -1017,9 +1116,16 @@ public class GeneratedChatReply
     /// <summary>Optional face for the emotion box; empty when none.</summary>
     public string emotion;
 
+    /// <summary>
+    /// How the AI read the player's message: hostile, cold, neutral,
+    /// friendly or kind. Keeps relationshipDelta to that tone's range.
+    /// </summary>
+    public string playerTone;
+
     public bool IsValid()
     {
         return !string.IsNullOrWhiteSpace(reply) &&
-               relationshipDelta >= -15 && relationshipDelta <= 5;
+               relationshipDelta >= -RelationshipTuning.MaxLossPerMessage &&
+               relationshipDelta <= RelationshipTuning.MaxGainPerMessage;
     }
 }

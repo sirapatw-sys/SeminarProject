@@ -78,6 +78,17 @@ public static class AiResponseParser
         {
             GeneratedDialogueContent dialogue =
                 JsonUtility.FromJson<GeneratedDialogueContent>(json);
+            if (dialogue != null && dialogue.choices != null)
+            {
+                foreach (GeneratedDialogueChoice choice in dialogue.choices)
+                {
+                    if (choice != null)
+                    {
+                        choice.AdoptAlternateNames();
+                    }
+                }
+            }
+
             return dialogue != null && dialogue.IsValid(expectedChoiceCount)
                 ? dialogue
                 : null;

@@ -37,6 +37,14 @@ public class MiniEventData : ScriptableObject
     )]
     public bool autoStart;
 
+    [Tooltip(
+        "The NPC starts a conversation about something it picks itself: the AI " +
+        "chooses a topic from what this NPC knows, what has happened and what " +
+        "it remembers, and rewrites the choices to fit while keeping their " +
+        "order (their actions stay). Needs AI; without it the event is skipped."
+    )]
+    public bool freeTopic;
+
     [TextArea(2, 5)] public string situationPrompt;
     public string tonePrompt = "เป็นธรรมชาติ กระชับ และเข้ากับเกมลึกลับ";
 

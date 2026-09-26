@@ -16,17 +16,16 @@ public enum PlayerIntent
     Thanks = 1 << 4,
     Feelings = 1 << 5,
     Comfort = 1 << 6,
+
+    /// <summary>Pushing the NPC away: cold, distancing, refusing closeness.</summary>
+    Cold = 1 << 7,
 }
 
 public static class PlayerIntentClassifier
 {
-    private static readonly string[] HostileWords =
-    {
-        "อย่ามายุ่ง", "ไม่ยุ่ง", "ไปไกลๆ", "ไปให้พ้น", "หุบปาก", "รำคาญ",
-        "เงียบ", "เสือก", "น่ารำคาญ", "เกะกะ", "ออกไป", "ไม่ต้องช่วย",
-        "ไม่ต้องพูด", "ช่างหัว", "กวนใจ", "ด่า", "บ้า", "ไปตาย", "โง่",
-        "shut up", "go away",
-    };
+    // Whether a message is rude or cold is decided in one place,
+    // PlayerToneClassifier, which reads the whole sentence (negation,
+    // sarcasm, who it is aimed at). The lists below are simple topics.
 
     private static readonly string[] ApologyWords =
     {
@@ -72,7 +71,9 @@ public static class PlayerIntentClassifier
 
         string text = message.ToLowerInvariant();
         PlayerIntent intent = PlayerIntent.None;
-        if (ContainsAny(text, HostileWords)) intent |= PlayerIntent.Hostile;
+        ToneReading tone = PlayerToneClassifier.Read(message);
+        if (tone.Tone == PlayerTone.Hostile) intent |= PlayerIntent.Hostile;
+        if (tone.Tone == PlayerTone.Cold) intent |= PlayerIntent.Cold;
         if (ContainsAny(text, ApologyWords)) intent |= PlayerIntent.Apology;
         if (ContainsAny(text, GreetingWords)) intent |= PlayerIntent.Greeting;
         if (ContainsAny(text, HintWords)) intent |= PlayerIntent.AskingHint;
@@ -85,6 +86,12 @@ public static class PlayerIntentClassifier
     public static bool IsHostile(string message)
     {
         return (Classify(message) & PlayerIntent.Hostile) != 0;
+    }
+
+    /// <summary>Hostile or cold: the message pushes the NPC away.</summary>
+    public static bool IsNegative(PlayerIntent intent)
+    {
+        return (intent & (PlayerIntent.Hostile | PlayerIntent.Cold)) != 0;
     }
 
     public static bool IsAskingForHint(string message)

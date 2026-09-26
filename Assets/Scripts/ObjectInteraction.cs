@@ -3,6 +3,9 @@ using UnityEngine;
 
 public class ObjectInteraction : MonoBehaviour, IFocusable
 {
+    /// <summary>How often touching an uneasy object in the haunted room gets a noise back.</summary>
+    private const float ScareNoiseChance = 0.35f;
+
     [SerializeField]
     private InteractionData interactionData;
 
@@ -144,12 +147,18 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
             out responseMessage
         );
 
-        SfxPlayer.Play(success
-            ? (data.scareOnSuccess ? SfxPlayer.Cue.Creak : SfxPlayer.Cue.Interact)
-            : SfxPlayer.Cue.Locked);
+        SfxPlayer.Play(success ? SfxPlayer.Cue.Interact : SfxPlayer.Cue.Locked);
         if (success && data.successClip != null)
         {
             SfxPlayer.PlayFeature(data.successClip, data.successClipVolume);
+        }
+        if (success && data.successSound != null)
+        {
+            SfxPlayer.PlayEerie(data.successSound, data.successSoundVolume);
+        }
+        else if (success && data.scareOnSuccess)
+        {
+            SfxPlayer.MaybeRoomNoiseSoon(ScareNoiseChance);
         }
 
         ShowDialogue(
@@ -190,10 +199,12 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         {
             if (data.endsDemo)
             {
+                SfxPlayer.PlayDoor();
                 RoomTransitionManager.Instance.PlayEnding(data.transitionMessage);
             }
             else if (!string.IsNullOrWhiteSpace(data.transitionScene))
             {
+                SfxPlayer.PlayDoor();
                 RoomTransitionManager.Instance.TransitionToRoom(
                     data.transitionScene,
                     data.transitionMessage

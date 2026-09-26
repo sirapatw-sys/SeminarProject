@@ -41,6 +41,7 @@ public class KeypadLockUI : MonoBehaviour
     private Texture2D buttonNormalTexture;
     private Texture2D buttonActiveTexture;
     private Texture2D buttonUnlockTexture;
+    private Texture2D buttonUnlockHoverTexture;
 
     private GUIStyle titleStyle;
     private GUIStyle hintStyle;
@@ -192,6 +193,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void OnGUI()
     {
+        GUI.depth = ModalGui.FrontDepth;
         UiScale.Apply(PopupMagnify, 540f);
         if (!IsOpen)
         {
@@ -207,11 +209,12 @@ public class KeypadLockUI : MonoBehaviour
             ScaleMode.StretchToFill
         );
 
-        // 2. Center Modal Panel with shake offset
+        // 2. Center Modal Panel. A wrong code shakes the digits only: keys
+        // that moved under the mouse could miss the click.
         float shakeOffset = shakeTimer > 0f ? Mathf.Sin(shakeTimer * 50f) * 6f : 0f;
         float panelWidth = Mathf.Min(420f, UiScale.Width - 30f);
         float panelHeight = 520f;
-        float panelX = (UiScale.Width - panelWidth) * 0.5f + shakeOffset;
+        float panelX = (UiScale.Width - panelWidth) * 0.5f;
         float panelY = (UiScale.Height - panelHeight) * 0.5f;
         Rect panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
 
@@ -232,7 +235,7 @@ public class KeypadLockUI : MonoBehaviour
         float boxHeight = 64f;
         float boxSpacing = 14f;
         float totalBoxWidth = (boxWidth * 4) + (boxSpacing * 3);
-        float startBoxX = panelX + (panelWidth - totalBoxWidth) * 0.5f;
+        float startBoxX = panelX + (panelWidth - totalBoxWidth) * 0.5f + shakeOffset;
         float boxY = panelY + 84f;
 
         for (int i = 0; i < 4; i++)
@@ -287,7 +290,7 @@ public class KeypadLockUI : MonoBehaviour
                     currentKeyStyle = unlockKeyStyle;
                 }
 
-                if (GUI.Button(kRect, keyVal, currentKeyStyle))
+                if (ModalGui.Button(kRect, keyVal, currentKeyStyle))
                 {
                     if (keyVal == "ลบ")
                     {
@@ -315,10 +318,12 @@ public class KeypadLockUI : MonoBehaviour
             closeH
         );
 
-        if (GUI.Button(closeRect, "ปิด  [ Esc ]", closeStyle))
+        if (ModalGui.Button(closeRect, "ปิด  [ Esc ]", closeStyle))
         {
             Close();
         }
+
+        ModalGui.BlockMouse();
     }
 
     private static void DrawRectOutline(Rect rect, Color color, int thickness)
@@ -345,6 +350,7 @@ public class KeypadLockUI : MonoBehaviour
         buttonNormalTexture = CreateColorTexture(new Color(0.12f, 0.18f, 0.26f, 1f));
         buttonActiveTexture = CreateColorTexture(new Color(0.18f, 0.28f, 0.38f, 1f));
         buttonUnlockTexture = CreateColorTexture(new Color(0.78f, 0.58f, 0.22f, 1f));
+        buttonUnlockHoverTexture = CreateColorTexture(new Color(0.92f, 0.72f, 0.32f, 1f));
 
         titleStyle = new GUIStyle(GUI.skin.label)
         {
@@ -378,11 +384,18 @@ public class KeypadLockUI : MonoBehaviour
         };
         keyStyle.normal.background = buttonNormalTexture;
         keyStyle.normal.textColor = new Color(0.9f, 0.95f, 1f);
+        keyStyle.hover.background = buttonActiveTexture;
+        keyStyle.hover.textColor = Color.white;
         keyStyle.active.background = buttonActiveTexture;
+        keyStyle.active.textColor = Color.white;
 
         unlockKeyStyle = new GUIStyle(keyStyle);
         unlockKeyStyle.normal.background = buttonUnlockTexture;
         unlockKeyStyle.normal.textColor = new Color(0.05f, 0.05f, 0.05f);
+        unlockKeyStyle.hover.background = buttonUnlockHoverTexture;
+        unlockKeyStyle.hover.textColor = unlockKeyStyle.normal.textColor;
+        unlockKeyStyle.active.background = buttonUnlockHoverTexture;
+        unlockKeyStyle.active.textColor = unlockKeyStyle.normal.textColor;
 
         statusStyle = new GUIStyle(GUI.skin.label)
         {
@@ -398,6 +411,10 @@ public class KeypadLockUI : MonoBehaviour
         };
         closeStyle.normal.background = buttonNormalTexture;
         closeStyle.normal.textColor = new Color(0.75f, 0.8f, 0.85f);
+        closeStyle.hover.background = buttonActiveTexture;
+        closeStyle.hover.textColor = Color.white;
+        closeStyle.active.background = buttonActiveTexture;
+        closeStyle.active.textColor = Color.white;
     }
 
     private static Texture2D CreateColorTexture(Color color)
@@ -416,5 +433,6 @@ public class KeypadLockUI : MonoBehaviour
         if (buttonNormalTexture != null) Destroy(buttonNormalTexture);
         if (buttonActiveTexture != null) Destroy(buttonActiveTexture);
         if (buttonUnlockTexture != null) Destroy(buttonUnlockTexture);
+        if (buttonUnlockHoverTexture != null) Destroy(buttonUnlockHoverTexture);
     }
 }

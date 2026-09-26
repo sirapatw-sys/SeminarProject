@@ -74,6 +74,30 @@ namespace MysteryGame.Tests
 
         // ------------------------------------------------------------ successes
 
+        [TestCase("text", "response")]
+        [TestCase("player", "npc")]
+        [TestCase("optionText", "responseText")]
+        public void EventChoicesParseUnderTheNamesModelsActuallyUse(string option, string response)
+        {
+            // KKU's models named the choice fields themselves when the
+            // format was not spelled out; every event then fell back.
+            string content = "{\"lines\":[\"นี่ ว่างคุยไหม\"],\"choices\":[" +
+                             "{\"" + option + "\":\"ได้สิ\",\"" + response + "\":\"ขอบใจนะ\"}," +
+                             "{\"" + option + "\":\"ทำไมล่ะ\",\"" + response + "\":\"ก็แค่คิดเฉยๆ\"}]}";
+            GeneratedDialogueContent dialogue = AiResponseParser.ParseDialogue(Compatible(content), false, 2);
+
+            Assert.That(dialogue, Is.Not.Null);
+            Assert.That(dialogue.choices[0].optionText, Is.EqualTo("ได้สิ"));
+            Assert.That(dialogue.choices[1].responseText, Is.EqualTo("ก็แค่คิดเฉยๆ"));
+        }
+
+        [Test]
+        public void TheChatRequestSpellsOutTheDialogueShape()
+        {
+            string format = AiDialogueGenerator.CompatibleDialogueFormat(3);
+            Assert.That(format, Does.Contain("\"optionText\"").And.Contain("\"responseText\"").And.Contain("exactly 3 choices"));
+        }
+
         [Test]
         public void CompatibleReplyParses()
         {

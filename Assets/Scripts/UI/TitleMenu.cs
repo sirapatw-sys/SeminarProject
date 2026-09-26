@@ -97,6 +97,14 @@ public class TitleMenu : MonoBehaviour
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
 
+            // The AI settings can be open on top of the menu: Esc there
+            // closes the panel and must not quit, and typing must not start
+            // a new game.
+            if (AiSettingsPanel.HoldsKeyboard)
+            {
+                return;
+            }
+
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space))
             {
                 StartNewGame();

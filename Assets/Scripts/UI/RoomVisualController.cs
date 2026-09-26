@@ -1,3 +1,4 @@
+using MysteryGame.Core;
 using MysteryGame.Knowledge;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -15,6 +16,13 @@ public class RoomVisualController : MonoBehaviour
     [SerializeField] private Color tint = Color.white;
 
     private GameObject currentBackgroundObject;
+    private RoomKnowledgeData currentRoom;
+
+    // A room whose art changes mid-play (Room03 once the ghost is calmed)
+    // fades the new picture in over the old one.
+    private const float BackgroundFadeSeconds = 2f;
+    private SpriteRenderer fadingIn;
+    private float fadeStartedAt;
 
     private void Awake()
     {
@@ -72,9 +80,11 @@ public class RoomVisualController : MonoBehaviour
         // first would otherwise decide every later room's artwork.
         Sprite selectedSprite = null;
         RoomKnowledgeData knowledge = KnowledgeLibrary.GetRoom(sceneName);
+        currentRoom = knowledge;
+        fadingIn = null;
         if (knowledge != null && knowledge.background != null)
         {
-            selectedSprite = knowledge.background;
+            selectedSprite = knowledge.BackgroundFor(GameState.Instance);
         }
 
         if (selectedSprite != null)
@@ -179,6 +189,46 @@ public class RoomVisualController : MonoBehaviour
         {
             FitCamera(targetCamera);
         }
+
+        UpdateChangedBackground();
+    }
+
+    /// <summary>Fades to the room's changed picture once its flag is set.</summary>
+    private void UpdateChangedBackground()
+    {
+        if (currentRoom == null || currentRoom.changedBackground == null || currentBackgroundObject == null)
+        {
+            return;
+        }
+
+        SpriteRenderer shown = currentBackgroundObject.GetComponent<SpriteRenderer>();
+        if (fadingIn != null)
+        {
+            float t = Mathf.Clamp01((Time.time - fadeStartedAt) / BackgroundFadeSeconds);
+            fadingIn.color = new Color(tint.r, tint.g, tint.b, tint.a * Mathf.SmoothStep(0f, 1f, t));
+            if (t >= 1f)
+            {
+                shown.sprite = fadingIn.sprite;
+                Destroy(fadingIn.gameObject);
+                fadingIn = null;
+            }
+
+            return;
+        }
+
+        Sprite wanted = currentRoom.BackgroundFor(GameState.Instance);
+        if (wanted == null || shown == null || shown.sprite == wanted)
+        {
+            return;
+        }
+
+        GameObject overlay = new GameObject("IllustratedRoomBackgroundChange");
+        overlay.transform.SetParent(currentBackgroundObject.transform, false);
+        fadingIn = overlay.AddComponent<SpriteRenderer>();
+        fadingIn.sprite = wanted;
+        fadingIn.sortingOrder = shown.sortingOrder + 1;
+        fadingIn.color = new Color(tint.r, tint.g, tint.b, 0f);
+        fadeStartedAt = Time.time;
     }
 
     /// <summary>

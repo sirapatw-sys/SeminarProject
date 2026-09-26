@@ -51,6 +51,7 @@ public class ItemPopupUI : MonoBehaviour
     private Texture2D dimTexture;
     private Texture2D panelTexture;
     private Texture2D buttonTexture;
+    private Texture2D buttonHoverTexture;
     private GUIStyle titleStyle;
     private GUIStyle nameStyle;
     private GUIStyle descStyle;
@@ -232,6 +233,7 @@ public class ItemPopupUI : MonoBehaviour
 
     private void OnGUI()
     {
+        GUI.depth = ModalGui.FrontDepth;
         UiScale.Apply(PopupMagnify, 540f);
         if (!isShowing)
         {
@@ -327,14 +329,16 @@ public class ItemPopupUI : MonoBehaviour
             btnHeight
         );
 
-        if (GUI.Button(btnRect, "ตกลง  [ Space ]", buttonStyle))
+        if (ModalGui.Button(btnRect, "ตกลง  [ Space ]", buttonStyle))
         {
             ClosePopup();
         }
 
         // Small dismiss hint
         Rect hintRect = new Rect(panelX, panelY + panelHeight - 24f, panelWidth, 20f);
-        GUI.Label(hintRect, "คลิกหรือกด Space / Enter เพื่อดำเนินการต่อ", hintStyle);
+        GUI.Label(hintRect, "คลิกปุ่ม หรือกด Space / Enter เพื่อดำเนินการต่อ", hintStyle);
+
+        ModalGui.BlockMouse();
     }
 
     private void DrawItemBackplate(Rect spriteRect)
@@ -381,6 +385,7 @@ public class ItemPopupUI : MonoBehaviour
         dimTexture = CreateColorTexture(new Color(0.008f, 0.015f, 0.025f, 0.82f));
         panelTexture = CreateColorTexture(new Color(0.035f, 0.055f, 0.085f, 0.98f));
         buttonTexture = CreateColorTexture(new Color(0.78f, 0.58f, 0.22f, 1f));
+        buttonHoverTexture = CreateColorTexture(new Color(0.92f, 0.72f, 0.32f, 1f));
 
         titleStyle = new GUIStyle(GUI.skin.label)
         {
@@ -414,6 +419,11 @@ public class ItemPopupUI : MonoBehaviour
         };
         buttonStyle.normal.background = buttonTexture;
         buttonStyle.normal.textColor = new Color(0.04f, 0.06f, 0.08f);
+        // The skin's grey hover look replaced the gold under the mouse.
+        buttonStyle.hover.background = buttonHoverTexture;
+        buttonStyle.hover.textColor = buttonStyle.normal.textColor;
+        buttonStyle.active.background = buttonHoverTexture;
+        buttonStyle.active.textColor = buttonStyle.normal.textColor;
 
         hintStyle = new GUIStyle(GUI.skin.label)
         {
@@ -437,5 +447,6 @@ public class ItemPopupUI : MonoBehaviour
         if (dimTexture != null) Destroy(dimTexture);
         if (panelTexture != null) Destroy(panelTexture);
         if (buttonTexture != null) Destroy(buttonTexture);
+        if (buttonHoverTexture != null) Destroy(buttonHoverTexture);
     }
 }

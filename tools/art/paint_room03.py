@@ -18,6 +18,14 @@ from PIL import Image, ImageDraw, ImageFilter, ImageChops
 # copy the PNG over Assets/Art/Backgrounds/Room03_HauntedParlor.png (keep its .meta).
 SP = os.path.dirname(os.path.abspath(__file__))
 
+# ROOM03_CALM=1 renders the room after the lullaby: the same picture with the
+# candle flames burning an ordinary warm orange instead of ghost blue.
+CALM = os.environ.get("ROOM03_CALM") == "1"
+FLAME_FILL = (255, 190, 110, 255) if CALM else (150, 225, 255, 255)
+FLAME_GLOW = (1.0, 0.6, 0.25) if CALM else (0.3, 0.7, 1.0)
+FLAME_CORE = (1.0, 0.85, 0.55) if CALM else (0.7, 0.95, 1.0)
+OUT_NAME = "Room03_HauntedParlor_Calm.png" if CALM else "Room03_HauntedParlor.png"
+
 W, H = 1920, 1080
 S = 2  # supersample
 random.seed(3)
@@ -484,10 +492,10 @@ def candelabra(box):
         a = k * 2 * math.pi / 3 - math.pi / 2
         px, py = cx_ + math.cos(a) * 16, cy_ + math.sin(a) * 16
         d.ellipse(s((px - 5, py - 5, px + 5, py + 5)), fill=(210, 206, 196, 255))
-        d.polygon(s((px - 3, py - 1, px + 3, py - 1, px, py - 11)), fill=(150, 225, 255, 255))
+        d.polygon(s((px - 3, py - 1, px + 3, py - 1, px, py - 11)), fill=FLAME_FILL)
         flames.append((px, py - 5))
     d.ellipse(s((cx_ - 5, cy_ - 5, cx_ + 5, cy_ + 5)), fill=(210, 206, 196, 255))
-    d.polygon(s((cx_ - 3, cy_ - 1, cx_ + 3, cy_ - 1, cx_, cy_ - 12)), fill=(150, 225, 255, 255))
+    d.polygon(s((cx_ - 3, cy_ - 1, cx_ + 3, cy_ - 1, cx_, cy_ - 12)), fill=FLAME_FILL)
     flames.append((cx_, cy_ - 5))
 
 
@@ -530,8 +538,8 @@ def glow(cx_, cy_, radius, color, strength):
 
 
 for fx, fy in flames:
-    glow(fx, fy, 170, (0.3, 0.7, 1.0), 0.42)
-    glow(fx, fy, 12, (0.7, 0.95, 1.0), 0.45)
+    glow(fx, fy, 170, FLAME_GLOW, 0.42)
+    glow(fx, fy, 12, FLAME_CORE, 0.45)
 # moonlight shaft from the window, falling down-right across the floor
 wx0, wy0, wx1, wy1 = L["window"]
 t = np.clip((yy - wy0) / 620.0, 0, 1)
@@ -569,6 +577,6 @@ for _ in range(160):
 out = out.convert("RGBA")
 out.alpha_composite(motes.filter(ImageFilter.GaussianBlur(0.6)))
 out = out.convert("RGB").filter(ImageFilter.UnsharpMask(radius=1.2, percent=40, threshold=2))
-out.save(os.path.join(SP, "Room03_HauntedParlor.png"))
+out.save(os.path.join(SP, OUT_NAME))
 json.dump(L, open(os.path.join(SP, "room03_layout.json"), "w"), indent=1)
 print("saved")

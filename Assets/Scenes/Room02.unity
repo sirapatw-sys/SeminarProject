@@ -610,6 +610,7 @@ MonoBehaviour:
   events:
   - {fileID: 11400000, guid: b8c9d0e1f2a34671ef7a8b9c0d1e2f3a, type: 2}
   - {fileID: 11400000, guid: f2a3b4c5d6e74015c3be2f3a4b5c6d7e, type: 2}
+  - {fileID: 11400000, guid: a35735b3dd8748f0b5903a3e0bf1cbec, type: 2}
   checkInterval: 5
   triggerChancePerCheck: 0.5
   indicatorOffset: {x: 0, y: 1.2, z: 0}
@@ -3476,7 +3477,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   enableAiGeneration: 1
   provider: 0
-  model: gpt-4o-mini
+  model: gpt-5.6-terra
   apiUrl: https://api.openai.com/v1/responses
   timeoutSeconds: 20
 --- !u!114 &2060467334
@@ -4449,6 +4450,7 @@ MonoBehaviour:
   events:
   - {fileID: 11400000, guid: 7140c0cd2fcb47bf8010335ea2d553a1, type: 2}
   - {fileID: 11400000, guid: 1031ee760c3848f8b54f1f2b9252a3e1, type: 2}
+  - {fileID: 11400000, guid: 52bab20bdbf44ea19485ee2f385f5699, type: 2}
   checkInterval: 6
   triggerChancePerCheck: 0.35
   indicatorOffset: {x: 0, y: 1.6, z: 0}

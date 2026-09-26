@@ -23,6 +23,10 @@ namespace MysteryGame.Knowledge
         {
             string message = playerMessage ?? string.Empty;
             PlayerIntent intent = PlayerIntentClassifier.Classify(message);
+            if ((intent & PlayerIntent.Cold) != 0)
+            {
+                intent |= PlayerIntent.Hostile;   // pushed away: the NPC reacts as to rudeness
+            }
             NpcProfileData npc = knowledge != null ? knowledge.Npc : null;
             int rotation = state != null && knowledge != null
                 ? state.GetConversationCount(knowledge.NpcId) +

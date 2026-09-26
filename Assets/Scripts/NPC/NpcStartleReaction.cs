@@ -46,6 +46,7 @@ public class NpcStartleReaction : MonoBehaviour
         host.transform.localScale = new Vector3(1f / sx, 1f / sy, 1f);
 
         bubble = host.AddComponent<TextMeshPro>();
+        bubble.rectTransform.sizeDelta = new Vector2(8f, 1.5f);   // default box is 20 x 5
         bubble.fontSize = 3f;
         bubble.alignment = TextAlignmentOptions.Center;
         bubble.enableWordWrapping = false;

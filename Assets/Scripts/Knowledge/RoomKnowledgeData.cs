@@ -174,6 +174,24 @@ namespace MysteryGame.Knowledge
         )]
         public Sprite background;
 
+        [Tooltip(
+            "Shown instead of the background once changedBackgroundFlag is set, " +
+            "for a room that visibly changes (Room03's candles turn orange once " +
+            "the ghost is calmed). Same framing as the background."
+        )]
+        public Sprite changedBackground;
+
+        public string changedBackgroundFlag;
+
+        /// <summary>The background the room should show right now.</summary>
+        public Sprite BackgroundFor(GameState state)
+        {
+            bool changed = changedBackground != null && state != null &&
+                           !string.IsNullOrWhiteSpace(changedBackgroundFlag) &&
+                           state.HasFlag(changedBackgroundFlag);
+            return changed ? changedBackground : background;
+        }
+
         [Header("Audio")]
         [Tooltip("Looping layers (music, rain, clock ticking) played while in this room.")]
         public List<RoomSound> sounds = new List<RoomSound>();

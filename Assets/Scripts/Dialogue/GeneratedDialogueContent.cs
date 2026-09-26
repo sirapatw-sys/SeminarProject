@@ -43,4 +43,25 @@ public class GeneratedDialogueChoice
 {
     public string optionText;
     public string responseText;
+
+    // Names models have used on their own when the format was not spelled
+    // out ("text"/"response", "player"/"npc"). Read only to fill the two above.
+    public string text;
+    public string response;
+    public string player;
+    public string npc;
+
+    /// <summary>Fills optionText/responseText from the other names when they are empty.</summary>
+    public void AdoptAlternateNames()
+    {
+        if (string.IsNullOrWhiteSpace(optionText))
+        {
+            optionText = !string.IsNullOrWhiteSpace(text) ? text : player;
+        }
+
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            responseText = !string.IsNullOrWhiteSpace(response) ? response : npc;
+        }
+    }
 }

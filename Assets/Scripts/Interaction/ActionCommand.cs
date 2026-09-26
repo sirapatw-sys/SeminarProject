@@ -32,7 +32,8 @@ public class ActionCommand
                 state.RemoveItem(targetId);
                 break;
             case ActionType.ChangeRelationship:
-                state.ChangeRelationship(targetId, amount);
+                state.ChangeRelationship(targetId,
+                    RelationshipTuning.ScaleGain(amount, RelationshipTuning.ChoiceGainScale));
                 break;
             case ActionType.AddHistory:
                 state.AddHistory(text);

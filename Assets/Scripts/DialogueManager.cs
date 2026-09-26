@@ -68,6 +68,14 @@ public class DialogueManager : MonoBehaviour
     private Image emotionBoxImage;
     private float emotionBoxShownAt;
 
+    // Heart + "x/100": how the NPC speaking this line feels about the player.
+    private GameObject relationshipBadge;
+    private RectTransform relationshipHeart;
+    private TMP_Text relationshipText;
+    private string badgeNpcId;
+    private int badgeShownValue = -1;
+    private float badgePulseStart = -10f;
+
     private Button choiceButton4;
     private Sprite activeSpeakerSprite;
 
@@ -109,7 +117,7 @@ public class DialogueManager : MonoBehaviour
 
     private void Update()
     {
-        if (IsDialogueOpen && !AiSettingsPanel.IsOpen &&
+        if (IsDialogueOpen && !AiSettingsPanel.HoldsKeyboard &&
             Input.GetKeyDown(KeyCode.Escape))
         {
             HideDialogue();
@@ -124,6 +132,7 @@ public class DialogueManager : MonoBehaviour
         }
 
         AnimateEmotionBox();
+        UpdateRelationshipBadge();
 
         AnimatePortrait(
             speakerPortraitImage,
@@ -207,9 +216,14 @@ public class DialogueManager : MonoBehaviour
         StartDialogue(data, null);
     }
 
+    /// <param name="isEvent">
+    /// A mini event (the quarrel, Stelle's fright) always plays its own
+    /// lines; only a plain talk is swapped for a "you're back" greeting.
+    /// </param>
     public void StartDialogue(
         DialogueData data,
-        GeneratedDialogueContent generated)
+        GeneratedDialogueContent generated,
+        bool isEvent = false)
     {
         if (data == null)
         {
@@ -258,7 +272,7 @@ public class DialogueManager : MonoBehaviour
         SetPortraits(portrait);
         dialogueLines = generated != null && generated.IsValid(data.choices.Count)
             ? generated.lines
-            : BuildContextualLines(data);
+            : BuildContextualLines(data, isEvent);
         activeDialogueContext = StripLineTags(string.Join(" ", dialogueLines));
         currentLine = 0;
 
@@ -352,6 +366,7 @@ public class DialogueManager : MonoBehaviour
         CreateChatComposer();
         CreateCloseButton();
         CreateEmotionBox();
+        CreateRelationshipBadge();
 
         if (choicePanel != null)
         {
@@ -445,6 +460,98 @@ public class DialogueManager : MonoBehaviour
         frame.SetActive(false);
     }
 
+    private void CreateRelationshipBadge()
+    {
+        relationshipBadge = new GameObject("RelationshipBadge", typeof(RectTransform));
+        relationshipBadge.layer = dialoguePanel.layer;
+        relationshipBadge.transform.SetParent(dialoguePanel.transform, false);
+        RectTransform badgeRect = relationshipBadge.GetComponent<RectTransform>();
+        // Right end of the name row.
+        badgeRect.anchorMin = new Vector2(0.79f, 1f);
+        badgeRect.anchorMax = new Vector2(0.79f, 1f);
+        badgeRect.pivot = new Vector2(1f, 0.5f);
+        badgeRect.anchoredPosition = new Vector2(-8f, -30f);
+        badgeRect.sizeDelta = new Vector2(160f, 40f);
+
+        GameObject heart = new GameObject(
+            "Heart", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        heart.layer = dialoguePanel.layer;
+        heart.transform.SetParent(relationshipBadge.transform, false);
+        relationshipHeart = heart.GetComponent<RectTransform>();
+        relationshipHeart.anchorMin = new Vector2(0f, 0.5f);
+        relationshipHeart.anchorMax = new Vector2(0f, 0.5f);
+        relationshipHeart.pivot = new Vector2(0.5f, 0.5f);
+        relationshipHeart.anchoredPosition = new Vector2(20f, 0f);
+        relationshipHeart.sizeDelta = new Vector2(34f, 30f);   // the art is 15 x 13
+        Image heartImage = heart.GetComponent<Image>();
+        heartImage.sprite = Resources.Load<Sprite>("UI/pixel_heart");
+        heartImage.preserveAspect = true;
+        heartImage.raycastTarget = false;
+
+        GameObject label = new GameObject("Value", typeof(RectTransform));
+        label.layer = dialoguePanel.layer;
+        label.transform.SetParent(relationshipBadge.transform, false);
+        RectTransform labelRect = label.GetComponent<RectTransform>();
+        labelRect.anchorMin = new Vector2(0f, 0f);
+        labelRect.anchorMax = new Vector2(1f, 1f);
+        labelRect.offsetMin = new Vector2(44f, 0f);
+        labelRect.offsetMax = Vector2.zero;
+        relationshipText = label.AddComponent<TextMeshProUGUI>();
+        relationshipText.font = nameText.font;
+        relationshipText.fontSize = 24f;
+        relationshipText.fontStyle = FontStyles.Bold;
+        relationshipText.alignment = TextAlignmentOptions.Left;
+        relationshipText.color = new Color(1f, 0.9f, 0.9f);
+        relationshipText.raycastTarget = false;
+
+        relationshipBadge.SetActive(false);
+    }
+
+    /// <summary>Shows the badge for an NPC with a profile; hides it for objects and narration.</summary>
+    private void ShowRelationshipFor(string npcId)
+    {
+        if (relationshipBadge == null)
+        {
+            return;
+        }
+
+        bool isNpc = !string.IsNullOrEmpty(npcId) && GameState.Instance != null &&
+                     KnowledgeLibrary.GetNpc(npcId) != null;
+        if (npcId != badgeNpcId)
+        {
+            badgeShownValue = -1;   // a different NPC: no pulse for the switch
+        }
+
+        badgeNpcId = isNpc ? npcId : null;
+        relationshipBadge.SetActive(isNpc);
+        UpdateRelationshipBadge();
+    }
+
+    private void UpdateRelationshipBadge()
+    {
+        if (relationshipBadge == null || !relationshipBadge.activeInHierarchy ||
+            badgeNpcId == null || GameState.Instance == null)
+        {
+            return;
+        }
+
+        int value = GameState.Instance.GetRelationship(badgeNpcId);
+        if (value != badgeShownValue)
+        {
+            if (badgeShownValue >= 0)
+            {
+                badgePulseStart = Time.unscaledTime;   // it just went up or down
+            }
+
+            badgeShownValue = value;
+            relationshipText.text = value + "/100";
+        }
+
+        float t = (Time.unscaledTime - badgePulseStart) / 0.4f;
+        float pulse = t >= 0f && t < 1f ? Mathf.Sin(t * Mathf.PI) * 0.35f : 0f;
+        relationshipHeart.localScale = Vector3.one * (1f + pulse);
+    }
+
     private void ShowEmotion(string speakerId, string emotionId)
     {
         if (emotionBoxRect == null)
@@ -530,6 +637,7 @@ public class DialogueManager : MonoBehaviour
 
     private void ShowSpeaker(string speakerId)
     {
+        ShowRelationshipFor(string.IsNullOrEmpty(speakerId) ? activeNpcId : speakerId);
         if (string.IsNullOrEmpty(speakerId) || speakerId == activeNpcId)
         {
             nameText.text = activeSpeakerName;
@@ -855,9 +963,13 @@ public class DialogueManager : MonoBehaviour
         return runtimeChoices;
     }
 
-    private string[] BuildContextualLines(DialogueData data)
+    private string[] BuildContextualLines(DialogueData data, bool isEvent)
     {
         GameState state = GameState.Instance;
+        if (isEvent)
+        {
+            return data.lines.ToArray();
+        }
 
         // Authored repeat lines are tracked per dialogue, not per speaker:
         // Sena owns several dialogues and each stage needs its own
@@ -893,41 +1005,9 @@ public class DialogueManager : MonoBehaviour
             return data.lines.ToArray();
         }
 
-        List<string> lines = new List<string> { greeting };
-
-        // Show that she remembers: the last thing the player actually typed.
-        string lastPlayerLine = LastPlayerLine(state, data.speakerId);
-        if (!string.IsNullOrEmpty(lastPlayerLine))
-        {
-            string name = profile != null && !string.IsNullOrWhiteSpace(profile.displayName)
-                ? profile.displayName
-                : data.speakerName;
-            name = Regex.Replace(name, @"\s*\([^)]*\)", string.Empty);   // "สเตล (Stelle)" -> "สเตล"
-            lines.Add("(" + name + " ยังจำได้ว่าครั้งก่อนคุณพูดว่า \"" +
-                      lastPlayerLine + "\")");
-        }
-        else if (data.lines.Count > 0)
-        {
-            lines.Add(data.lines[data.lines.Count - 1]);
-        }
-
-        return lines.ToArray();
-    }
-
-    private static string LastPlayerLine(GameState state, string npcId)
-    {
-        IReadOnlyList<ConversationTurn> log = state.GetConversationLog(npcId);
-        for (int i = log.Count - 1; i >= 0; i--)
-        {
-            if (log[i] != null && log[i].SpeakerId == ConversationTurn.Player &&
-                !log[i].Text.StartsWith(ChoicePrefix))
-            {
-                string text = log[i].Text;
-                return text.Length > 60 ? text.Substring(0, 60) + "…" : text;
-            }
-        }
-
-        return null;
+        // The greeting alone: what the player said before still reaches the
+        // AI through the conversation log, so she can bring it up herself.
+        return new[] { greeting };
     }
 
     private const string ChoicePrefix = "(เลือก) ";
@@ -1222,7 +1302,15 @@ public class DialogueManager : MonoBehaviour
 
         bool usedFallback = generated == null;
         GeneratedChatReply reply = generated ?? BuildFallbackReply(playerMessage);
-        int relationshipDelta = Mathf.Clamp(reply.relationshipDelta, -15, 5);
+        // Offline replies author small gains (+1 to +4), so they count double.
+        // The AI's reading and the rules' reading are combined there; a rude
+        // or distancing message never raises the relationship.
+        int relationshipDelta = RelationshipTuning.Judge(
+            usedFallback
+                ? RelationshipTuning.ScaleGain(reply.relationshipDelta, RelationshipTuning.OfflineGainScale)
+                : reply.relationshipDelta,
+            usedFallback ? null : reply.playerTone,
+            PlayerToneClassifier.Read(playerMessage));
 
         GameState state = GameState.Instance;
         if (state != null && !string.IsNullOrWhiteSpace(activeNpcId))

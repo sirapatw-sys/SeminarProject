@@ -48,3 +48,5 @@ MonoBehaviour:
   scareOnSuccess: 1
   successClip: {fileID: 0}
   successClipVolume: 0.14
+  successSound: {fileID: 8300000, guid: 801957a3ee044f06bbfdc20426f7d897, type: 3}
+  successSoundVolume: 0.08
