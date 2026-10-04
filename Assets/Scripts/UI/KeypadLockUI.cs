@@ -27,10 +27,10 @@ public class KeypadLockUI : MonoBehaviour
 
     public static bool IsOpen { get; private set; }
 
-    private string targetCode = "4592";
+    private string targetCode = string.Empty;
     private string currentInput = "";
-    private string lockTitle = "แม่กุญแจรหัสของลิ้นชัก (Drawer Lock)";
-    private string lockHint = "ใส่รหัสตัวเลข 4 หลักเพื่อปลดล็อคลิ้นชัก";
+    private string lockTitle = "รหัสล็อค";
+    private string lockHint = string.Empty;
     private string statusMessage = "";
     private Color statusColor = Color.white;
     private Action onUnlockSuccess;
@@ -72,8 +72,14 @@ public class KeypadLockUI : MonoBehaviour
         string hint = null,
         Action onSuccess = null)
     {
+        if (string.IsNullOrEmpty(targetCode) || targetCode.Length > 8 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(targetCode, @"^\d+$"))
+        {
+            Debug.LogError("Keypad requires a numeric code of 1-8 digits.");
+            return;
+        }
         KeypadLockUI ui = Instance;
-        ui.targetCode = targetCode ?? "4592";
+        ui.targetCode = targetCode;
         if (!string.IsNullOrWhiteSpace(title)) ui.lockTitle = title;
         if (!string.IsNullOrWhiteSpace(hint)) ui.lockHint = hint;
         ui.onUnlockSuccess = onSuccess;
@@ -90,6 +96,7 @@ public class KeypadLockUI : MonoBehaviour
         {
             _instance.currentInput = "";
             _instance.statusMessage = "";
+            _instance.onUnlockSuccess = null;
         }
         IsOpen = false;
     }
@@ -143,11 +150,11 @@ public class KeypadLockUI : MonoBehaviour
 
     private void AppendDigit(string digit)
     {
-        if (currentInput.Length < 4)
+        if (currentInput.Length < targetCode.Length)
         {
             currentInput += digit;
             statusMessage = "";
-            if (currentInput.Length == 4)
+            if (currentInput.Length == targetCode.Length)
             {
                 // Optional auto-check or wait for enter
             }
@@ -165,9 +172,9 @@ public class KeypadLockUI : MonoBehaviour
 
     private void TrySubmit()
     {
-        if (currentInput.Length < 4)
+        if (currentInput.Length < targetCode.Length)
         {
-            statusMessage = "กรุณาใส่รหัสตัวเลขให้ครบ 4 หลัก";
+            statusMessage = "กรุณาใส่รหัสให้ครบ " + targetCode.Length + " หลัก";
             statusColor = new Color(0.95f, 0.75f, 0.3f);
             shakeTimer = 0.3f;
             return;
@@ -231,14 +238,14 @@ public class KeypadLockUI : MonoBehaviour
         GUI.Label(hintRect, lockHint, hintStyle);
 
         // 3. 4-Digit Display
-        float boxWidth = 54f;
+        float boxWidth = Mathf.Min(54f, (panelWidth - 54f) / targetCode.Length - 14f);
         float boxHeight = 64f;
         float boxSpacing = 14f;
-        float totalBoxWidth = (boxWidth * 4) + (boxSpacing * 3);
+        float totalBoxWidth = (boxWidth * targetCode.Length) + (boxSpacing * (targetCode.Length - 1));
         float startBoxX = panelX + (panelWidth - totalBoxWidth) * 0.5f + shakeOffset;
         float boxY = panelY + 84f;
 
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < targetCode.Length; i++)
         {
             Rect bRect = new Rect(startBoxX + i * (boxWidth + boxSpacing), boxY, boxWidth, boxHeight);
             GUI.DrawTexture(bRect, digitBoxTexture, ScaleMode.StretchToFill);

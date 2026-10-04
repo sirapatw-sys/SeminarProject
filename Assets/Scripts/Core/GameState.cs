@@ -8,6 +8,7 @@ namespace MysteryGame.Core
     public class GameState : MonoBehaviour
     {
         public static GameState Instance { get; private set; }
+        public event System.Action<string> ItemAdded;
 
         // =====================================================
         // Session
@@ -93,6 +94,7 @@ namespace MysteryGame.Core
             }
 
             Instance = this;
+            session = GameSession.CreateDefault();
 
             if (Application.isPlaying)
             {
@@ -140,14 +142,8 @@ namespace MysteryGame.Core
 
             SetCurrentScene(sceneName);
 
-            if (sceneName == "Room02")
-            {
-                SetFlag("room02_entered");
-            }
-            else if (sceneName == "Room03")
-            {
-                SetFlag("room03_entered");
-            }
+            var room = KnowledgeLibrary.GetRoom(sceneName);
+            if (room != null && !string.IsNullOrWhiteSpace(room.enteredFlag)) SetFlag(room.enteredFlag);
         }
 
         // =====================================================
@@ -253,7 +249,7 @@ namespace MysteryGame.Core
             {
                 worldRevision++;
                 AddHistory("Added item: " + itemId);
-                ItemPopupUI.ShowItem(itemId);
+                ItemAdded?.Invoke(itemId);
             }
         }
 
@@ -887,7 +883,7 @@ namespace MysteryGame.Core
         /// </summary>
         public void ResetState()
         {
-            session = new GameSession();
+            session = GameSession.CreateDefault();
             flags.Clear();
             inventory.Clear();
             playerHistory.Clear();

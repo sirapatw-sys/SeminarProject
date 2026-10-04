@@ -309,11 +309,13 @@ namespace MysteryGame.Knowledge
             sb.AppendLine("ทำสำเร็จไปแล้ว " + CompletedSteps + "/" + TotalSteps + " ขั้น");
             if (CurrentStep != null)
             {
-                sb.AppendLine("ขั้นตอนถัดไปที่ผู้เล่นทำได้จริงตอนนี้: " + CurrentStep.summary);
+                sb.AppendLine("ยังมีขั้นตอนที่ทำได้ แต่ห้ามเปิดเผยนอกเหนือจากคำใบ้ที่อนุญาตด้านล่าง");
             }
             else
             {
-                sb.AppendLine("ผู้เล่นทำครบทุกขั้นของห้องนี้แล้ว");
+                sb.AppendLine(CompletedSteps == TotalSteps
+                    ? "ผู้เล่นทำครบทุกขั้นของห้องนี้แล้ว"
+                    : "ยังไม่ครบทุกขั้น แต่เงื่อนไขขั้นถัดไปยังไม่พร้อม ห้ามอ้างว่าห้องเสร็จแล้ว");
             }
             sb.AppendLine();
 

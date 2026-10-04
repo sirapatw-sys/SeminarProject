@@ -8,7 +8,7 @@ using MysteryGame.Knowledge;
 using UnityEngine;
 using UnityEngine.Networking;
 
-public class AiDialogueGenerator : MonoBehaviour
+public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 {
     public const string OpenAiResponsesUrl =
         "https://api.openai.com/v1/responses";
@@ -404,6 +404,15 @@ public class AiDialogueGenerator : MonoBehaviour
                 eventData.dialogue.choices.Count
             );
             ScrubGateWord(result);
+            string policyReason;
+            var eventContext = NpcKnowledgeContextBuilder.Build(eventData.npcId,
+                GameState.Instance != null ? GameState.Instance.GetCurrentScene() : string.Empty,
+                GameState.Instance, false);
+            if (result != null && !NpcReplyPolicy.ValidateEvent(eventContext, result, out policyReason))
+            {
+                LastError = "AI event อ้างข้อมูลที่ไม่อนุญาต (" + policyReason + ")";
+                result = null;
+            }
 
             if (result == null)
             {
@@ -441,6 +450,13 @@ public class AiDialogueGenerator : MonoBehaviour
 
         NpcKnowledgeContext knowledge = BuildKnowledgeContext(
             npcId, playerMessage);
+        GeneratedChatReply hint = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance)
+            ?? NpcReplyPolicy.HintReply(knowledge);
+        if (hint != null)
+        {
+            onComplete(hint);
+            yield break;
+        }
 
         string prompt = BuildReplyPrompt(
             npcId,
@@ -475,8 +491,8 @@ public class AiDialogueGenerator : MonoBehaviour
 
             string offendingFactId;
             if (result != null && (knowledge.HasData || knowledge.HasProfile) &&
-                !knowledge.ValidateReferences(
-                    result.referencedFactIds, out offendingFactId))
+                !NpcReplyPolicy.Validate(BuildKnowledgeContext(npcId, playerMessage),
+                    result.referencedFactIds, new[] { result.reply }, out offendingFactId))
             {
                 LastError =
                     "AI อ้างถึงข้อมูลที่ตัวละครนี้ไม่มีสิทธิ์รู้ (" +
@@ -845,6 +861,7 @@ public class AiDialogueGenerator : MonoBehaviour
             prompt.Append(knowledge.ToCharacterSection());
         }
         prompt.AppendLine("สถานการณ์: " + eventData.situationPrompt);
+        prompt.AppendLine(knowledge.ToPromptSection());
         prompt.AppendLine("โทน: " + eventData.tonePrompt);
         prompt.AppendLine("เป้าหมายปัจจุบัน: " +
                           (state != null ? state.GetCurrentGoal() : "escape_room"));
@@ -939,7 +956,7 @@ public class AiDialogueGenerator : MonoBehaviour
             );
         }
 
-        prompt.AppendLine("ไม่ต้องส่ง referencedFactIds ส่งแค่ lines และ choices");
+        prompt.AppendLine("ส่ง referencedFactIds เป็นรายการ factId ที่อ้างจริง หรือรายการว่าง");
         prompt.AppendLine("variation_id: " + Guid.NewGuid().ToString("N"));
         return prompt.ToString();
     }
@@ -986,6 +1003,7 @@ public class AiDialogueGenerator : MonoBehaviour
                "\"type\":\"object\"," +
                "\"properties\":{" +
                "\"lines\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"maxItems\":3}," +
+               "\"referencedFactIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}," +
                "\"choices\":{\"type\":\"array\",\"items\":{" +
                "\"type\":\"object\",\"properties\":{" +
                "\"optionText\":{\"type\":\"string\"}," +
@@ -993,7 +1011,7 @@ public class AiDialogueGenerator : MonoBehaviour
                "\"required\":[\"optionText\",\"responseText\"]," +
                "\"additionalProperties\":false}," +
                "\"minItems\":" + choiceCount + ",\"maxItems\":" + choiceCount + "}}," +
-               "\"required\":[\"lines\",\"choices\"]," +
+               "\"required\":[\"lines\",\"choices\",\"referencedFactIds\"]," +
                "\"additionalProperties\":false}}}}";
     }
 
@@ -1006,7 +1024,7 @@ public class AiDialogueGenerator : MonoBehaviour
     public static string CompatibleDialogueFormat(int choiceCount)
     {
         return "Return only valid JSON in exactly this shape: " +
-               "{\"lines\":[\"...\"],\"choices\":[{\"optionText\":\"...\",\"responseText\":\"...\"}]} " +
+               "{\"lines\":[\"...\"],\"referencedFactIds\":[],\"choices\":[{\"optionText\":\"...\",\"responseText\":\"...\"}]} " +
                "with 1-3 lines and exactly " + choiceCount + " choices, in the order given. Keep game canon.";
     }
 
@@ -1112,6 +1130,7 @@ public class GeneratedChatReply
     /// is not allowed to know makes the reply invalid.
     /// </summary>
     public string[] referencedFactIds;
+    [NonSerialized] public string hintId;
 
     /// <summary>Optional face for the emotion box; empty when none.</summary>
     public string emotion;

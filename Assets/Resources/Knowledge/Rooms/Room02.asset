@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Room02
   m_EditorClassIdentifier:
   roomId: Room02
+  enteredFlag: room02_entered
   roomName: "หอสมุดร้าง"
   roomDescription: "หอสมุดเพดานสูงที่มืดและเต็มไปด้วยฝุ่น ผนังซ้ายเป็นตู้หนังสือสูงจรดเพดานแบ่งเป็นสามชั้นใหญ่ ฝั่งขวาเป็นโต๊ะอ่านหนังสือที่มีสมุดทะเบียนเปิดค้างไว้ ลูกโลกดาราศาสตร์ และเทียนไข ผนังขวาบนมีแผงเฟืองนาฬิกาฝังอยู่ มีนาฬิกาโบราณอยู่ข้างประตูดวงดาวที่เรืองแสงจางๆ ตรงกลางผนังด้านบน และมีแท่นไฟศักดิ์สิทธิ์ขนาบประตูทั้งสองข้าง"
   background: {fileID: 21300000, guid: 9fe0cfe4f0824aa09de92b68db92f926, type: 3}
@@ -78,6 +79,19 @@ MonoBehaviour:
       targetId: sena_offering_given
       amount: 0
     isPuzzleAnswer: 1
+    protectedTerms:
+    - "พรุ่งนี้"
+    - "วันพรุ่งนี้"
+    - "วันถัดไป"
+    - "วันต่อไป"
+    - "วันรุ่งขึ้น"
+    - "อนาคต"
+    - "tomorrow"
+    - "next day"
+    - "the next day"
+    - "future"
+    - "the future"
+    - "tmr"
   - factId: gate_unlock
     statement: "ประตูดวงดาวจะเปิดก็ต่อเมื่อเซนะยอมรับคำตอบและจางหายไปแล้วเท่านั้น"
     revealedWhen: []

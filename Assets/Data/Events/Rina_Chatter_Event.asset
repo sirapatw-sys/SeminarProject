@@ -35,3 +35,6 @@ MonoBehaviour:
     targetId: "dialogue.rina_room03.met"
     secondaryId: ""
     amount: 0
+  offlineVariants:
+  - {fileID: 11400000, guid: e43b185fc126aee4ab3b6039707ac329, type: 2}
+  - {fileID: 11400000, guid: 08c39f9fed359bd4fb381c2841544731, type: 2}

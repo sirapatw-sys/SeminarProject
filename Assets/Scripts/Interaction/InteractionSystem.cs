@@ -4,83 +4,41 @@ using MysteryGame.Core;
 public class InteractionSystem : MonoBehaviour
 {
     public static InteractionSystem Instance { get; private set; }
-
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
     }
 
-    public bool TryExecute(
-        InteractionData data,
-        out string responseMessage)
+    public static bool CanExecute(InteractionData data, GameState state, out string response)
     {
-        responseMessage = string.Empty;
-
-        if (data == null)
+        response = string.Empty;
+        if (data == null || state == null) return false;
+        if (!data.repeatable && state.HasFlag("interaction." + data.interactionId + ".completed"))
         {
-            Debug.LogError("InteractionData is null.");
+            response = data.alreadyCompletedMessage;
             return false;
         }
-
-        string completionFlag =
-            "interaction." + data.interactionId + ".completed";
-
-        if (!data.repeatable &&
-            GameState.Instance.HasFlag(completionFlag))
+        if (!ConditionRule.AllHold(data.conditions, state) ||
+            (data.inputPuzzle != null && !ConditionRule.AllHold(data.inputPuzzle.conditions, state)))
         {
-            responseMessage = data.alreadyCompletedMessage;
+            response = data.failureMessage;
             return false;
         }
+        return true;
+    }
 
-        if (GameState.Instance == null)
+    public bool TryExecute(InteractionData data, out string responseMessage, string answer = null)
+    {
+        GameState state = GameState.Instance;
+        if (!CanExecute(data, state, out responseMessage)) return false;
+        if (data.inputPuzzle != null && !data.inputPuzzle.TrySolve(state, answer))
         {
-            Debug.LogError("GameState.Instance is null.");
+            responseMessage = data.inputPuzzle.failureMessage;
             return false;
         }
-
-        // =====================================================
-        // Check Conditions
-        // =====================================================
-
-        foreach (ConditionRule condition in data.conditions)
-        {
-            if (condition == null)
-            {
-                continue;
-            }
-
-            if (!condition.Evaluate(GameState.Instance))
-            {
-                responseMessage = data.failureMessage;
-                return false;
-            }
-        }
-
-        // =====================================================
-        // Execute Effects
-        // =====================================================
-
-        foreach (ActionCommand action in data.actions)
-        {
-            if (action == null)
-            {
-                continue;
-            }
-
-            action.Execute(GameState.Instance);
-        }
-
-        if (!data.repeatable)
-        {
-            GameState.Instance.SetFlag(completionFlag);
-        }
-
+        foreach (ActionCommand action in data.actions) action?.Execute(state);
+        if (!data.repeatable) state.SetFlag("interaction." + data.interactionId + ".completed");
         responseMessage = data.interactionMessage;
         return true;
     }

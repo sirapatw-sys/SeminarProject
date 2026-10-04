@@ -35,3 +35,6 @@ MonoBehaviour:
     targetId: "dialogue.stelle_room03.met"
     secondaryId: ""
     amount: 0
+  offlineVariants:
+  - {fileID: 11400000, guid: 702b437785c134b4aae66b0908707155, type: 2}
+  - {fileID: 11400000, guid: f292b83fe0042694c808c5ef9a905797, type: 2}

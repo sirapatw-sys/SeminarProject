@@ -27,7 +27,8 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         {
             InteractionData data = ActiveData;
             // Sena answers E at the gate while she still guards it.
-            return data != null && !(IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor);
+            return data != null && (!data.hideFocusUntilAvailable ||
+                ConditionRule.AllHold(data.conditions, GameState.Instance));
         }
     }
 
@@ -96,55 +97,29 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
             return;
         }
 
-        // 0. Sena guards the celestial gate. While she is still standing
-        // there, her trigger overlaps the door's, so let her own script own
-        // the E key instead of both of them opening a dialogue at once.
-        if (IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor)
-        {
-            return;
-        }
-
         GameState state = GameState.Instance;
-
-        // 1. Special Case: Drawer 4-Digit Combination Lock
-        if (data.interactionId == "open_drawer")
+        string unavailable;
+        if (data.inputPuzzle != null && data.inputPuzzle.numeric &&
+            data.inputPuzzle.acceptedAnswers != null && data.inputPuzzle.acceptedAnswers.Count == 1 &&
+            InteractionSystem.CanExecute(data, state, out unavailable))
         {
-            if (state != null && state.HasFlag("drawer_opened"))
-            {
-                ShowDialogue(
-                    data.displayName,
-                    "ลิ้นชักเปิดออกแล้ว และไม่มีอะไรเหลืออยู่ข้างในแล้ว"
-                );
-                return;
-            }
-
-            SfxPlayer.Play(SfxPlayer.Cue.Interact);
-            KeypadLockUI.Show(
-                targetCode: "4592",
-                title: "แม่กุญแจรหัสของลิ้นชัก (Drawer Lock)",
-                hint: "ใส่รหัสตัวเลข 4 หลักเพื่อปลดล็อคลิ้นชัก",
-                onSuccess: () =>
-                {
-                    if (GameState.Instance != null)
-                    {
-                        GameState.Instance.SetFlag("drawer_opened");
-                        GameState.Instance.AddItem("key");
-                    }
-                    SfxPlayer.Play(SfxPlayer.Cue.Success);
-                    ShowDialogue(
-                        data.displayName,
-                        "รหัสถูกต้อง! ได้ยินเสียงสลักปลดล็อคดังคลิก...\nในลิ้นชักมีกุญแจทองเหลืองโบราณซ่อนอยู่!"
-                    );
-                }
-            );
+            var puzzle = data.inputPuzzle;
+            KeypadLockUI.Show(puzzle.acceptedAnswers[0], puzzle.title, puzzle.question,
+                () => ExecuteInteraction(data, puzzle.acceptedAnswers[0]));
             return;
         }
+        ExecuteInteraction(data);
+    }
 
+    private void ExecuteInteraction(InteractionData data, string answer = null)
+    {
+        GameState state = GameState.Instance;
         string responseMessage;
 
         bool success = InteractionSystem.Instance.TryExecute(
             data,
-            out responseMessage
+            out responseMessage,
+            answer
         );
 
         SfxPlayer.Play(success ? SfxPlayer.Cue.Interact : SfxPlayer.Cue.Locked);
@@ -186,14 +161,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
             );
         }
 
-        // 3. Special Case: Desk Note (Repeatable reading)
-        if (data.interactionId == "inspect_desk" &&
-            state != null && state.HasFlag("found_note"))
-        {
-            ItemPopupUI.ShowItem("paper");
-        }
-
-        // 4. Doors that lead on are data: transitionScene / endsDemo on the
+        // Doors that lead on are data: transitionScene / endsDemo on the
         // InteractionData, applied only when the interaction succeeded.
         if (success && RoomTransitionManager.Instance != null)
         {
@@ -211,13 +179,6 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
                 );
             }
         }
-    }
-
-    private static bool IsCelestialDoor(InteractionData data)
-    {
-        return data != null &&
-               (data.interactionId == "unlock_celestial_door" ||
-                data.interactionId == "unlock_door_r2");
     }
 
     private void ShowDialogue(

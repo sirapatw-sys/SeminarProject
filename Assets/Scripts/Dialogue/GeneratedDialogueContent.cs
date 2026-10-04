@@ -5,6 +5,7 @@ public class GeneratedDialogueContent
 {
     public string[] lines;
     public GeneratedDialogueChoice[] choices;
+    public string[] referencedFactIds;
 
     public bool IsValid(int expectedChoiceCount)
     {

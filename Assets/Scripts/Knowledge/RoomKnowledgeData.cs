@@ -42,6 +42,8 @@ namespace MysteryGame.Knowledge
 
         [Tooltip("Marks the fact that literally answers the room's puzzle.")]
         public bool isPuzzleAnswer;
+        [Tooltip("Answer tokens blocked from model output while this fact is withheld.")]
+        public List<string> protectedTerms = new List<string>();
 
         public bool IsRevealed(GameState state)
         {
@@ -105,9 +107,9 @@ namespace MysteryGame.Knowledge
                 case HintLevel.Explicit:
                     return Pick(explicitHint, normalHint, vagueHint);
                 case HintLevel.Normal:
-                    return Pick(normalHint, vagueHint, explicitHint);
+                    return Pick(normalHint, vagueHint);
                 case HintLevel.Vague:
-                    return Pick(vagueHint, normalHint, explicitHint);
+                    return Pick(vagueHint);
                 default:
                     return string.Empty;
             }
@@ -160,6 +162,7 @@ namespace MysteryGame.Knowledge
     {
         [Tooltip("Must match the scene name, e.g. Room01.")]
         public string roomId;
+        public string enteredFlag;
 
         public string roomName;
 

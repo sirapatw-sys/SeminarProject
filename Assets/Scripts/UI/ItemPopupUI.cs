@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MysteryGame.Core;
 using UnityEngine;
 
 public class ItemPopupUI : MonoBehaviour
@@ -79,27 +80,11 @@ public class ItemPopupUI : MonoBehaviour
 
         bool hasExplicitName = !string.IsNullOrWhiteSpace(displayName);
 
-        // Fill default info if not provided
+        ItemData item = ItemData.Find(itemId);
         if (string.IsNullOrWhiteSpace(displayName))
-        {
-            if (itemId.Equals("key", System.StringComparison.OrdinalIgnoreCase))
-            {
-                displayName = "กุญแจทองเหลืองโบราณ (Brass Key)";
-                description = "กุญแจทองเหลืองเก่าแก่ที่ซ่อนอยู่ในลิ้นชัก สามารถใช้ไขประตูทางออกของห้องนี้ได้";
-            }
-            else if (itemId.Equals("paper", System.StringComparison.OrdinalIgnoreCase) ||
-                     itemId.Equals("note", System.StringComparison.OrdinalIgnoreCase))
-            {
-                displayName = "บันทึกของผู้รอดชีวิตคนก่อน (Survivor's Note)";
-                description = "\"วันที่เท่าไหร่แล้วก็ไม่รู้... ฉันติดอยู่ในห้องบ้าๆ นี่มานานเกินไป ความเครียดจะบดขยี้สติฉันอยู่แล้ว!\nฉันพยายามทุกวิถีทางเพื่อเปิดลิ้นชักนั่น... ในที่สุดหลังจากการลองสุ่มตัวเลข 4 หลักนับร้อยครั้ง... ฉันถอดรหัสมันได้แล้ว!\nรหัสเปิดลิ้นชักคือ  [ 4 5 9 2 ]\n...ใครก็ตามที่มาพบโน้ตนี้ รีบเอากุญแจข้างในแล้วหนีออกไปซะ!\"";
-            }
-            else
-            {
-                displayName = GenericItemPrefix + itemId;
-                description = "คุณได้รับ " + itemId + " เก็บไว้ในช่องเก็บของแล้ว";
-            }
-        }
-
+            displayName = item != null ? item.displayName : GenericItemPrefix + itemId;
+        if (string.IsNullOrWhiteSpace(description))
+            description = item != null ? item.description : "คุณได้รับ " + itemId;
         ItemInfo info = new ItemInfo
         {
             itemId = itemId,

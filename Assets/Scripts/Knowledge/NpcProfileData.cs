@@ -80,6 +80,7 @@ namespace MysteryGame.Knowledge
     public class FallbackReplyRule
     {
         public string ruleId;
+        public InputPuzzleData answerPuzzle;
 
         [Tooltip("Must be present in the message. None matches any message.")]
         public PlayerIntent intent = PlayerIntent.None;
@@ -100,6 +101,7 @@ namespace MysteryGame.Knowledge
 
         public bool Matches(string message, PlayerIntent detected, GameState state)
         {
+            if (answerPuzzle != null && !answerPuzzle.Accepts(message)) return false;
             if (replies == null || replies.Count == 0)
             {
                 return false;
@@ -110,7 +112,7 @@ namespace MysteryGame.Knowledge
                 return false;
             }
 
-            if (keywords != null && keywords.Count > 0 &&
+            if (answerPuzzle == null && keywords != null && keywords.Count > 0 &&
                 !PlayerIntentClassifier.ContainsAny(message, keywords.ToArray()))
             {
                 return false;

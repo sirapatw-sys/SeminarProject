@@ -11,6 +11,7 @@ using UnityEngine;
 public static class SaveSystem
 {
     public const int Version = 1;
+    public static bool PersistenceEnabled { get; set; } = true;
     private const string FileName = "save.json";
 
     [Serializable]
@@ -23,7 +24,15 @@ public static class SaveSystem
 
     public static string SavePath
     {
-        get { return Path.Combine(Application.persistentDataPath, FileName); }
+        get
+        {
+            var game = GameDefinition.Current;
+            string id = game != null ? game.gameId : "mystery";
+            if (string.IsNullOrWhiteSpace(id) || id == "mystery")
+                return Path.Combine(Application.persistentDataPath, FileName); // existing saves
+            string safeId = System.Text.RegularExpressions.Regex.Replace(id, "[^a-zA-Z0-9_-]", "_");
+            return Path.Combine(Application.persistentDataPath, safeId + "_" + FileName);
+        }
     }
 
     public static bool HasSave
@@ -40,6 +49,7 @@ public static class SaveSystem
 
     public static bool Save()
     {
+        if (!PersistenceEnabled) return false;
         if (GameState.Instance == null)
         {
             return false;
@@ -76,7 +86,7 @@ public static class SaveSystem
 
         GameState.Instance.RestoreSnapshot(file.state);
         string scene = string.IsNullOrWhiteSpace(file.state.CurrentSceneId)
-            ? "Room01"
+            ? GameSession.CreateDefault().CurrentSceneId
             : file.state.CurrentSceneId;
         RoomTransitionManager.Instance.TransitionToRoom(
             scene,

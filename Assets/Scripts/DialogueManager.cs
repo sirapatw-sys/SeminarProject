@@ -1253,7 +1253,7 @@ public class DialogueManager : MonoBehaviour
             EscapeRichText(activeSpeakerName) +
             ":</b></color> กำลังคิด...";
 
-        AiDialogueGenerator generator = AiDialogueGenerator.Instance;
+        IAiDialogueProvider generator = DialogueProviders.Current;
         if (generator != null && generator.CanGenerate)
         {
             StartCoroutine(
@@ -1300,8 +1300,15 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
-        bool usedFallback = generated == null;
-        GeneratedChatReply reply = generated ?? BuildFallbackReply(playerMessage);
+        var knowledge = AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
+        string policyReason;
+        var answerReply = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
+        var hintReply = answerReply ?? NpcReplyPolicy.HintReply(knowledge);
+        if (generated != null && hintReply == null &&
+            !NpcReplyPolicy.Validate(knowledge, generated.referencedFactIds,
+                new[] { generated.reply }, out policyReason)) generated = null;
+        bool usedFallback = generated == null && hintReply == null;
+        GeneratedChatReply reply = hintReply ?? generated ?? BuildFallbackReply(playerMessage);
         // Offline replies author small gains (+1 to +4), so they count double.
         // The AI's reading and the rules' reading are combined there; a rude
         // or distancing message never raises the relationship.
@@ -1315,10 +1322,14 @@ public class DialogueManager : MonoBehaviour
         GameState state = GameState.Instance;
         if (state != null && !string.IsNullOrWhiteSpace(activeNpcId))
         {
-            if (relationshipDelta != 0)
-            {
-                state.ChangeRelationship(activeNpcId, relationshipDelta);
-            }
+            if (answerReply == null && knowledge.HasData && knowledge.PlayerAskedForHint)
+                relationshipDelta = Mathf.Min(0, relationshipDelta);
+            relationshipDelta = NpcReplyPolicy.RepetitionAdjustedGain(
+                state, activeNpcId, playerMessage, relationshipDelta);
+            if (relationshipDelta != 0) state.ChangeRelationship(activeNpcId, relationshipDelta);
+            if (!string.IsNullOrWhiteSpace(reply.hintId) &&
+                state.AddJournalEntry(reply.hintId, "คำใบ้จาก " + activeSpeakerName, reply.reply))
+                JournalUI.NotifyNewEntry();
             state.AddConversationTurn(
                 activeNpcId, ConversationTurn.Player, playerMessage);
             state.AddConversationTurn(activeNpcId, activeNpcId, reply.reply);
@@ -1330,7 +1341,7 @@ public class DialogueManager : MonoBehaviour
         }
 
         string serviceNotice = string.Empty;
-        AiDialogueGenerator generator = AiDialogueGenerator.Instance;
+        IAiDialogueProvider generator = DialogueProviders.Current;
         if (usedFallback && generator != null && generator.CanGenerate &&
             !string.IsNullOrWhiteSpace(generator.LastError))
         {
@@ -1357,18 +1368,7 @@ public class DialogueManager : MonoBehaviour
             ShowEmotion(activeNpcId, reply.emotion);
         }
 
-        // Check if player answered Sena's riddle correctly
-        bool isSena = activeNpcId != null &&
-                      activeNpcId.ToLowerInvariant().Contains("sena");
-        if (isSena &&
-            SenaInteraction.IsListeningForAnswer &&
-            SenaInteraction.IsCorrectRiddleAnswer(playerMessage))
-        {
-            if (SenaInteraction.Instance != null)
-            {
-                SenaInteraction.Instance.HandleRiddleSolved();
-            }
-        }
+        DialogueSignals.PublishTypedReply(activeNpcId, playerMessage);
 
         chatInput.interactable = true;
         sendButton.interactable = true;

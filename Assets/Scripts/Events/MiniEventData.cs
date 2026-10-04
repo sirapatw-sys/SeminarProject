@@ -50,6 +50,8 @@ public class MiniEventData : ScriptableObject
 
     [Tooltip("Used immediately when AI is unavailable or returns invalid data.")]
     public DialogueData dialogue;
+    [Tooltip("Authored topic variants used when AI is unavailable. Choice effects must match dialogue.")]
+    public List<DialogueData> offlineVariants = new List<DialogueData>();
     public List<ConditionRule> conditions = new List<ConditionRule>();
 
     public string CompletedFlag

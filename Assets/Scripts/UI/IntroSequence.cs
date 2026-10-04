@@ -1,4 +1,5 @@
 using System.Collections;
+using MysteryGame.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -9,7 +10,8 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public class IntroSequence : MonoBehaviour
 {
-    private const string IntroScene = "Room01";
+    private static string IntroScene { get { return GameDefinition.Current != null
+        ? GameDefinition.Current.firstScene : "Room01"; } }
 
     public static bool IsPlaying { get; private set; }
 
@@ -80,6 +82,9 @@ public class IntroSequence : MonoBehaviour
 
     private void Awake()
     {
+        if (GameDefinition.Current != null && GameDefinition.Current.introLines != null &&
+            GameDefinition.Current.introLines.Length > 0)
+            lines = GameDefinition.Current.introLines;
         blackTexture = new Texture2D(1, 1);
         blackTexture.SetPixel(0, 0, Color.black);
         blackTexture.Apply();

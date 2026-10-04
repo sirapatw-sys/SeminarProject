@@ -9,7 +9,8 @@ using MysteryGame.Core;
 /// </summary>
 public class TitleMenu : MonoBehaviour
 {
-    private const string FirstScene = "Room01";
+    private static string FirstScene { get { return GameDefinition.Current != null
+        ? GameDefinition.Current.firstScene : "Room01"; } }
 
     public static bool IsOpen { get; private set; }
 
@@ -233,7 +234,7 @@ public class TitleMenu : MonoBehaviour
         float y = UiScale.Height * 0.2f;
         GUI.Label(new Rect(x, y, width, 90f), "ห้องที่จำใบหน้าเราได้", titleStyle);
         GUI.Label(new Rect(x, y + 88f, width, 40f),
-                  "AI Mystery Escape Room · บทที่ 1", subtitleStyle);
+                  GameDefinition.Current != null ? GameDefinition.Current.title : "AI Mystery Escape Room", subtitleStyle);
 
         float buttonWidth = 380f;
         float bx = (UiScale.Width - buttonWidth) * 0.5f;

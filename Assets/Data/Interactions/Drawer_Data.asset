@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
   m_Name: Drawer_Data
   m_EditorClassIdentifier: 
+  inputPuzzle: {fileID: 11400000, guid: 0f4c43b9a0d4d524eb2458cd26813a67, type: 2}
   interactionId: open_drawer
   displayName: Drawer
   interactionMessage: "\u0E43\u0E19\u0E25\u0E34\u0E49\u0E19\u0E0A\u0E31\u0E01\u0E21\u0E35\u0E01\u0E38\u0E0D\u0E41\u0E08\u0E14\u0E2D\u0E01\u0E2B\u0E19\u0E36\u0E48\u0E07"

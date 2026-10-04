@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using MysteryGame.Core;
+using MysteryGame.Knowledge;
 using TMPro;
 using UnityEngine;
 
@@ -9,9 +10,6 @@ public class NpcEventController : MonoBehaviour
     [SerializeField, Min(0.5f)] private float checkInterval = 5f;
     [SerializeField, Range(0f, 1f)] private float triggerChancePerCheck = 0.5f;
     [SerializeField] private Vector3 indicatorOffset = new Vector3(0f, 1.2f, 0f);
-
-    /// <summary>Wait before asking the AI for another topic after a failed try.</summary>
-    private const float FailedTopicRetrySeconds = 60f;
 
     private readonly Dictionary<string, float> cooldownUntil =
         new Dictionary<string, float>();
@@ -85,6 +83,7 @@ public class NpcEventController : MonoBehaviour
 
             if (stale || Time.time >= pendingUntil)
             {
+                cooldownUntil[pendingEvent.eventId] = Time.time + pendingEvent.cooldownSeconds;
                 ClearPendingEvent();
             }
             else if (pendingEvent.autoStart && !InputGate.IsBlocked &&
@@ -140,6 +139,11 @@ public class NpcEventController : MonoBehaviour
         }
 
         MiniEventData selectedEvent = pendingEvent;
+        if (GameState.Instance == null || !selectedEvent.CanTrigger(GameState.Instance))
+        {
+            ClearPendingEvent();
+            return false;
+        }
         GeneratedDialogueContent selectedDialogue = pendingDialogue;
         ClearPendingEvent();
 
@@ -205,7 +209,6 @@ public class NpcEventController : MonoBehaviour
         {
             if (candidate == null || candidate.storyBeat ||
                 IsOnCooldown(candidate) ||
-                (candidate.freeTopic && !AiAvailable) ||
                 !candidate.CanTrigger(GameState.Instance))
             {
                 continue;
@@ -242,7 +245,7 @@ public class NpcEventController : MonoBehaviour
 
     private static bool AiAvailable
     {
-        get { return AiDialogueGenerator.Instance != null && AiDialogueGenerator.Instance.CanGenerate; }
+        get { return DialogueProviders.Current != null && DialogueProviders.Current.CanGenerate; }
     }
 
     private void QueueEvent(MiniEventData candidate)
@@ -251,7 +254,7 @@ public class NpcEventController : MonoBehaviour
         {
             generationInProgress = true;
             StartCoroutine(
-                AiDialogueGenerator.Instance.Generate(
+                DialogueProviders.Current.Generate(
                     candidate,
                     generated =>
                     {
@@ -266,10 +269,15 @@ public class NpcEventController : MonoBehaviour
                         if (candidate.freeTopic &&
                             (generated == null || !generated.IsValid(candidate.dialogue.choices.Count)))
                         {
-                            cooldownUntil[candidate.eventId] = Time.time + FailedTopicRetrySeconds;
-                            return;
+                            generated = BuildOfflineTopic(candidate);
                         }
-
+                        var context = NpcKnowledgeContextBuilder.Build(candidate.npcId,
+                            GameState.Instance != null ? GameState.Instance.GetCurrentScene() : string.Empty,
+                            GameState.Instance, false);
+                        string reason;
+                        if (generated != null && !NpcReplyPolicy.ValidateEvent(context, generated, out reason))
+                            generated = BuildOfflineTopic(candidate);
+                        if (GameState.Instance == null || !candidate.CanTrigger(GameState.Instance)) return;
                         SetPendingEvent(candidate, generated);
                     }
                 )
@@ -277,12 +285,21 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
-        if (candidate.freeTopic)
-        {
-            return;
-        }
+        SetPendingEvent(candidate, candidate.freeTopic ? BuildOfflineTopic(candidate) : null);
+    }
 
-        SetPendingEvent(candidate, null);
+    public static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate)
+    {
+        if (candidate == null || candidate.dialogue == null) return null;
+        DialogueData source = candidate.dialogue;
+        if (candidate.offlineVariants != null && candidate.offlineVariants.Count > 0)
+            source = candidate.offlineVariants[Random.Range(0, candidate.offlineVariants.Count)] ?? source;
+        if (source.choices.Count != candidate.dialogue.choices.Count) source = candidate.dialogue;
+        var choices = new List<GeneratedDialogueChoice>();
+        foreach (var choice in source.choices)
+            choices.Add(new GeneratedDialogueChoice { optionText = choice.optionText, responseText = choice.responseText });
+        return new GeneratedDialogueContent { lines = source.lines.ToArray(), choices = choices.ToArray(),
+            referencedFactIds = System.Array.Empty<string>() };
     }
 
     private void SetPendingEvent(

@@ -37,6 +37,9 @@ namespace MysteryGame.Knowledge
 
             RoomKnowledgeData loaded =
                 Resources.Load<RoomKnowledgeData>(RoomPath + roomId);
+            var game = MysteryGame.Core.GameDefinition.Current;
+            if (loaded == null && game != null)
+                loaded = game.rooms.Find(room => room != null && room.roomId == roomId);
             rooms[roomId] = loaded;
             return loaded;
         }
@@ -56,6 +59,9 @@ namespace MysteryGame.Knowledge
 
             NpcProfileData loaded =
                 Resources.Load<NpcProfileData>(NpcPath + npcId);
+            var game = MysteryGame.Core.GameDefinition.Current;
+            if (loaded == null && game != null)
+                loaded = game.npcs.Find(npc => npc != null && npc.npcId == npcId);
             npcs[npcId] = loaded;
             return loaded;
         }

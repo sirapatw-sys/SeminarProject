@@ -35,3 +35,6 @@ MonoBehaviour:
     targetId: "sena_met"
     secondaryId: ""
     amount: 0
+  offlineVariants:
+  - {fileID: 11400000, guid: 849d29a2c45d32d4dbcfbe11da37de2d, type: 2}
+  - {fileID: 11400000, guid: 56084c0203b64a149b8fee77cd336094, type: 2}
