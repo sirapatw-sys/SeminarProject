@@ -724,11 +724,12 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     {
         GameState state = GameState.Instance;
         string roomId = state != null ? state.GetCurrentScene() : string.Empty;
+        RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
         return NpcKnowledgeContextBuilder.Build(
             npcId,
             roomId,
             state,
-            IsAskingForHelpOrHint(playerMessage)
+            PlayerIntentClassifier.IsAskingForHint(playerMessage, room != null ? room.gameplayTerms : null)
         );
     }
 
@@ -749,7 +750,9 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         StringBuilder prompt = new StringBuilder();
         PlayerIntent intent = PlayerIntentClassifier.Classify(playerMessage);
         bool hostile = (intent & PlayerIntent.Hostile) != 0;
-        bool askingForHint = (intent & PlayerIntent.AskingHint) != 0;
+        bool askingForHint = knowledge != null
+            ? knowledge.PlayerAskedForHint
+            : (intent & PlayerIntent.AskingHint) != 0;
         bool givesHints = knowledge == null || knowledge.Npc == null ||
                           knowledge.Npc.givesHints;
 

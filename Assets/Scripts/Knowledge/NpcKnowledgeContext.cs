@@ -59,7 +59,7 @@ namespace MysteryGame.Knowledge
 
             foreach (RoomFact fact in KnownFacts)
             {
-                if (fact != null && fact.factId == factId)
+                if (fact != null && fact.factId == factId && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance)
                 {
                     return true;
                 }

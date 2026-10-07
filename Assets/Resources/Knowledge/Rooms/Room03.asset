@@ -29,6 +29,11 @@ MonoBehaviour:
   - "เตาผิง"
   - "เถ้าถ่าน"
   - "ไขลาน"
+  - "mirror"
+  - "music box"
+  - "fireplace"
+  - "ashes"
+  - "winding key"
   facts:
   - factId: "parlor_cold"
     statement: "ห้องนี้หนาวผิดปกติ เปลวเทียนเป็นสีฟ้าซีดทั้งที่ไม่มีใครจุด และเก้าอี้โยกข้างเตาผิงโยกไปมาเองช้าๆ"

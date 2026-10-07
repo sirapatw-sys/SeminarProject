@@ -146,7 +146,7 @@ namespace MysteryGame.Knowledge
                 bool forbidden = context.Npc != null &&
                                  context.Npc.IsForbidden(fact.factId);
 
-                if (revealed && npcKnows && !forbidden && !fact.isPuzzleAnswer)
+                if (revealed && npcKnows && !forbidden && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance)
                 {
                     context.KnownFacts.Add(fact);
                 }

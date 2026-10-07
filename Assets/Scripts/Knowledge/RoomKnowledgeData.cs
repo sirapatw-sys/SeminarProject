@@ -42,6 +42,8 @@ namespace MysteryGame.Knowledge
 
         [Tooltip("Marks the fact that literally answers the room's puzzle.")]
         public bool isPuzzleAnswer;
+        [Tooltip("Solution directions are hint-only, even when known. Author their wording in PuzzleStep hints, not generated chat/events or evidence.")]
+        public bool isPuzzleGuidance;
         [Tooltip("Answer tokens blocked from model output while this fact is withheld.")]
         public List<string> protectedTerms = new List<string>();
 

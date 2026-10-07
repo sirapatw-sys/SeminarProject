@@ -32,6 +32,17 @@ MonoBehaviour:
   - "จารึก"
   - "แท่นไฟ"
   - "แผงเฟือง"
+  - "ledger"
+  - "catalogue"
+  - "catalog"
+  - "bookshelf"
+  - "bookcase"
+  - "tome"
+  - "offering"
+  - "altar"
+  - "brazier"
+  - "clockwork"
+  - "gate"
   facts:
   - factId: clock_inscription
     statement: "แผ่นทองเหลืองใต้หน้าปัดนาฬิกาโบราณสลักว่า 'เมื่อเข็มข้ามเที่ยงคืนไป สิ่งที่เจ้าเฝ้ารอทั้งคืนจะเปลี่ยนชื่อของมันทันที'"
@@ -65,6 +76,7 @@ MonoBehaviour:
     statement: "ป้ายทองเหลืองบนตู้หนังสือระบุว่าหนังสือทุกเล่มในหอนี้ถูกลงทะเบียนไว้ ผู้ใดหาเล่มใดไม่พบ ต้องไปค้นจากสมุดทะเบียนบนโต๊ะอ่านหนังสือ"
     revealedWhen: []
     isPuzzleAnswer: 0
+    isPuzzleGuidance: 1
   - factId: tome_shelf_number
     statement: "สมุดทะเบียนระบุว่า 'จารึกที่ยังเขียนมิจบ' คือเล่มที่ ๙๙๙ เก็บไว้ที่ตู้ทิศตะวันตก ชั้นล่างสุด ซึ่งก็คือตู้หนังสือใหญ่ฝั่งซ้ายของหอ"
     revealedWhen:
@@ -103,6 +115,7 @@ MonoBehaviour:
     statement: "ประตูดวงดาวจะเปิดก็ต่อเมื่อเซนะยอมรับคำตอบและจางหายไปแล้วเท่านั้น"
     revealedWhen: []
     isPuzzleAnswer: 0
+    isPuzzleGuidance: 1
   steps:
   - stepId: meet_sena
     summary: "คุยกับเซนะที่ขวางประตูอยู่ เพื่อฟังว่านางต้องการอะไร"

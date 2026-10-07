@@ -16,13 +16,15 @@ public class NpcReplyBoundaryPlayModeTests
     private class Provider : IAiDialogueProvider
     {
         public bool Online;
+        public string Reply = SplitAnswer;
+        public string[] FactIds = Array.Empty<string>();
         public bool CanGenerate { get { return Online; } }
         public string LastError { get { return string.Empty; } }
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> complete)
         { complete(null); yield break; }
         public IEnumerator GenerateReply(string npc, string name, string context, string message,
             Action<GeneratedChatReply> complete, string personality = null)
-        { complete(new GeneratedChatReply { reply = SplitAnswer, referencedFactIds = Array.Empty<string>() }); yield break; }
+        { complete(new GeneratedChatReply { reply = Reply, referencedFactIds = FactIds }); yield break; }
     }
     private Provider provider;
     private DialogueData intro;
@@ -88,6 +90,210 @@ public class NpcReplyBoundaryPlayModeTests
         Assert.That(GameState.Instance.HasFlag("drawer_opened"), Is.False);
         DialogueManager.Instance.HideDialogue();
         Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator DirectAndIndirectHintsDisplayOnlyTheLowRelationshipStepOnlineAndOffline()
+    {
+        provider.Reply = "{fact:door_locked}"; provider.FactIds = new[] { "door_locked" };
+        var state = GameState.Instance;
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (bool online in new[] { true, false })
+        {
+            provider.Online = online;
+            foreach (string message in new[] { "ช่วยใบ้หน่อย", "ประตูนี้เปิดยังไง", "How do I open the door?", "Where is the key?" })
+            {
+                state.SetRelationship("Alice", 10);
+                DialogueManager.Instance.StartDialogue(intro);
+                input.text = message; DialogueManager.Instance.SendTypedMessage();
+                yield return null;
+                var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+                var log = state.GetConversationLog("Alice");
+                Assert.That(log[log.Count - 1].Text, Is.EqualTo(context.CurrentStep.vagueHint));
+                Assert.That(Text().text, Does.Contain(context.CurrentStep.vagueHint));
+                Assert.That(Text().text, Does.Not.Contain("กุญแจทองเหลืองจากลิ้นชัก"));
+                Assert.That(state.GetRelationship("Alice"), Is.EqualTo(10), "Asking for hints must not farm relationship.");
+                DialogueManager.Instance.HideDialogue();
+                Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+            }
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator RepeatedDrawerQuestionsCannotEscalateButRaisingRelationshipUnlocksTheAuthoredTier()
+    {
+        var state = GameState.Instance;
+        state.SetFlag("inspected_painting"); state.SetFlag("found_note");
+        provider.Online = true; provider.Reply = "รหัสคือ 4592";
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (int score in new[] { 10, 10, 70 })
+        {
+            state.SetRelationship("Alice", score);
+            DialogueManager.Instance.StartDialogue(intro);
+            input.text = "เปิดลิ้นชักอย่างไร"; DialogueManager.Instance.SendTypedMessage();
+            yield return null;
+            var log = state.GetConversationLog("Alice");
+            var step = KnowledgeLibrary.GetRoom("Room01").steps.Find(s => s.stepId == "open_drawer");
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo(step.HintFor(score < 70 ? HintLevel.Vague : HintLevel.Explicit)));
+            if (score < 70) Assert.That(log[log.Count - 1].Text, Does.Not.Contain("4592"));
+            else Assert.That(log[log.Count - 1].Text, Does.Contain("4592"));
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(score));
+            Assert.That(state.HasFlag("drawer_opened"), Is.False, "A spoken hint must not solve the puzzle.");
+            DialogueManager.Instance.HideDialogue();
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator UnsolicitedGeneratedSolutionFactCannotReachTheConversationLog()
+    {
+        yield return SceneManager.LoadSceneAsync("Room02"); yield return null;
+        DialogueManager.Instance.HideDialogue(); GameState.Instance.ResetState();
+        GameState.Instance.SetCurrentScene("Room02"); GameState.Instance.SetRelationship("Alice", 10);
+        provider.Online = true; provider.Reply = "{fact:catalogue_rule}";
+        provider.FactIds = new[] { "catalogue_rule" };
+        DialogueManager.Instance.StartDialogue(intro);
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        input.text = "สวัสดี"; DialogueManager.Instance.SendTypedMessage();
+        yield return null;
+        var fact = KnowledgeLibrary.GetRoom("Room02").FindFact("catalogue_rule");
+        var log = GameState.Instance.GetConversationLog("Alice");
+        Assert.That(log[log.Count - 1].Text, Does.Not.Contain(fact.statement));
+        Assert.That(Text().text, Does.Not.Contain(fact.statement));
+        Assert.That(Text().text, Does.Contain("บทสนทนาสำรอง"));
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator UnrequestedRawDirectionsUseFallbackInsteadOfLeakingIntoTheDisplayedConversation()
+    {
+        provider.Online = true; provider.FactIds = Array.Empty<string>();
+        var state = GameState.Instance;
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (string text in new[] { "Go inspect the painting on the wall.", "เริ่มจากรูปเอียงบนกำแพงก่อนนะ", "Go\ninspect the strange statue." })
+        {
+            provider.Reply = text; state.SetRelationship("Alice", 10);
+            DialogueManager.Instance.StartDialogue(intro);
+            input.text = "สวัสดี"; DialogueManager.Instance.SendTypedMessage();
+            yield return null;
+            var log = state.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Is.Not.EqualTo(text));
+            Assert.That(Text().text, Does.Not.Contain(text));
+            Assert.That(Text().text, Does.Contain("บทสนทนาสำรอง"));
+            Assert.That(state.HasFlag("inspected_painting"), Is.False);
+            DialogueManager.Instance.HideDialogue();
+            Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator MoodQuestionsWithRoomContextKeepSocialDialogueButMixedHelpUsesTheHintTier()
+    {
+        provider.Online = true; provider.Reply = "ฉันรู้สึกกังวลนิดหน่อย";
+        provider.FactIds = Array.Empty<string>();
+        var state = GameState.Instance;
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (string message in new[] { "อยู่ในห้องนี้เธอรู้สึกอย่างไร", "What do you feel about this room?", "How to stay calm in this room?" })
+        {
+            state.SetRelationship("Alice", 10); DialogueManager.Instance.StartDialogue(intro);
+            input.text = message; DialogueManager.Instance.SendTypedMessage();
+            yield return null;
+            var log = state.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo(provider.Reply));
+            Assert.That(Text().text, Does.Contain(provider.Reply));
+            DialogueManager.Instance.HideDialogue();
+        }
+        state.SetRelationship("Alice", 10); DialogueManager.Instance.StartDialogue(intro);
+        input.text = "How are you feeling, and how do I open the door?";
+        DialogueManager.Instance.SendTypedMessage(); yield return null;
+        var mixedLog = state.GetConversationLog("Alice");
+        var step = KnowledgeLibrary.GetRoom("Room01").CurrentStep(state);
+        Assert.That(mixedLog[mixedLog.Count - 1].Text, Is.EqualTo(step.vagueHint));
+        Assert.That(state.GetRelationship("Alice"), Is.EqualTo(10));
+        DialogueManager.Instance.HideDialogue();
+        Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator EmotionalSupportRequestsKeepSocialRepliesWithoutWritingHints()
+    {
+        yield return ExpectSocialReplies(new[] {
+            "ช่วยฉันสงบใจหน่อย", "ช่วยเราหน่อย เรารู้สึกเหงา",
+            "Can you help me calm down in this room?", "Could you read my feelings in this room?"
+        });
+    }
+
+    [UnityTest]
+    public IEnumerator PersonalHomeQuestionsWithRoomContextKeepSocialReplies()
+    {
+        yield return ExpectSocialReplies(new[] {
+            "บ้านเธออยู่ที่ไหนก่อนเข้าห้องนี้", "Where is your home outside this room?"
+        });
+    }
+
+    [UnityTest]
+    public IEnumerator DecliningHintsKeepsSocialRepliesEvenWithAnIndirectGameplayQuestion()
+    {
+        yield return ExpectSocialReplies(new[] {
+            "สวัสดี ไม่ต้องใบ้นะ แค่อยากคุยเป็นเพื่อน",
+            "I don't need a hint, just tell me how you feel.", "I don’t need a hint, just talk with me.",
+            "No hints, how do I open the door?", "ไม่ต้องใบ้ แค่บอกว่าประตูนี้เปิดยังไง",
+            "ขอคำใบ้หน่อย แต่ตอนนี้ไม่ต้องใบ้แล้ว", "Can you not give me a hint?",
+            "ไม่อยากให้เธอบอกคำใบ้", "Don't give me the code, I only want to talk."
+        });
+    }
+
+    private IEnumerator ExpectSocialReplies(string[] messages)
+    {
+        foreach (var controller in UnityEngine.Object.FindObjectsOfType<NpcEventController>()) controller.enabled = false;
+        provider.Online = true; provider.Reply = "ฉันเข้าใจนะ ค่อยๆ หายใจ เราคุยเป็นเพื่อนเธอได้";
+        provider.FactIds = Array.Empty<string>();
+        var state = GameState.Instance;
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (string message in messages)
+        {
+            state.SetRelationship("Alice", 10); DialogueManager.Instance.StartDialogue(intro);
+            int journalCount = state.GetJournal().Count;
+            input.text = message; DialogueManager.Instance.SendTypedMessage(); yield return null;
+            var log = state.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo(provider.Reply), message);
+            Assert.That(Text().text, Does.Contain(provider.Reply), message);
+            Assert.That(state.GetJournal().Count, Is.EqualTo(journalCount), "Social dialogue must not add a hint.");
+            Assert.That(input.interactable, Is.True);
+            Assert.That(state.HasFlag("inspected_painting"), Is.False);
+            DialogueManager.Instance.HideDialogue(); Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator MixedAndReenabledHintRequestsKeepTheLowRelationshipTierOnlineAndOffline()
+    {
+        foreach (var controller in UnityEngine.Object.FindObjectsOfType<NpcEventController>()) controller.enabled = false;
+        provider.Reply = "ฉันรู้สึกกังวลนิดหน่อย"; provider.FactIds = Array.Empty<string>();
+        var state = GameState.Instance;
+        var step = KnowledgeLibrary.GetRoom("Room01").CurrentStep(state);
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (bool online in new[] { true, false })
+        {
+            provider.Online = online;
+            foreach (string message in new[] {
+                "ช่วยฉันสงบใจหน่อย แล้วประตูนี้เปิดยังไง",
+                "Can you help me calm down and tell me how to open the door?",
+                "ไม่ต้องใบ้ก่อนนะ แต่ตอนนี้ขอคำใบ้หน่อย",
+                "Don't give me hints yet, but now give me a hint."
+            })
+            {
+                state.SetRelationship("Alice", 10); DialogueManager.Instance.StartDialogue(intro);
+                input.text = message; DialogueManager.Instance.SendTypedMessage(); yield return null;
+                var log = state.GetConversationLog("Alice");
+                Assert.That(log[log.Count - 1].Text, Is.EqualTo(step.vagueHint), message);
+                Assert.That(Text().text, Does.Contain(step.vagueHint), message);
+                Assert.That(state.GetRelationship("Alice"), Is.EqualTo(10), "Hint requests must not farm relationship.");
+                Assert.That(state.GetJournal().Count, Is.EqualTo(1), "Repeated requests must share one hint ID.");
+                Assert.That(state.GetJournal()[0].Text, Is.EqualTo(step.vagueHint));
+                Assert.That(state.HasFlag("inspected_painting"), Is.False);
+                DialogueManager.Instance.HideDialogue(); Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+            }
+        }
     }
 
     [UnityTest]

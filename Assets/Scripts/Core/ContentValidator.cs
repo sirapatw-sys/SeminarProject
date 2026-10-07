@@ -31,6 +31,8 @@ namespace MysteryGame.Core
                         errors.Add(room.roomId + "/" + fact.factId + ": puzzle answer has no protectedTerms.");
                     if (fact.canShareAsEvidence && fact.isPuzzleAnswer)
                         errors.Add(room.roomId + "/" + fact.factId + ": puzzle answers cannot be shareable evidence.");
+                    if (fact.canShareAsEvidence && fact.isPuzzleGuidance)
+                        errors.Add(room.roomId + "/" + fact.factId + ": puzzle guidance cannot be shareable evidence.");
                     if (fact.canShareAsEvidence && (string.IsNullOrWhiteSpace(fact.evidenceTitle) ||
                         string.IsNullOrWhiteSpace(fact.statement)))
                         errors.Add(room.roomId + "/" + fact.factId + ": evidence needs a title and statement.");
@@ -75,7 +77,8 @@ namespace MysteryGame.Core
                     {
                         var evidence = reaction != null ? game.rooms.Where(r => r != null)
                             .SelectMany(r => r.facts).FirstOrDefault(f => f != null && f.factId == reaction.factId) : null;
-                        if (evidence == null || !evidence.canShareAsEvidence || evidence.isPuzzleAnswer || npc.IsForbidden(evidence.factId))
+                        if (evidence == null || !evidence.canShareAsEvidence || evidence.isPuzzleAnswer ||
+                            evidence.isPuzzleGuidance || npc.IsForbidden(evidence.factId))
                             errors.Add(npc.npcId + ": invalid evidence reaction " + (reaction != null ? reaction.factId : "(null)"));
                         if (reaction == null) continue;
                         if (string.IsNullOrWhiteSpace(reaction.reply)) errors.Add(npc.npcId + ": empty evidence reply " + reaction.factId);

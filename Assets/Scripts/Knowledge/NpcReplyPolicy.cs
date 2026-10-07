@@ -21,6 +21,10 @@ namespace MysteryGame.Knowledge
         private static readonly Regex FactToken = new Regex(@"\{fact:(?<id>[^{}]+)\}", RegexOptions.IgnoreCase);
         private static readonly Regex GameplayDirection = new Regex(
             @"(?:ไป|ลอง|จง).{0,24}(?:ค้น|สำรวจ|ตรวจ|หยิบ|ไข|ปลด)|(?:อยู่|ซ่อน).{0,12}(?:ใต้|หลัง|ข้าง)|\p{Nd}");
+        private static readonly Regex EnglishGameplayDirection = new Regex(
+            @"\b(?:go|try|(?:you|we)\s+(?:should|must|need\s+to))\s+(?:to\s+|and\s+)?" +
+            @"(?:inspect(?:ing)?|examin(?:e|ing)|search(?:ing)?|explor(?:e|ing)|investigat(?:e|ing)|read(?:ing)?)\b",
+            RegexOptions.CultureInvariant);
         private static readonly string[] GameplayTerms = {
             "รหัส", "กุญแจ", "ลิ้นชัก", "เบาะแส", "ปลดล็อ", "เฉลย", "ทางออก", "ซ่อน", "ใต้เตียง",
             "เปิดประตู", "ไขประตู", "ล็อค", "ล็อก", "key", "keys", "keycode", "code", "codes", "password",
@@ -141,6 +145,10 @@ namespace MysteryGame.Knowledge
             // lines, event lines or choices. Use the same normalization for the
             // assembled output as for each individual segment.
             string assembled = expandedText.ToString();
+            // Instructions can be split between social lines or event choices.
+            // Only inspect raw prose here, not already-verified canon facts.
+            if (ContainsGameplayClaim(context, rawSocial.ToString()))
+            { reason = "gameplay text must come from an authored fact"; return false; }
             if (ContainsWithheldRoomDetail(context, assembled, out reason)) return false;
             // The same protection applies to locked personal details.
             foreach (PersonalFact fact in context.LockedSecrets)
@@ -177,7 +185,8 @@ namespace MysteryGame.Knowledge
         private static string Statement(NpcKnowledgeContext context, string id)
         {
             foreach (RoomFact fact in context.KnownFacts)
-                if (fact != null && fact.factId == id) return fact.statement;
+                if (fact != null && fact.factId == id && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance)
+                    return fact.statement;
             foreach (PersonalFact fact in context.ShareablePersonalFacts)
                 if (fact != null && fact.factId == id) return fact.statement;
             return null;
@@ -191,7 +200,7 @@ namespace MysteryGame.Knowledge
         private static bool ContainsGameplayClaim(NpcKnowledgeContext context, string text)
         {
             string value = RemoveInvisibleCharacters(text).ToLowerInvariant();
-            if (GameplayDirection.IsMatch(value)) return true;
+            if (GameplayDirection.IsMatch(value) || EnglishGameplayDirection.IsMatch(value)) return true;
             foreach (string term in GameplayTerms)
                 if (ContainsWord(value, term)) return true;
             if (context.Room != null && context.Room.gameplayTerms != null)

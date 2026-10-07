@@ -58,7 +58,8 @@ namespace MysteryGame.Knowledge
         {
             return fact != null && !string.IsNullOrWhiteSpace(fact.factId) &&
                 !string.IsNullOrWhiteSpace(fact.statement) && fact.canShareAsEvidence &&
-                !fact.isPuzzleAnswer && !npc.IsForbidden(fact.factId) && fact.IsRevealed(state);
+                !fact.isPuzzleAnswer && !fact.isPuzzleGuidance &&
+                !npc.IsForbidden(fact.factId) && fact.IsRevealed(state);
         }
 
         public static bool TryShare(GameState state, string npcId, string factId,
