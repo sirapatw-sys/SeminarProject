@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class KeypadLockUI : MonoBehaviour
 {
@@ -99,6 +100,17 @@ public class KeypadLockUI : MonoBehaviour
             _instance.onUnlockSuccess = null;
         }
         IsOpen = false;
+    }
+
+    private void OnEnable() { SceneManager.sceneLoaded += HandleSceneLoaded; }
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        if (_instance == this) Close();
+    }
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (_instance == this) Close();
     }
 
     private void Update()
@@ -434,6 +446,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (_instance == this) { Close(); _instance = null; }
         if (dimTexture != null) Destroy(dimTexture);
         if (panelTexture != null) Destroy(panelTexture);
         if (digitBoxTexture != null) Destroy(digitBoxTexture);

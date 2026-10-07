@@ -24,8 +24,8 @@ public class RoomTransitionManager : MonoBehaviour
         }
     }
 
-    [SerializeField] private float defaultFadeDuration = 1.0f;
     [SerializeField] private float messageDisplayDuration = 2.0f;
+    public string LastError { get; private set; }
 
     private float currentAlpha = 0f;
     private bool isTransitioning = false;
@@ -69,75 +69,110 @@ public class RoomTransitionManager : MonoBehaviour
         string transitionMessage = "คุณใช้กุญแจเปิดประตูสำเร็จ...\nก้าวเดินเข้าสู่ห้องถัดไป (Room 02)",
         float fadeDuration = 1.0f)
     {
-        if (isTransitioning)
-        {
-            return;
-        }
+        TryTransitionToRoom(targetSceneName, transitionMessage, fadeDuration);
+    }
 
-        StartCoroutine(DoTransition(targetSceneName, transitionMessage, fadeDuration));
+    public static bool CanLoadRoom(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName) || !Application.CanStreamedLevelBeLoaded(sceneName)) return false;
+        var game = GameDefinition.Current;
+        return game == null || (game.rooms != null && game.rooms.Exists(room =>
+            room != null && room.roomId == sceneName));
+    }
+
+    /// <summary>False means no transition or state change was started.</summary>
+    public bool TryTransitionToRoom(string sceneName, string message, float fadeDuration = 1f,
+        System.Action onFailure = null)
+    {
+        LastError = null;
+        if (IsBusy) { LastError = "กำลังเปลี่ยนห้องอยู่ กรุณารอก่อน"; return false; }
+        if (!CanLoadRoom(sceneName))
+        {
+            LastError = "ไม่พบห้องที่ต้องการโหลด: " + sceneName;
+            Debug.LogWarning(LastError);
+            return false;
+        }
+        StartCoroutine(DoTransition(sceneName, message, Mathf.Max(0f, fadeDuration), onFailure));
+        return true;
+    }
+
+    public static void CloseRoomOverlays()
+    {
+        AiSettingsPanel.Close();
+        if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
+        KeypadLockUI.Close();
+        ItemPopupUI.CancelAll();
+        JournalUI.Close();
     }
 
     private IEnumerator DoTransition(
         string targetSceneName,
         string transitionMessage,
-        float fadeDuration)
+        float fadeDuration,
+        System.Action onFailure)
     {
         isTransitioning = true;
         currentMessage = transitionMessage;
-
-        // Close any active dialogue
-        if (DialogueManager.Instance != null)
+        bool loaded = false;
+        try
         {
-            DialogueManager.Instance.HideDialogue();
-        }
-
-        // Fade to black
-        float timer = 0f;
-        while (timer < fadeDuration)
-        {
-            timer += Time.unscaledDeltaTime;
-            currentAlpha = Mathf.Clamp01(timer / fadeDuration);
-            yield return null;
-        }
-        currentAlpha = 1f;
-
-        // Display transition message while black
-        yield return new WaitForSecondsRealtime(messageDisplayDuration);
-
-        // Update GameState current scene
-        if (GameState.Instance != null)
-        {
-            GameState.Instance.SetCurrentScene(targetSceneName);
-            GameState.Instance.AddHistory("Entered " + targetSceneName);
-        }
-
-        // Load next scene
-        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(targetSceneName);
-        if (asyncLoad != null)
-        {
-            while (!asyncLoad.isDone)
+            CloseRoomOverlays();
+            float timer = 0f;
+            while (timer < fadeDuration)
             {
+                timer += Time.unscaledDeltaTime;
+                currentAlpha = Mathf.Clamp01(timer / fadeDuration);
+                yield return null;
+            }
+            currentAlpha = 1f;
+            yield return new WaitForSecondsRealtime(messageDisplayDuration);
+
+            AsyncOperation asyncLoad = null;
+            try { asyncLoad = SceneManager.LoadSceneAsync(targetSceneName); }
+            catch (System.Exception ex) { LastError = "โหลดห้องไม่สำเร็จ: " + ex.GetType().Name; }
+            if (asyncLoad == null)
+            {
+                if (string.IsNullOrEmpty(LastError)) LastError = "โหลดห้องไม่สำเร็จ: " + targetSceneName;
+                Debug.LogWarning(LastError);
+                yield break;
+            }
+            while (!asyncLoad.isDone) yield return null;
+            if (SceneManager.GetActiveScene().name != targetSceneName)
+            {
+                LastError = "โหลดห้องไม่สำเร็จ: " + targetSceneName;
+                Debug.LogWarning(LastError);
+                yield break;
+            }
+            loaded = true;
+            // Never create a checkpoint for a scene that did not load.
+            if (GameState.Instance != null)
+            {
+                GameState.Instance.SetCurrentScene(targetSceneName);
+                GameState.Instance.AddHistory("Entered " + targetSceneName);
+            }
+            yield return new WaitForSecondsRealtime(0.3f);
+            SaveSystem.Save();
+
+            currentMessage = string.Empty;
+            timer = 0f;
+            while (timer < fadeDuration)
+            {
+                timer += Time.unscaledDeltaTime;
+                currentAlpha = Mathf.Clamp01(1f - timer / fadeDuration);
                 yield return null;
             }
         }
-
-        // Wait a small beat for scene to initialize
-        yield return new WaitForSecondsRealtime(0.3f);
-
-        // Every room entry is a checkpoint for "continue" on the title menu.
-        SaveSystem.Save();
-
-        // Clear message and fade in from black
-        currentMessage = string.Empty;
-        timer = 0f;
-        while (timer < fadeDuration)
+        finally
         {
-            timer += Time.unscaledDeltaTime;
-            currentAlpha = Mathf.Clamp01(1f - (timer / fadeDuration));
-            yield return null;
+            currentMessage = string.Empty;
+            currentAlpha = 0f;
+            isTransitioning = false;
+            if (!loaded && onFailure != null)
+            {
+                try { onFailure(); }
+                catch (System.Exception ex) { Debug.LogWarning("Load recovery failed: " + ex.GetType().Name); }
+            }
         }
-        currentAlpha = 0f;
-        isTransitioning = false;
     }
 
     /// <summary>
@@ -158,10 +193,7 @@ public class RoomTransitionManager : MonoBehaviour
     {
         isTransitioning = true;
         currentMessage = endingMessage;
-        if (DialogueManager.Instance != null)
-        {
-            DialogueManager.Instance.HideDialogue();
-        }
+        CloseRoomOverlays();
 
         if (GameState.Instance != null)
         {

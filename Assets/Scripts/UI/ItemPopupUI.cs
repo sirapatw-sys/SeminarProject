@@ -44,6 +44,12 @@ public class ItemPopupUI : MonoBehaviour
     {
         get { return (_instance != null && _instance.isShowing) || pendingItems.Count > 0; }
     }
+
+    public static void CancelAll()
+    {
+        pendingItems.Clear();
+        if (_instance != null) _instance.ClosePopup();
+    }
     private ItemInfo currentItem;
     private Sprite[] currentFrames;
     private float animationFps = 20f;

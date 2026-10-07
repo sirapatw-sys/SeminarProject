@@ -59,9 +59,13 @@ namespace MysteryGame.Tests
         }
 
         [Test]
-        public void AfterInspectingThePaintingAliceMayMentionTheArrowOnly()
+        public void AfterInspectingAndSharingThePaintingAliceMayMentionTheArrowOnly()
         {
             GameState.Instance.SetFlag("inspected_painting");
+            Assert.That(Build("Alice", "Room01").CanReference("painting_arrow"), Is.False,
+                "Discovering evidence does not automatically tell Alice.");
+            EvidenceShareResult shared;
+            Assert.That(EvidenceSharing.TryShare(State, "Alice", "painting_arrow", out shared), Is.True);
             NpcKnowledgeContext ctx = Build("Alice", "Room01");
 
             Assert.That(ctx.CanReference("painting_arrow"), Is.True);

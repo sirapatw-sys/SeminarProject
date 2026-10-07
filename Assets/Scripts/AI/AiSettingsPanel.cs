@@ -103,6 +103,10 @@ public class AiSettingsPanel : MonoBehaviour
     private Tone statusTone = Tone.Neutral;
     private bool testInProgress;
     private bool modelFetchInProgress;
+    private AiRequestOperation modelFetchOperation;
+    private AiRequestOperation connectionTestOperation;
+    private int modelFetchVersion;
+    private int connectionTestVersion;
     private string[] fetchedModels;
     private bool pickerOpen;
     private bool typeModelByHand;
@@ -154,16 +158,32 @@ public class AiSettingsPanel : MonoBehaviour
         }
     }
 
+    public static void Close()
+    {
+        if (active != null) active.SetOpen(false);
+    }
+
     private void OnEnable()
     {
+        // GameManagers survives room changes. A duplicate scene component
+        // must not steal ownership or clear the surviving panel's state.
+        if (active != null && active != this)
+        {
+            enabled = false;
+            return;
+        }
         active = this;
+        IsOpen = isOpen;
     }
 
     private void OnDisable()
     {
+        CancelUiRequests();
         if (active == this)
         {
+            SetOpen(false);
             active = null;
+            InteractionPrompt = string.Empty;
         }
     }
 
@@ -216,6 +236,8 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void SetOpen(bool open)
     {
+        if (active != this || (open && (!isActiveAndEnabled || RoomTransitionManager.IsBusy))) return;
+        if (!open) CancelUiRequests();
         if (isOpen && !open)
         {
             closedOnFrame = Time.frameCount;
@@ -433,6 +455,8 @@ public class AiSettingsPanel : MonoBehaviour
 
         if (ModalGui.LayoutButton("ล้าง key", ghostStyle, false, GUILayout.Height(48f), GUILayout.Width(110f)))
         {
+            CancelUiRequests();
+            fetchedModels = null;
             apiKey = string.Empty;
             if (AiDialogueGenerator.Instance != null)
             {
@@ -665,12 +689,14 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void ApplyProviderDefaults()
     {
+        CancelUiRequests();
         // A model list only ever belongs to the provider it came from.
         fetchedModels = null;
         typeModelByHand = false;
 
-        AiDialogueGenerator generator = AiDialogueGenerator.Instance;
-        apiKey = generator != null ? generator.GetApiKey() : string.Empty;
+        // The generator still belongs to the old provider until ApplySettings.
+        // Never carry its credential into a different provider's endpoint.
+        apiKey = string.Empty;
         switch ((AiProviderType)providerIndex)
         {
             case AiProviderType.OpenAiResponses:
@@ -704,6 +730,7 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void ApplySettings()
     {
+        CancelUiRequests();
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
         if (generator == null)
         {
@@ -735,67 +762,123 @@ public class AiSettingsPanel : MonoBehaviour
                selected == AiProviderType.Gemini;
     }
 
+    private static string Normalized(string value) { return (value ?? string.Empty).Trim(); }
+
+    private bool SameConnection(int requestedProvider, string requestedEndpoint, string requestedKey)
+    {
+        return providerIndex == requestedProvider && Normalized(endpoint) == requestedEndpoint &&
+            Normalized(apiKey) == requestedKey;
+    }
+
+    private void CancelModelFetch()
+    {
+        modelFetchVersion++;
+        modelFetchInProgress = false;
+        var abandoned = modelFetchOperation;
+        modelFetchOperation = null;
+        abandoned?.Cancel();
+    }
+
+    private void CancelConnectionTest()
+    {
+        connectionTestVersion++;
+        testInProgress = false;
+        var abandoned = connectionTestOperation;
+        connectionTestOperation = null;
+        abandoned?.Cancel();
+    }
+
+    private void CancelUiRequests()
+    {
+        bool wasBusy = modelFetchInProgress || testInProgress;
+        CancelModelFetch();
+        CancelConnectionTest();
+        if (wasBusy) SetStatus("ยกเลิกคำขอเดิมแล้ว — เริ่มทดสอบหรือโหลดรายการใหม่ได้", Tone.Neutral);
+    }
+
     private void FetchModels()
     {
+        if (active != this || !isActiveAndEnabled) return;
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
-        if (generator == null)
-        {
-            SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad);
-            return;
-        }
-
-        // The key has to be live on the generator before we can ask with it.
+        if (generator == null) { SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad); return; }
         ApplySettings();
-
+        int version = ++modelFetchVersion;
+        int requestedProvider = providerIndex;
+        string requestedEndpoint = Normalized(endpoint), requestedKey = Normalized(apiKey);
         modelFetchInProgress = true;
         SetStatus("กำลังขอรายชื่อโมเดลจากผู้ให้บริการ...", Tone.Neutral);
-        StartCoroutine(
-            generator.FetchAvailableModels((models, error) =>
-            {
-                modelFetchInProgress = false;
-                if (models == null)
-                {
-                    SetStatus("โหลดรายชื่อโมเดลไม่สำเร็จ: " + error, Tone.Bad);
-                    return;
-                }
+        var operation = new AiRequestOperation(this);
+        modelFetchOperation = operation;
+        operation.Start(
+            () => generator.FetchAvailableModels((models, error) =>
+                CompleteModelFetch(version, requestedProvider, requestedEndpoint, requestedKey, models, error)),
+            error => CompleteModelFetch(version, requestedProvider, requestedEndpoint, requestedKey,
+                null, "ผู้ให้บริการผิดพลาด: " + error.GetType().Name),
+            () => CompleteModelFetch(version, requestedProvider, requestedEndpoint, requestedKey,
+                null, "ผู้ให้บริการจบคำขอโดยไม่ส่งผลกลับ"));
+    }
 
-                fetchedModels = models;
-                SetStatus("พบโมเดลที่ใช้ได้ " + models.Length + " รายการ", Tone.Good);
-            })
-        );
+    private void CompleteModelFetch(int version, int requestedProvider, string requestedEndpoint,
+        string requestedKey, string[] models, string error)
+    {
+        if (version != modelFetchVersion || !modelFetchInProgress) return;
+        modelFetchInProgress = false;
+        var completed = modelFetchOperation;
+        modelFetchOperation = null;
+        completed?.Cancel();
+        if (active != this || !isActiveAndEnabled) return;
+        if (!SameConnection(requestedProvider, requestedEndpoint, requestedKey))
+        { SetStatus("การตั้งค่าเปลี่ยนแล้ว — กรุณาโหลดรายชื่อโมเดลใหม่", Tone.Warn); return; }
+        if (models == null || models.Length == 0)
+        { SetStatus("โหลดรายชื่อโมเดลไม่สำเร็จ: " + error, Tone.Bad); return; }
+        fetchedModels = models;
+        SetStatus("พบโมเดลที่ใช้ได้ " + models.Length + " รายการ", Tone.Good);
     }
 
     private void TestConnection()
     {
+        if (active != this || !isActiveAndEnabled) return;
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
-        if (generator == null || !generator.CanGenerate)
-        {
-            SetStatus("ยังกรอก key, โมเดล หรือ endpoint ไม่ครบ (กดบันทึกก่อน)", Tone.Warn);
-            return;
-        }
-
+        if (generator == null) { SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad); return; }
+        // Test exactly the values currently displayed, just like model discovery.
+        ApplySettings();
+        IAiDialogueProvider dialogueProvider = DialogueProviders.Current;
+        if (dialogueProvider == null || !dialogueProvider.CanGenerate)
+        { SetStatus("ยังกรอก key, โมเดล หรือ endpoint ไม่ครบ", Tone.Warn); return; }
+        int version = ++connectionTestVersion;
+        int requestedProvider = providerIndex;
+        string requestedEndpoint = Normalized(endpoint), requestedKey = Normalized(apiKey);
+        string requestedModel = Normalized(model);
         testInProgress = true;
         SetStatus("กำลังติดต่อผู้ให้บริการ AI...", Tone.Neutral);
-        StartCoroutine(
-            generator.GenerateReply(
-                "connection_test",
-                "ระบบทดสอบ",
-                "ตอบเพื่อยืนยันการเชื่อมต่อเท่านั้น",
-                "ตอบคำว่า พร้อมใช้งาน",
-                reply =>
-                {
-                    testInProgress = false;
-                    if (reply != null)
-                    {
-                        SetStatus("เชื่อมต่อสำเร็จ — " + generator.Model + " พร้อมตอบบทสนทนา", Tone.Good);
-                    }
-                    else
-                    {
-                        SetStatus("เชื่อมต่อไม่สำเร็จ: " + generator.LastError, Tone.Bad);
-                    }
-                }
-            )
-        );
+        var operation = new AiRequestOperation(this);
+        connectionTestOperation = operation;
+        operation.Start(
+            () => dialogueProvider.GenerateReply("connection_test", "ระบบทดสอบ",
+                "ตอบเพื่อยืนยันการเชื่อมต่อเท่านั้น", "ตอบคำว่า พร้อมใช้งาน",
+                reply => CompleteConnectionTest(version, requestedProvider, requestedEndpoint,
+                    requestedKey, requestedModel, reply, dialogueProvider.LastError)),
+            error => CompleteConnectionTest(version, requestedProvider, requestedEndpoint,
+                requestedKey, requestedModel, null, "ผู้ให้บริการผิดพลาด: " + error.GetType().Name),
+            () => CompleteConnectionTest(version, requestedProvider, requestedEndpoint,
+                requestedKey, requestedModel, null, "ผู้ให้บริการจบคำขอโดยไม่ส่งผลกลับ"));
+    }
+
+    private void CompleteConnectionTest(int version, int requestedProvider, string requestedEndpoint,
+        string requestedKey, string requestedModel, GeneratedChatReply reply, string error)
+    {
+        if (version != connectionTestVersion || !testInProgress) return;
+        testInProgress = false;
+        var completed = connectionTestOperation;
+        connectionTestOperation = null;
+        completed?.Cancel();
+        if (active != this || !isActiveAndEnabled) return;
+        if (!SameConnection(requestedProvider, requestedEndpoint, requestedKey) ||
+            Normalized(model) != requestedModel)
+        { SetStatus("การตั้งค่าเปลี่ยนแล้ว — กรุณาทดสอบใหม่", Tone.Warn); return; }
+        if (reply != null)
+            SetStatus("เชื่อมต่อสำเร็จ — " + requestedModel + " พร้อมตอบบทสนทนา", Tone.Good);
+        else SetStatus("เชื่อมต่อไม่สำเร็จ: " + error, Tone.Bad);
     }
 
     // --------------------------------------------------------------- styles
@@ -996,8 +1079,14 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void OnDestroy()
     {
-        IsOpen = false;
-        InteractionPrompt = string.Empty;
+        CancelUiRequests();
+        // OnDisable releases the owner. Destroying a duplicate is local cleanup only.
+        if (active == this)
+        {
+            SetOpen(false);
+            active = null;
+            InteractionPrompt = string.Empty;
+        }
         foreach (Texture2D texture in textures)
         {
             if (texture != null)

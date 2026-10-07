@@ -47,6 +47,10 @@ MonoBehaviour:
       secondaryId: ""
       amount: 55
     statement: "สเตลรู้จักเพลงกล่อมเด็กที่ดังในห้องนี้ แม่เคยร้องให้ฟังตอนเด็ก เธอเลยคิดว่าผีในห้องนี้คงเป็นเด็กที่เหงาและนอนไม่หลับ ไม่ใช่ผีร้าย"
+    protectedTerms:
+    - "แม่เคยร้อง"
+    - "แม่ร้องให้ฟัง"
+    - "mother sang"
   - factId: "stelle_saw_girl"
     when:
     - type: 4
@@ -54,6 +58,10 @@ MonoBehaviour:
       secondaryId: ""
       amount: 65
     statement: "คืนแรกสเตลเห็นเด็กผู้หญิงผมเปียยืนมองตัวเองอยู่หน้ากระจกบานใหญ่ แต่ในกระจกกลับไม่มีเงาสะท้อน เธอยังไม่กล้าบอกรินะเพราะกลัวโดนหาว่าเพ้อ"
+    protectedTerms:
+    - "เด็กผู้หญิงผมเปีย"
+    - "เด็กหญิงผมเปีย"
+    - "girl with braids"
   situationalNotes:
   - when:
     - type: 5

@@ -23,6 +23,12 @@ MonoBehaviour:
   - clip: {fileID: 8300000, guid: b318a1334bd048028a187d3b03c95097, type: 3}
     volume: 0.035
   hauntedDrone: 1
+  gameplayTerms:
+  - "กระจก"
+  - "กล่องดนตรี"
+  - "เตาผิง"
+  - "เถ้าถ่าน"
+  - "ไขลาน"
   facts:
   - factId: "parlor_cold"
     statement: "ห้องนี้หนาวผิดปกติ เปลวเทียนเป็นสีฟ้าซีดทั้งที่ไม่มีใครจุด และเก้าอี้โยกข้างเตาผิงโยกไปมาเองช้าๆ"

@@ -123,7 +123,7 @@ public class TitleMenu : MonoBehaviour
             return;
         }
 
-        if (IntroSequence.IsPlaying || RoomTransitionManager.IsBusy)
+        if (IntroSequence.IsPlaying || RoomTransitionManager.IsBusy || AiSettingsPanel.HoldsKeyboard)
         {
             return;
         }
@@ -138,7 +138,7 @@ public class TitleMenu : MonoBehaviour
         {
             if (!SaveSystem.Load())
             {
-                ShowToast("ยังไม่มีเกมที่บันทึกไว้");
+                ShowToast(SaveSystem.LastError ?? "ยังไม่มีเกมที่บันทึกไว้");
             }
         }
     }
@@ -151,6 +151,7 @@ public class TitleMenu : MonoBehaviour
 
     private void StartNewGame()
     {
+        RoomTransitionManager.CloseRoomOverlays();
         SfxPlayer.Play(SfxPlayer.Cue.Interact);
         IsOpen = false;
 
@@ -254,11 +255,8 @@ public class TitleMenu : MonoBehaviour
         if (IsButtonClicked(continueRect, continueLabel, buttonStyle, SaveSystem.HasSave))
         {
             SfxPlayer.Play(SfxPlayer.Cue.Interact);
-            IsOpen = false;
-            if (!SaveSystem.Load())
-            {
-                StartNewGame();
-            }
+            if (SaveSystem.Load()) IsOpen = false;
+            else ShowToast(SaveSystem.LastError ?? "โหลดเซฟไม่สำเร็จ");
         }
         by += 76f;
 
@@ -281,6 +279,8 @@ public class TitleMenu : MonoBehaviour
 #endif
         }
 
+        if (!string.IsNullOrEmpty(toast) && Time.unscaledTime < toastUntil)
+            GUI.Label(new Rect(x, UiScale.Height - 112f, width, 36f), toast, noteStyle);
         GUI.Label(new Rect(x, UiScale.Height - 70f, width, 30f),
                   "ระหว่างเล่น: F5 บันทึก · F9 โหลด · F10 ตั้งค่า AI · กด Space หรือ Enter เพื่อเริ่ม",
                   noteStyle);

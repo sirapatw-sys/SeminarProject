@@ -225,5 +225,144 @@ namespace MysteryGame.Tests
             }
             finally { Object.DestroyImmediate(host); }
         }
+
+        [TestCase("รหัสคือ 4-5-9-2")]
+        [TestCase("รหัสคือ ๔.๕.๙.๒")]
+        [TestCase("４／５／９／２")]
+        [TestCase("สี่ ห้า เก้า สอง")]
+        [TestCase("four-five-nine-two")]
+        [TestCase("9-9-9")]
+        [TestCase("4\u200b5\u200b9\u200b2")]
+        [TestCase("มีกุญแจสีม่วงซ่อนอยู่ใต้เตียง ให้หยิบมันมาเปิดประตู")]
+        [TestCase("กุญ\u200bแจสีม่วงอยู่ใต้เตียง")]
+        [TestCase("There is a hidden purple key under the bed.")]
+        public void UnsupportedGameplayAndDisguisedAnswersFailClosed(string text)
+        {
+            string reason;
+            var context = Build("Alice", "Room01", false);
+            Assert.That(NpcReplyPolicy.Validate(context, new string[0], new[] { text }, out reason), Is.False);
+            Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
+                lines = new[] { "คิดถึงบ้าน" }, referencedFactIds = new string[0], choices = new[] {
+                    new GeneratedDialogueChoice { optionText = "เล่าให้ฟัง", responseText = text } } }, out reason), Is.False);
+        }
+
+        [TestCase("{fact:door_locked}\nมีกุญแจสีม่วงซ่อนอยู่ใต้เตียง")]
+        [TestCase("ไม่จริงนะ {fact:door_locked}")]
+        [TestCase("สวัสดี")]
+        public void ValidIdsCannotLaunderInventedClaimsOrNegateCanon(string text)
+        {
+            string reason;
+            Assert.That(NpcReplyPolicy.Validate(Build("Alice", "Room01", false), new[] { "door_locked" },
+                new[] { text }, out reason), Is.False);
+        }
+
+        [TestCase("คิดถึงบ้านจัง ดีใจที่เธออยู่ด้วย")]
+        [TestCase("ขอบคุณที่รับฟังนะ")]
+        [TestCase("My monkey plush makes me feel better.")]
+        public void SocialAiConversationIsStillAllowed(string text)
+        {
+            string reason;
+            Assert.That(NpcReplyPolicy.Validate(Build("Alice", "Room01", false), new string[0],
+                new[] { text }, out reason), Is.True);
+        }
+
+        [Test]
+        public void FactReplyExpandsOnlyAllowedCanonAndNeverChangesTheProvidersObject()
+        {
+            var context = Build("Alice", "Room01", false);
+            var raw = new GeneratedChatReply { reply = "{fact:door_locked}", relationshipDelta = 0,
+                referencedFactIds = new[] { "door_locked" } };
+            GeneratedChatReply grounded; string reason;
+            Assert.That(NpcReplyPolicy.TryGroundReply(context, raw, out grounded, out reason), Is.True, reason);
+            Assert.That(grounded.reply, Is.EqualTo(context.KnownFacts.Find(f => f.factId == "door_locked").statement));
+            Assert.That(raw.reply, Is.EqualTo("{fact:door_locked}"));
+            Assert.That(NpcReplyPolicy.Validate(context, grounded.referencedFactIds, new[] { grounded.reply }, out reason), Is.True);
+            raw.reply = "{fact:painting_arrow}"; raw.referencedFactIds = new[] { "painting_arrow" };
+            Assert.That(NpcReplyPolicy.TryGroundReply(context, raw, out grounded, out reason), Is.False);
+            State.SetFlag("inspected_painting");
+            EvidenceShareResult shared;
+            Assert.That(EvidenceSharing.TryShare(State, "Alice", "painting_arrow", out shared), Is.True);
+            Assert.That(NpcReplyPolicy.TryGroundReply(Build("Alice", "Room01", false), raw, out grounded, out reason), Is.True, reason);
+        }
+
+        [Test]
+        public void LockedSecretsAndFakeOrMalformedTokensAreRejected()
+        {
+            var context = Build("Alice", "Room01", false);
+            string reason;
+            Assert.That(context.LockedSecrets.Count, Is.GreaterThan(0));
+            string secretId = context.LockedSecrets[0].factId;
+            Assert.That(NpcReplyPolicy.Validate(context, new[] { secretId }, new[] { "{fact:" + secretId + "}" }, out reason), Is.False);
+            Assert.That(NpcReplyPolicy.Validate(context, new string[0], new[] { "{fact:door_locked}" }, out reason), Is.False);
+            Assert.That(NpcReplyPolicy.Validate(context, new string[0], new[] { "{fact:invented}" }, out reason), Is.False);
+            Assert.That(NpcReplyPolicy.Validate(context, new string[0], new[] { "{fact:door_locked" }, out reason), Is.False);
+            Assert.That(NpcReplyPolicy.Validate(context, new[] { " " }, new[] { "สวัสดี" }, out reason), Is.False);
+        }
+
+        [Test]
+        public void EventsExpandCanonAndRevalidateAgainstTheCurrentWorldState()
+        {
+            State.SetFlag("inspected_painting");
+            State.SetCurrentScene("Room01");
+            EvidenceShareResult shared;
+            Assert.That(EvidenceSharing.TryShare(State, "Alice", "painting_arrow", out shared), Is.True);
+            var raw = new GeneratedDialogueContent { lines = new[] { "{fact:painting_arrow}" },
+                referencedFactIds = new[] { "painting_arrow" }, choices = new[] {
+                    new GeneratedDialogueChoice { optionText = "ขอบคุณ", responseText = "ยินดีนะ" } } };
+            GeneratedDialogueContent grounded; string reason;
+            Assert.That(NpcReplyPolicy.TryGroundEvent(Build("Alice", "Room01", false), raw, out grounded, out reason), Is.True, reason);
+            Assert.That(grounded.lines[0], Does.Not.Contain("{fact:"));
+            Assert.That(raw.lines[0], Is.EqualTo("{fact:painting_arrow}"));
+            State.RemoveFlag("inspected_painting");
+            Assert.That(NpcReplyPolicy.TryGroundEvent(Build("Alice", "Room01", false), raw, out grounded, out reason), Is.False);
+        }
+
+        [Test]
+        public void NewGamesOwnTheirKnowledgeAndSwitchWithoutManualCacheClearing()
+        {
+            var originalRoom = KnowledgeLibrary.GetRoom("Room01");
+            var originalNpc = KnowledgeLibrary.GetNpc("Alice");
+            var game = ScriptableObject.CreateInstance<GameDefinition>();
+            var room = Object.Instantiate(originalRoom);
+            var npc = Object.Instantiate(originalNpc);
+            try
+            {
+                game.rooms.Add(room); game.npcs.Add(npc);
+                GameDefinition.Override = game;
+                Assert.That(KnowledgeLibrary.GetRoom("room01"), Is.SameAs(room));
+                Assert.That(KnowledgeLibrary.GetNpc("alice"), Is.SameAs(npc));
+                Assert.That(KnowledgeLibrary.GetRoom("Room02"), Is.Null, "No implicit original-game fallback.");
+                Assert.That(KnowledgeLibrary.GetNpc("Rina"), Is.Null);
+                GameDefinition.Override = null;
+                Assert.That(KnowledgeLibrary.GetRoom("Room01"), Is.SameAs(originalRoom));
+                Assert.That(KnowledgeLibrary.GetNpc("Alice"), Is.SameAs(originalNpc));
+            }
+            finally { GameDefinition.Override = null; KnowledgeLibrary.ClearCache();
+                Object.DestroyImmediate(game); Object.DestroyImmediate(room); Object.DestroyImmediate(npc); }
+        }
+
+        [Test]
+        public void CustomRoomTermsRequireCanonInsteadOfNewRuntimeCode()
+        {
+            var room = ScriptableObject.CreateInstance<RoomKnowledgeData>();
+            try
+            {
+                room.roomId = "NewRoom"; room.gameplayTerms.Add("เครื่องส่งสัญญาณ");
+                KnowledgeLibrary.Register(room);
+                string reason;
+                Assert.That(NpcReplyPolicy.Validate(Build("Alice", "NewRoom", false), new string[0],
+                    new[] { "เครื่องส่งสัญญาณใช้งานได้แล้ว" }, out reason), Is.False);
+            }
+            finally { Object.DestroyImmediate(room); }
+        }
+
+        [Test]
+        public void SolvedRiddleCannotGrantAnswerRewardsAgain()
+        {
+            State.SetFlag("sena_offering_given"); State.SetFlag("sena_passed");
+            var context = Build("Sena", "Room02", false);
+            Assert.That(NpcReplyPolicy.AnswerReply(context, "tomorrow", State), Is.Null);
+            Assert.That(NpcOfflineReplies.Build(context, "tomorrow", State).reply, Does.Not.Contain("ตอบถูก"));
+        }
     }
 }

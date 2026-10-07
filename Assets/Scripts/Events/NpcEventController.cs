@@ -1,8 +1,11 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using MysteryGame.Core;
 using MysteryGame.Knowledge;
 using TMPro;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class NpcEventController : MonoBehaviour
 {
@@ -10,17 +13,25 @@ public class NpcEventController : MonoBehaviour
     [SerializeField, Min(0.5f)] private float checkInterval = 5f;
     [SerializeField, Range(0f, 1f)] private float triggerChancePerCheck = 0.5f;
     [SerializeField] private Vector3 indicatorOffset = new Vector3(0f, 1.2f, 0f);
+    [SerializeField, Min(0.5f)] private float generationTimeoutSeconds = 25f;
 
     private readonly Dictionary<string, float> cooldownUntil =
         new Dictionary<string, float>();
 
     private MiniEventData pendingEvent;
     private GeneratedDialogueContent pendingDialogue;
+    private bool pendingIsAi;
     private float pendingUntil;
     private float nextCheckTime;
     private float nextStoryCheckTime;
     private TextMeshPro indicatorText;
     private bool generationInProgress;
+    private MiniEventData generatingEvent;
+    private Coroutine generationRoutine;
+    private int generationVersion;
+    private float generationDeadline;
+    private Stack<IEnumerator> activeGenerationIterators;
+    private bool advancingProvider;
 
     private void Awake()
     {
@@ -51,6 +62,12 @@ public class NpcEventController : MonoBehaviour
 
     private void Update()
     {
+        // Independent of the provider's HTTP timeout, and of the game's time scale.
+        if (generationInProgress && Time.realtimeSinceStartup >= generationDeadline)
+        {
+            CompleteGeneration(generatingEvent, generationVersion, null);
+        }
+
         if (pendingEvent != null)
         {
             // A story beat that the player has already moved past (Stelle's
@@ -69,7 +86,7 @@ public class NpcEventController : MonoBehaviour
             // waiting (Stelle asking for company, then the mirror message)
             // takes its place, so the story is never held up by small talk.
             if (!pendingEvent.storyBeat && Time.time >= nextStoryCheckTime &&
-                !DialogueManager.IsDialogueOpen)
+                !DialogueManager.IsDialogueOpen && InputGate.IsGameplayActive)
             {
                 nextStoryCheckTime = Time.time + 1f;
                 MiniEventData beat = FindDueStoryBeat();
@@ -95,8 +112,22 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
-        if (generationInProgress || DialogueManager.IsDialogueOpen)
+        // Keep the watchdog and pending-event cleanup above running even
+        // while gameplay is inactive, but do not start any new AI requests.
+        if (DialogueManager.IsDialogueOpen || !InputGate.IsGameplayActive)
         {
+            return;
+        }
+
+        // A slow ambient request must never hold an authored story beat hostage.
+        if (generationInProgress)
+        {
+            if (generatingEvent != null && !generatingEvent.storyBeat && Time.time >= nextStoryCheckTime)
+            {
+                nextStoryCheckTime = Time.time + 1f;
+                MiniEventData beat = FindDueStoryBeat();
+                if (beat != null) QueueEvent(beat);
+            }
             return;
         }
 
@@ -133,7 +164,8 @@ public class NpcEventController : MonoBehaviour
 
     public bool TryStartPendingEvent()
     {
-        if (pendingEvent == null || DialogueManager.Instance == null)
+        if (pendingEvent == null || DialogueManager.Instance == null || DialogueManager.IsDialogueOpen ||
+            !InputGate.IsGameplayActive)
         {
             return false;
         }
@@ -145,12 +177,22 @@ public class NpcEventController : MonoBehaviour
             return false;
         }
         GeneratedDialogueContent selectedDialogue = pendingDialogue;
+        if (pendingIsAi)
+        {
+            var context = NpcKnowledgeContextBuilder.Build(selectedEvent.npcId,
+                GameState.Instance.GetCurrentScene(), GameState.Instance, false);
+            GeneratedDialogueContent grounded;
+            string reason;
+            selectedDialogue = selectedDialogue != null && selectedDialogue.IsValid(selectedEvent.dialogue.choices.Count) &&
+                NpcReplyPolicy.TryGroundEvent(context, selectedDialogue, out grounded, out reason)
+                ? grounded : BuildOfflineTopic(selectedEvent);
+        }
         ClearPendingEvent();
 
         cooldownUntil[selectedEvent.eventId] =
             Time.time + selectedEvent.cooldownSeconds;
 
-        if (!selectedEvent.repeatable && GameState.Instance != null)
+        if (!selectedEvent.repeatable && !selectedEvent.completeOnChoice && GameState.Instance != null)
         {
             GameState.Instance.SetFlag(selectedEvent.CompletedFlag);
         }
@@ -158,7 +200,8 @@ public class NpcEventController : MonoBehaviour
         DialogueManager.Instance.StartDialogue(
             selectedEvent.dialogue,
             selectedDialogue,
-            isEvent: true
+            isEvent: true,
+            completeOnChoiceFlag: selectedEvent.completeOnChoice ? selectedEvent.CompletedFlag : null
         );
         return true;
     }
@@ -250,43 +293,148 @@ public class NpcEventController : MonoBehaviour
 
     private void QueueEvent(MiniEventData candidate)
     {
+        if (!InputGate.IsGameplayActive) return;
+        CancelGeneration();
+        ClearPendingEvent();
+        if (candidate == null || candidate.dialogue == null) return;
         if ((candidate.useAiDialogue || candidate.freeTopic) && AiAvailable)
         {
             generationInProgress = true;
-            StartCoroutine(
-                DialogueProviders.Current.Generate(
-                    candidate,
-                    generated =>
-                    {
-                        generationInProgress = false;
-                        if (this == null)
-                        {
-                            return;
-                        }
-
-                        // A topic of its own is all a free-topic event has:
-                        // when the AI could not write one, there is no "!".
-                        if (candidate.freeTopic &&
-                            (generated == null || !generated.IsValid(candidate.dialogue.choices.Count)))
-                        {
-                            generated = BuildOfflineTopic(candidate);
-                        }
-                        var context = NpcKnowledgeContextBuilder.Build(candidate.npcId,
-                            GameState.Instance != null ? GameState.Instance.GetCurrentScene() : string.Empty,
-                            GameState.Instance, false);
-                        string reason;
-                        if (generated != null && !NpcReplyPolicy.ValidateEvent(context, generated, out reason))
-                            generated = BuildOfflineTopic(candidate);
-                        if (GameState.Instance == null || !candidate.CanTrigger(GameState.Instance)) return;
-                        SetPendingEvent(candidate, generated);
-                    }
-                )
-            );
+            generatingEvent = candidate;
+            int version = generationVersion;
+            generationDeadline = Time.realtimeSinceStartup + Mathf.Max(0.05f, generationTimeoutSeconds);
+            Coroutine started = StartCoroutine(GenerateSafely(candidate, version));
+            // A synchronous provider may already have completed in StartCoroutine.
+            if (IsCurrentGeneration(candidate, version)) generationRoutine = started;
             return;
         }
 
         SetPendingEvent(candidate, candidate.freeTopic ? BuildOfflineTopic(candidate) : null);
     }
+
+    private bool IsCurrentGeneration(MiniEventData candidate, int version)
+    {
+        return this != null && isActiveAndEnabled && generationInProgress &&
+            version == generationVersion && candidate == generatingEvent;
+    }
+
+    // Drive nested IEnumerators as well: otherwise an exception in a provider's
+    // nested HTTP routine escapes the guard and leaves the request locked.
+    private IEnumerator GenerateSafely(MiniEventData candidate, int version)
+    {
+        IEnumerator request = null;
+        string error = null;
+        try
+        {
+            request = DialogueProviders.Current.Generate(candidate,
+                content => CompleteGeneration(candidate, version, content));
+        }
+        catch (Exception exception) { error = exception.GetType().Name; }
+        if (request == null)
+        {
+            if (error != null) Debug.LogWarning("NPC event provider failed: " + error);
+            CompleteGeneration(candidate, version, null);
+            yield break;
+        }
+
+        var stack = new Stack<IEnumerator>();
+        activeGenerationIterators = stack;
+        stack.Push(request);
+        try
+        {
+            while (IsCurrentGeneration(candidate, version) && stack.Count > 0)
+            {
+                IEnumerator current = stack.Peek();
+                bool advanced = false;
+                object yielded = null;
+                error = null;
+                try
+                {
+                    advancingProvider = true;
+                    advanced = current.MoveNext();
+                    if (advanced) yielded = current.Current;
+                }
+                catch (Exception exception) { error = exception.GetType().Name; }
+                finally { advancingProvider = false; }
+                if (error != null)
+                {
+                    Debug.LogWarning("NPC event provider failed: " + error);
+                    break;
+                }
+                if (!IsCurrentGeneration(candidate, version)) break;
+                if (!advanced)
+                {
+                    stack.Pop();
+                    DisposeRequest(current);
+                }
+                else if (yielded is IEnumerator nested) stack.Push(nested);
+                else yield return yielded;
+            }
+            // The iterator ended without calling back: use authored content.
+            CompleteGeneration(candidate, version, null);
+        }
+        finally
+        {
+            while (stack.Count > 0) DisposeRequest(stack.Pop());
+            if (ReferenceEquals(activeGenerationIterators, stack)) activeGenerationIterators = null;
+        }
+    }
+
+    private static void DisposeRequest(IEnumerator request)
+    {
+        try { (request as IDisposable)?.Dispose(); }
+        catch (Exception exception)
+        { Debug.LogWarning("NPC event provider cleanup failed: " + exception.GetType().Name); }
+    }
+
+    private void CompleteGeneration(MiniEventData candidate, int version, GeneratedDialogueContent generated)
+    {
+        if (!IsCurrentGeneration(candidate, version)) return;
+        generationInProgress = false;
+        Coroutine completed = generationRoutine;
+        generationRoutine = null;
+        generatingEvent = null;
+        generationVersion++; // Discard duplicate, late, cancelled and old-scene callbacks.
+        // External callbacks may arrive while the iterator is waiting. Release
+        // it now; an in-MoveNext callback is disposed by GenerateSafely instead.
+        if (!advancingProvider) StopGenerationRoutine(completed);
+        if (GameState.Instance == null || candidate == null || !candidate.CanTrigger(GameState.Instance)) return;
+        var context = NpcKnowledgeContextBuilder.Build(candidate.npcId,
+            GameState.Instance.GetCurrentScene(), GameState.Instance, false);
+        string reason;
+        bool validAi = generated != null && generated.IsValid(candidate.dialogue.choices.Count) &&
+            NpcReplyPolicy.ValidateEvent(context, generated, out reason);
+        SetPendingEvent(candidate, validAi ? generated : BuildOfflineTopic(candidate), validAi);
+    }
+
+    private void CancelGeneration()
+    {
+        generationVersion++;
+        generationInProgress = false;
+        generatingEvent = null;
+        Coroutine previous = generationRoutine;
+        generationRoutine = null;
+        StopGenerationRoutine(previous);
+    }
+
+    private void StopGenerationRoutine(Coroutine routine)
+    {
+        var abandoned = activeGenerationIterators;
+        activeGenerationIterators = null;
+        if (routine != null) StopCoroutine(routine);
+        // Explicit disposal also releases network requests on Unity versions
+        // that do not dispose every iterator when StopCoroutine is called.
+        if (abandoned != null)
+            while (abandoned.Count > 0) DisposeRequest(abandoned.Pop());
+    }
+
+    private void OnDisable()
+    {
+        CancelGeneration();
+        ClearPendingEvent();
+    }
+
+    private void OnDestroy() { CancelGeneration(); }
 
     public static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate)
     {
@@ -304,10 +452,12 @@ public class NpcEventController : MonoBehaviour
 
     private void SetPendingEvent(
         MiniEventData candidate,
-        GeneratedDialogueContent generated)
+        GeneratedDialogueContent generated,
+        bool fromAi = false)
     {
         pendingEvent = candidate;
         pendingDialogue = generated;
+        pendingIsAi = fromAi;
         pendingUntil = Time.time + candidate.expiresSeconds;
         indicatorText.gameObject.SetActive(true);
         // The chime calls the player over; an event that starts by itself
@@ -322,6 +472,7 @@ public class NpcEventController : MonoBehaviour
     {
         pendingEvent = null;
         pendingDialogue = null;
+        pendingIsAi = false;
         pendingUntil = 0f;
 
         if (indicatorText != null)

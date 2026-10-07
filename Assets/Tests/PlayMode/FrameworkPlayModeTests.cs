@@ -8,6 +8,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 public class FrameworkPlayModeTests
 {
@@ -26,16 +27,21 @@ public class FrameworkPlayModeTests
         public bool CanGenerate { get { return true; } }
         public string LastError { get { return string.Empty; } }
         public bool delayed;
+        public string text = "รหัสคือ 4592";
+        public string[] facts = new string[0];
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> callback)
         { callback(null); yield break; }
         public IEnumerator GenerateReply(string id, string name, string context, string message,
             Action<GeneratedChatReply> callback, string personality = null)
         {
             if (delayed) yield return new WaitForSeconds(0.5f);
-            callback(new GeneratedChatReply { reply = "รหัสคือ 4592", referencedFactIds = new string[0],
+            callback(new GeneratedChatReply { reply = text, referencedFactIds = facts,
                 relationshipDelta = 10, playerTone = "friendly" });
         }
     }
+    private NpcPuzzleInteraction puzzleNpc;
+    private NpcPuzzleData puzzleDefinition;
+    private DialogueData afterDialogue;
     [SetUp]
     public void Setup()
     {
@@ -43,10 +49,16 @@ public class FrameworkPlayModeTests
         GameDefinition.Override = null;
         KnowledgeLibrary.ClearCache();
         DialogueProviders.Override = new OfflineProvider();
+        if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
+        if (GameState.Instance != null) GameState.Instance.ResetState();
     }
     [TearDown]
     public void Cleanup()
     {
+        if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
+        if (puzzleNpc != null) puzzleNpc.StopAllCoroutines();
+        if (puzzleDefinition != null) UnityEngine.Object.Destroy(puzzleDefinition);
+        if (afterDialogue != null) UnityEngine.Object.Destroy(afterDialogue);
         DialogueProviders.Override = null;
         GameDefinition.Override = null;
         SaveSystem.PersistenceEnabled = true;
@@ -67,6 +79,177 @@ public class FrameworkPlayModeTests
         Assert.That(input, Is.Not.Null);
         input.text = message;
         DialogueManager.Instance.SendTypedMessage();
+    }
+
+    private static GameObject DialoguePanel()
+    {
+        return (GameObject)typeof(DialogueManager).GetField("dialoguePanel",
+            BindingFlags.Instance | BindingFlags.NonPublic).GetValue(DialogueManager.Instance);
+    }
+
+    private static void Queue(NpcEventController controller, MiniEventData data)
+    {
+        typeof(NpcEventController).GetMethod("SetPendingEvent", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(controller, new object[] { data, null, false });
+    }
+
+    [UnityTest]
+    public IEnumerator EvidencePickerShowsOnlyFoundEvidenceAndClickTeachesNpc()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var state = GameState.Instance; state.ResetState();
+        DialogueManager.Instance.HideDialogue();
+        DialogueManager.Instance.StartDialogue(Load<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset"));
+        var picker = DialoguePanel().GetComponentInChildren<EvidencePickerUI>(true);
+        Assert.That(picker, Is.Not.Null);
+        picker.Open();
+        var panel = DialoguePanel().transform.Find("EvidencePicker");
+        Assert.That(panel.Find("Status").GetComponent<TMP_Text>().text, Does.Contain("ยังไม่มีหลักฐาน"));
+        Assert.That(panel.Find("EvidenceViewport/EvidenceRows").childCount, Is.Zero);
+        state.SetFlag("found_note");
+        picker.Open();
+        var row = panel.Find("EvidenceViewport/EvidenceRows/Evidence_desk_note").GetComponent<Button>();
+        Assert.That(panel.Find("EvidenceViewport/EvidenceRows/Evidence_drawer_code"), Is.Null);
+        row.onClick.Invoke();
+        Assert.That(picker.IsOpen, Is.False);
+        Assert.That(EvidenceSharing.HasBeenShared(state, "Alice", "Room01", "desk_note"), Is.True);
+        Assert.That(NpcKnowledgeContextBuilder.Build("Alice", "Room01", state, false).CanReference("desk_note"), Is.True);
+        var text = (TMP_Text)typeof(DialogueManager).GetField("dialogueText", BindingFlags.Instance | BindingFlags.NonPublic)
+            .GetValue(DialogueManager.Instance);
+        Assert.That(text.text, Does.Contain("กระดาษโน้ตพับซ่อนอยู่"));
+        Assert.That(text.text, Does.Not.Contain("4592"));
+        int score = state.GetRelationship("Alice");
+        Assert.That(DialogueManager.Instance.TryShareEvidence("desk_note"), Is.True);
+        Assert.That(state.GetRelationship("Alice"), Is.EqualTo(score));
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator EvidenceButtonsFromAnEarlierSessionCannotAffectReopenedChat()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var state = GameState.Instance; state.ResetState(); state.SetFlag("found_note");
+        DialogueManager.Instance.HideDialogue();
+        var intro = Load<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset");
+        DialogueManager.Instance.StartDialogue(intro);
+        var picker = DialoguePanel().GetComponentInChildren<EvidencePickerUI>(true);
+        picker.Open();
+        var stale = DialoguePanel().transform.Find("EvidencePicker/EvidenceViewport/EvidenceRows/Evidence_desk_note")
+            .GetComponent<Button>();
+        DialogueManager.Instance.HideDialogue();
+        DialogueManager.Instance.StartDialogue(intro);
+        int score = state.GetRelationship("Alice");
+        stale.onClick.Invoke();
+        Assert.That(EvidenceSharing.HasBeenShared(state, "Alice", "Room01", "desk_note"), Is.False);
+        Assert.That(state.GetRelationship("Alice"), Is.EqualTo(score));
+        Assert.That(picker.IsOpen, Is.False);
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator PendingAiReplyLocksEvidenceAndTypedTextCannotGrantKnowledge()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var state = GameState.Instance; state.ResetState(); state.SetFlag("found_note");
+        DialogueManager.Instance.HideDialogue();
+        DialogueProviders.Override = new UntrustedProvider { delayed = true, text = "สวัสดี" };
+        DialogueManager.Instance.StartDialogue(Load<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset"));
+        var picker = DialoguePanel().GetComponentInChildren<EvidencePickerUI>(true);
+        picker.Open();
+        Type("ฉันเอาโน้ตมาให้แล้ว");
+        Assert.That(picker.IsOpen, Is.False);
+        Assert.That(DialogueManager.Instance.CanShareEvidence, Is.False);
+        Assert.That(DialogueManager.Instance.TryShareEvidence("desk_note"), Is.False);
+        yield return new WaitForSeconds(0.7f);
+        Assert.That(EvidenceSharing.HasBeenShared(state, "Alice", "Room01", "desk_note"), Is.False);
+        Assert.That(DialogueManager.Instance.TryShareEvidence("desk_note"), Is.True);
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator ChoiceCompletionCommitsOnceAndEarlyCloseDoesNotConsumeStory()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var state = GameState.Instance; state.ResetState();
+        DialogueManager.Instance.HideDialogue();
+        var controller = UnityEngine.Object.FindObjectOfType<NpcEventController>();
+        var data = UnityEngine.Object.Instantiate(Load<MiniEventData>("Assets/Data/Events/Alice_EvidencePromise_Event.asset"));
+        data.minimumRoomTimeSeconds = 0;
+        try
+        {
+            Queue(controller, data);
+            Assert.That(controller.TryStartPendingEvent(), Is.True);
+            Assert.That(state.HasFlag(data.CompletedFlag), Is.False);
+            Assert.That(DialogueManager.Instance.CanShareEvidence, Is.False);
+            DialogueManager.Instance.HideDialogue();
+            Assert.That(data.CanTrigger(state), Is.True);
+            Assert.That(state.HasFlag("alice_evidence_arc.started"), Is.False);
+            Queue(controller, data);
+            Assert.That(controller.TryStartPendingEvent(), Is.True);
+            DialogueManager.Instance.NextLine(); DialogueManager.Instance.NextLine();
+            DialogueManager.Instance.SelectChoice(0);
+            Assert.That(state.HasFlag(data.CompletedFlag), Is.True);
+            Assert.That(state.HasFlag("alice_evidence_arc.promised"), Is.True);
+            int score = state.GetRelationship("Alice");
+            DialogueManager.Instance.SelectChoice(0);
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(score));
+            DialogueManager.Instance.NextLine();
+            Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+            Assert.That(data.CanTrigger(state), Is.False);
+        }
+        finally { UnityEngine.Object.Destroy(data); }
+    }
+
+    [UnityTest]
+    public IEnumerator PendingStoryCannotConsumeOrReplaceAnotherConversation()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var state = GameState.Instance; state.ResetState();
+        state.SetFlag("alice_evidence_arc.promised"); state.SetFlag("found_note");
+        EvidenceShareResult shared;
+        Assert.That(EvidenceSharing.TryShare(state, "Alice", "desk_note", out shared), Is.True);
+        DialogueManager.Instance.HideDialogue();
+        var controller = UnityEngine.Object.FindObjectOfType<NpcEventController>();
+        var data = Load<MiniEventData>("Assets/Data/Events/Alice_PromiseKept_Event.asset");
+        Queue(controller, data);
+        DialogueManager.Instance.StartDialogue(Load<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset"));
+        int version = DialogueManager.Instance.ConversationVersion;
+        Assert.That(controller.TryStartPendingEvent(), Is.False);
+        Assert.That(controller.HasPendingEvent, Is.True);
+        Assert.That(DialogueManager.Instance.ConversationVersion, Is.EqualTo(version));
+        Assert.That(state.HasFlag(data.CompletedFlag), Is.False);
+        DialogueManager.Instance.HideDialogue();
+        Assert.That(controller.TryStartPendingEvent(), Is.True);
+        DialogueManager.Instance.SelectChoice(0);
+        Assert.That(state.HasFlag(data.CompletedFlag), Is.True);
+        Assert.That(state.HasFlag("alice_evidence_arc.fulfilled"), Is.True);
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator SharingEvidenceCancelsQueuedMissedPromiseAndEnablesKeptOutcome()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var state = GameState.Instance; state.ResetState();
+        state.SetFlag("alice_evidence_arc.promised"); state.SetFlag("found_note"); state.SetFlag("drawer_opened");
+        DialogueManager.Instance.HideDialogue();
+        var controller = UnityEngine.Object.FindObjectOfType<NpcEventController>();
+        var missed = Load<MiniEventData>("Assets/Data/Events/Alice_PromiseMissed_Event.asset");
+        Queue(controller, missed);
+        DialogueManager.Instance.StartDialogue(Load<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset"));
+        Assert.That(DialogueManager.Instance.TryShareEvidence("desk_note"), Is.True);
+        DialogueManager.Instance.HideDialogue();
+        Assert.That(controller.TryStartPendingEvent(), Is.False);
+        Assert.That(controller.HasPendingEvent, Is.False);
+        Assert.That(state.HasFlag(missed.CompletedFlag), Is.False);
+        Assert.That(state.HasFlag("alice_evidence_arc.neglected"), Is.False);
+        var kept = Load<MiniEventData>("Assets/Data/Events/Alice_PromiseKept_Event.asset");
+        Assert.That(kept.CanTrigger(state), Is.True);
+        Queue(controller, kept);
+        Assert.That(controller.TryStartPendingEvent(), Is.True);
+        DialogueManager.Instance.SelectChoice(0);
+        Assert.That(state.HasFlag("alice_evidence_arc.fulfilled"), Is.True);
+        DialogueManager.Instance.HideDialogue();
     }
     [UnityTest]
     public IEnumerator UntrustedProviderCannotDisplayAnUncitedAnswer()
@@ -154,5 +337,162 @@ public class FrameworkPlayModeTests
         Assert.That(state.HasFlag("ObservatoryB_entered"), Is.True);
         Assert.That(InteractionSystem.Instance.TryExecute(Load<InteractionData>("Assets/Samples/Observatory/Beacon.asset"), out response), Is.True);
         Assert.That(state.HasFlag("observatory_beacon_lit"), Is.True);
+    }
+
+    private IEnumerator PreparePuzzle(bool keepNpc = false)
+    {
+        if (GameState.Instance != null) GameState.Instance.ResetState();
+        yield return SceneManager.LoadSceneAsync("Room02"); yield return null;
+        GameState.Instance.ResetState(); DialogueManager.Instance.HideDialogue();
+        puzzleNpc = UnityEngine.Object.FindObjectOfType<NpcPuzzleInteraction>();
+        Assert.That(puzzleNpc, Is.Not.Null);
+        var field = typeof(NpcPuzzleInteraction).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic);
+        puzzleDefinition = UnityEngine.Object.Instantiate((NpcPuzzleData)field.GetValue(puzzleNpc));
+        puzzleDefinition.readReplyDelay = 0.15f;
+        puzzleDefinition.hideOnSolved = !keepNpc;
+        field.SetValue(puzzleNpc, puzzleDefinition);
+    }
+    private void SolvePuzzle()
+    {
+        GameState.Instance.AddItem("tome"); puzzleNpc.Interact(); Type("tomorrow");
+        Assert.That(GameState.Instance.HasFlag("sena_passed"), Is.True);
+        Assert.That(GameState.Instance.HasFlag("room02_door_unlocked"), Is.True);
+    }
+
+    [UnityTest]
+    public IEnumerator SolvedFarewellNeverTakesOverAnotherNpcConversation()
+    {
+        yield return PreparePuzzle(); SolvePuzzle();
+        DialogueManager.Instance.HideDialogue();
+        DialogueManager.Instance.StartDialogue("Alice", new[] { "คุยเรื่องอื่น" }, false);
+        int version = DialogueManager.Instance.ConversationVersion;
+        yield return new WaitForSeconds(0.3f);
+        Assert.That(DialogueManager.Instance.ActiveNpcId, Is.EqualTo("Alice"));
+        Assert.That(DialogueManager.Instance.ConversationVersion, Is.EqualTo(version));
+    }
+
+    [UnityTest]
+    public IEnumerator ClosingChatNeverReopensTheDelayedFarewell()
+    {
+        yield return PreparePuzzle(); SolvePuzzle();
+        DialogueManager.Instance.HideDialogue();
+        yield return new WaitForSeconds(0.3f);
+        Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator FarewellStillPlaysWhenTheOriginalConversationRemainsOpen()
+    {
+        yield return PreparePuzzle(); SolvePuzzle();
+        int version = DialogueManager.Instance.ConversationVersion;
+        yield return new WaitForSeconds(0.3f);
+        Assert.That(DialogueManager.Instance.ActiveNpcId, Is.EqualTo("Sena"));
+        Assert.That(DialogueManager.Instance.ConversationVersion, Is.GreaterThan(version));
+    }
+
+    [UnityTest]
+    public IEnumerator ReopenedConversationWithSameNpcIsNotTheOldConversation()
+    {
+        yield return PreparePuzzle(); SolvePuzzle();
+        DialogueManager.Instance.HideDialogue();
+        DialogueManager.Instance.StartDialogue("Sena", new[] { "คุยรอบใหม่" }, false);
+        int version = DialogueManager.Instance.ConversationVersion;
+        yield return new WaitForSeconds(0.3f);
+        Assert.That(DialogueManager.Instance.ConversationVersion, Is.EqualTo(version));
+    }
+
+    [UnityTest]
+    public IEnumerator KeptNpcRemainsFocusableAndUsesPostSolvedDialogueWithoutTakingMoreItems()
+    {
+        yield return PreparePuzzle(true);
+        afterDialogue = ScriptableObject.CreateInstance<DialogueData>();
+        afterDialogue.dialogueId = "after_solved"; afterDialogue.speakerId = "Sena";
+        afterDialogue.speakerName = "Sena"; afterDialogue.lines.Add("หลังจบปริศนาแล้ว");
+        puzzleDefinition.postSolvedDialogue = afterDialogue;
+        InteractionFocus.Enter(puzzleNpc);
+        SolvePuzzle(); yield return new WaitForSeconds(0.3f);
+        Assert.That(puzzleNpc.gameObject.activeSelf, Is.True);
+        Assert.That(puzzleNpc.CanFocus, Is.True);
+        Assert.That(puzzleNpc.GetComponent<Collider2D>().enabled, Is.True);
+        Assert.That(InteractionFocus.PickNearest(new IFocusable[] { puzzleNpc }, puzzleNpc.FocusPoint), Is.SameAs(puzzleNpc));
+        DialogueManager.Instance.HideDialogue(); GameState.Instance.AddItem("tome");
+        puzzleNpc.Interact();
+        Assert.That(DialogueManager.IsDialogueOpen, Is.True);
+        Assert.That(GameState.Instance.HasItem("tome"), Is.True);
+        var log = GameState.Instance.GetConversationLog("Sena");
+        Assert.That(log[log.Count - 1].Text, Is.EqualTo("หลังจบปริศนาแล้ว"));
+    }
+
+    [UnityTest]
+    public IEnumerator AiFactTokensDisplayOnlyTheAllowedAuthoredStatement()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        GameState.Instance.ResetState(); DialogueManager.Instance.HideDialogue();
+        DialogueProviders.Override = new UntrustedProvider { text = "{fact:door_locked}", facts = new[] { "door_locked" } };
+        DialogueManager.Instance.StartDialogue(Load<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset"));
+        Type("เล่าเรื่องประตูให้ฟัง");
+        var context = NpcKnowledgeContextBuilder.Build("Alice", "Room01", GameState.Instance, false);
+        var log = GameState.Instance.GetConversationLog("Alice");
+        Assert.That(log[log.Count - 1].Text, Is.EqualTo(context.KnownFacts.Find(f => f.factId == "door_locked").statement));
+    }
+
+    [UnityTest]
+    public IEnumerator ForgedReferencesAndUnsupportedWorldClaimsNeverReachTheConversationLog()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        GameState.Instance.ResetState(); DialogueManager.Instance.HideDialogue();
+        foreach (var provider in new[] {
+            new UntrustedProvider { text = "มีกุญแจสีม่วงซ่อนอยู่ใต้เตียง" },
+            new UntrustedProvider { text = "{fact:door_locked}\nมีกุญแจสีม่วงซ่อนอยู่ใต้เตียง", facts = new[] { "door_locked" } },
+            new UntrustedProvider { text = "รหัสคือ 4-5-9-2", facts = new[] { "door_locked" } } })
+        {
+            DialogueProviders.Override = provider;
+            DialogueManager.Instance.StartDialogue(Load<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset"));
+            Type("เล่าเรื่องหน่อย");
+            var log = GameState.Instance.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Does.Not.Contain("สีม่วง"));
+            Assert.That(log[log.Count - 1].Text, Does.Not.Contain("4-5-9-2"));
+            Assert.That(log[log.Count - 1].Text, Does.Not.Contain("{fact:"));
+            var text = (TMP_Text)typeof(DialogueManager).GetField("dialogueText",
+                BindingFlags.Instance | BindingFlags.NonPublic).GetValue(DialogueManager.Instance);
+            Assert.That(text.text, Does.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
+            DialogueManager.Instance.HideDialogue();
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator QueuedAiEventsExpandFactsAndFallBackIfThoseFactsBecomeUnavailable()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        GameState.Instance.ResetState(); DialogueManager.Instance.HideDialogue();
+        var controller = UnityEngine.Object.FindObjectOfType<NpcEventController>();
+        Assert.That(controller, Is.Not.Null);
+        var dialogue = ScriptableObject.CreateInstance<DialogueData>();
+        var data = ScriptableObject.CreateInstance<MiniEventData>();
+        try
+        {
+            dialogue.dialogueId = "regression_event"; dialogue.speakerId = "Alice";
+            dialogue.speakerName = "Alice"; dialogue.lines.Add("บทสำรองที่ยืนยันได้");
+            data.eventId = "regression_event"; data.npcId = "Alice";
+            data.triggerType = MiniEventTriggerType.RandomAmbient; data.dialogue = dialogue;
+            var raw = new GeneratedDialogueContent { lines = new[] { "{fact:painting_arrow}" },
+                choices = new GeneratedDialogueChoice[0], referencedFactIds = new[] { "painting_arrow" } };
+            var queue = typeof(NpcEventController).GetMethod("SetPendingEvent", BindingFlags.Instance | BindingFlags.NonPublic);
+            GameState.Instance.SetFlag("inspected_painting");
+            EvidenceShareResult shared;
+            Assert.That(EvidenceSharing.TryShare(GameState.Instance, "Alice", "painting_arrow", out shared), Is.True);
+            queue.Invoke(controller, new object[] { data, raw, true });
+            Assert.That(controller.TryStartPendingEvent(), Is.True);
+            var log = GameState.Instance.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Does.Contain("ด้านหลังกรอบภาพ"));
+            Assert.That(log[log.Count - 1].Text, Does.Not.Contain("{fact:"));
+            DialogueManager.Instance.HideDialogue();
+            GameState.Instance.RemoveFlag("inspected_painting");
+            queue.Invoke(controller, new object[] { data, raw, true });
+            Assert.That(controller.TryStartPendingEvent(), Is.True);
+            log = GameState.Instance.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo("บทสำรองที่ยืนยันได้"));
+        }
+        finally { UnityEngine.Object.Destroy(dialogue); UnityEngine.Object.Destroy(data); }
     }
 }

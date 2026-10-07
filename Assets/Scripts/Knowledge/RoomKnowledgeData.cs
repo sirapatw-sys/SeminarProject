@@ -45,6 +45,15 @@ namespace MysteryGame.Knowledge
         [Tooltip("Answer tokens blocked from model output while this fact is withheld.")]
         public List<string> protectedTerms = new List<string>();
 
+        [Tooltip("Offer this discovered fact in the dialogue evidence picker. Puzzle answers cannot be shared.")]
+        public bool canShareAsEvidence;
+        public string evidenceTitle;
+
+        public string EvidenceTitle
+        {
+            get { return string.IsNullOrWhiteSpace(evidenceTitle) ? factId : evidenceTitle; }
+        }
+
         public bool IsRevealed(GameState state)
         {
             if (revealedWhen == null || revealedWhen.Count == 0)
@@ -168,6 +177,9 @@ namespace MysteryGame.Knowledge
 
         [TextArea(2, 5)]
         public string roomDescription;
+
+        [Tooltip("Room-specific gameplay words that may only appear in generated text through {fact:id} references.")]
+        public List<string> gameplayTerms = new List<string>();
 
         [Tooltip(
             "The illustrated background for this room. Lives here so one room " +

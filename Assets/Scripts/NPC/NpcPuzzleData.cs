@@ -11,6 +11,8 @@ public class NpcPuzzleData : ScriptableObject
     public DialogueData demandDialogue;
     public DialogueData questionDialogue;
     public DialogueData solvedDialogue;
+    [Tooltip("Optional conversation for a solved NPC that stays in the room. Falls back to solvedDialogue.")]
+    public DialogueData postSolvedDialogue;
     public InputPuzzleData puzzle;
     public List<ActionCommand> meetingActions = new List<ActionCommand>();
     public List<ActionCommand> offeringActions = new List<ActionCommand>();

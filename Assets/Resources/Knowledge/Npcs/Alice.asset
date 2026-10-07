@@ -24,6 +24,8 @@ MonoBehaviour:
   - factId: "alice_memory"
     when: []
     statement: "จำไม่ได้ว่ามาอยู่ในตึกนี้ได้อย่างไร ความจำสุดท้ายคือกำลังเดินกลับบ้านตอนหัวค่ำ"
+    protectedTerms:
+    - "เดินกลับบ้านตอนหัวค่ำ"
   secrets:
   - factId: "alice_brother"
     when:
@@ -32,6 +34,13 @@ MonoBehaviour:
       secondaryId: ""
       amount: 70
     statement: "มีน้องชายตัวเล็กรออยู่ที่บ้านคนเดียว อลิซกลัวว่าน้องจะอยู่ไม่ได้ถ้าไม่มีเธอ นั่นคือเหตุผลที่รีบอยากออกไปมากกว่าที่แสดงออก"
+    protectedTerms:
+    - "น้องชาย"
+    - "น้องอยู่บ้านคนเดียว"
+    - "น้องรออยู่ที่บ้าน"
+    - "little brother"
+    - "younger brother"
+    - "sibling waiting at home"
   situationalNotes:
   - when:
     - type: 0
@@ -71,13 +80,13 @@ MonoBehaviour:
   - factId: "painting_arrow"
     when:
     - type: 0
-      targetId: "inspected_painting"
+      targetId: "evidence.Alice.Room01.painting_arrow.shared"
       secondaryId: ""
       amount: 0
   - factId: "desk_note"
     when:
     - type: 0
-      targetId: "found_note"
+      targetId: "evidence.Alice.Room01.desk_note.shared"
       secondaryId: ""
       amount: 0
   - factId: "drawer_code"
@@ -89,7 +98,7 @@ MonoBehaviour:
   - factId: "drawer_key"
     when:
     - type: 0
-      targetId: "drawer_opened"
+      targetId: "evidence.Alice.Room01.drawer_key.shared"
       secondaryId: ""
       amount: 0
   - factId: "clock_inscription"
@@ -183,6 +192,65 @@ MonoBehaviour:
       secondaryId: ""
       amount: 0
   forbiddenFactIds: []
+  evidenceReactions:
+  - factId: painting_arrow
+    when: []
+    reply: "...มีคนทิ้งข้อความไว้ให้คนที่มาติดอยู่ทีหลังสินะ เราลองสำรวจตามข้อความนี้ได้"
+    repeatReply: "ข้อความเดิมยังอยู่ เรากลับมาทบทวนได้ แต่ต้องดูด้วยว่าตอนนี้สำรวจไปถึงไหนแล้ว"
+    relationshipDelta: 2
+  - factId: desk_note
+    when:
+    - type: 5
+      targetId: Alice
+      amount: 35
+    reply: "ฉันอ่านแล้ว... ขอบคุณที่เอามาให้ดู แต่ตอนนี้ฉันอยากตั้งสติก่อน"
+    repeatReply: "ฉันจำโน้ตแผ่นนี้ได้แล้ว ยังไม่อยากเดาอะไรที่เราไม่รู้แน่ชัด"
+    relationshipDelta: 0
+  - factId: desk_note
+    when:
+    - type: 0
+      targetId: alice_evidence_arc.neglected
+      amount: 0
+    reply: "...ขอบคุณที่กลับมาให้ดู ถึงจะช้ากว่าที่รับปากไว้ อย่างน้อยตอนนี้เราก็รู้ข้อมูลเดียวกัน"
+    repeatReply: "ฉันอ่านแล้ว ครั้งหน้าถ้ารับปากอะไรไว้ ก็อย่าลืมกลับมาบอกกันนะ"
+    relationshipDelta: 3
+  - factId: desk_note
+    when:
+    - type: 0
+      targetId: door_unlocked
+      amount: 0
+    reply: "...เราใช้ข้อมูลนี้ผ่านห้องนี้มาแล้ว เก็บโน้ตไว้ทบทวนก็พอ ไม่ต้องย้อนกลับไปไขลิ้นชักอีก"
+    repeatReply: "ฉันจำได้ ขั้นของห้องนี้เสร็จแล้ว"
+    relationshipDelta: 3
+  - factId: desk_note
+    when:
+    - type: 0
+      targetId: drawer_opened
+      amount: 0
+    reply: "...ตอนนี้ลิ้นชักเปิดแล้ว โน้ตช่วยให้เรามาถึงตรงนี้ได้ ถ้าจะทบทวนต่อ เราควรดูขั้นที่ยังเหลืออยู่"
+    repeatReply: "ลิ้นชักเปิดแล้ว ไม่ต้องลองรหัสเดิมอีก ถ้าติดขั้นต่อไปก็ถามฉันได้"
+    relationshipDelta: 3
+  - factId: desk_note
+    when:
+    - type: 4
+      targetId: Alice
+      amount: 70
+    - type: 1
+      targetId: drawer_opened
+      amount: 0
+    reply: "...ดีที่เธอกลับมา เราลองเทียบตัวเลขในโน้ตกับแม่กุญแจรหัสของลิ้นชักกัน ถ้าติดตรงไหนถามฉันได้"
+    repeatReply: "เราอ่านด้วยกันแล้ว ถ้าอยากได้คำใบ้ต่อ ถามฉันตามขั้นที่กำลังทำอยู่ได้เลย"
+    relationshipDelta: 3
+  - factId: desk_note
+    when: []
+    reply: "...เธอเอามาให้ดูจริงด้วย ลองเทียบสิ่งที่เขียนไว้กับของในห้องทีละอย่าง เราไม่จำเป็นต้องเดาสุ่ม"
+    repeatReply: "โน้ตแผ่นนี้ฉันอ่านแล้ว ถ้าอยากทบทวนขั้นต่อไปก็ถามคำใบ้ได้"
+    relationshipDelta: 3
+  - factId: drawer_key
+    when: []
+    reply: "...ได้ของจริงมาแล้วสินะ เก็บไว้ให้ดี แล้วค่อยดูว่าเราทำขั้นไหนต่อได้"
+    repeatReply: "ฉันเห็นกุญแจนี้แล้ว เก็บไว้กับเธอเถอะ ไม่ต้องส่งให้ฉัน"
+    relationshipDelta: 1
   givesHints: 1
   refuseHintLine: ""
   tones:
@@ -303,17 +371,40 @@ MonoBehaviour:
   - "เรื่องนั้นน่าสนใจนะ ฉันจะจำไว้ตอนที่เราตรวจห้องต่อ"
   - "เข้าใจแล้ว เราค่อย ๆ แยกสิ่งที่รู้จริงออกจากสิ่งที่เราคาดเดากันเถอะ"
   returnGreetings:
+  - ruleId: "changed_hurt"
+    intent: 0
+    keywords: []
+    when:
+    - type: 10
+      targetId: "Alice"
+      amount: 0
+    - type: 5
+      targetId: "Alice"
+      amount: 35
+    replies:
+    - "...สถานการณ์เปลี่ยนไปแล้วสินะ ถ้ามีเรื่องสำคัญก็พูดมา แต่ฉันยังไม่ลืมสิ่งที่เกิดขึ้นหรอก"
+    relationshipDelta: 0
+    emotion: ""
+  - ruleId: "hurt"
+    intent: 0
+    keywords: []
+    when:
+    - type: 5
+      targetId: "Alice"
+      amount: 35
+    replies:
+    - "เธอกลับมาคุยอีกแล้ว... ฉันยังไม่ลืมสิ่งที่เกิดขึ้นหรอกนะ"
+    relationshipDelta: 0
+    emotion: ""
   - ruleId: "changed_close"
     intent: 0
     keywords: []
     when:
-    - type: 8
+    - type: 10
       targetId: "Alice"
-      secondaryId: ""
       amount: 0
     - type: 4
       targetId: "Alice"
-      secondaryId: ""
       amount: 70
     replies:
     - "กลับมาแล้วสินะ ฉันเห็นว่าเธอจัดการบางอย่างในห้องไปแล้ว เรามาทบทวนกันเถอะ"
@@ -323,12 +414,41 @@ MonoBehaviour:
     intent: 0
     keywords: []
     when:
-    - type: 8
+    - type: 10
       targetId: "Alice"
-      secondaryId: ""
       amount: 0
     replies:
-    - "ระหว่างที่เราแยกกัน สถานการณ์ในห้องเปลี่ยนไปแล้วสินะ เธอพบอะไรเพิ่มบ้าง"
+    - "ระหว่างที่เราแยกกัน สถานการณ์เปลี่ยนไปแล้วสินะ เธอพบอะไรเพิ่มบ้าง"
+    relationshipDelta: 0
+    emotion: ""
+  - ruleId: "evidence_promise_kept"
+    intent: 0
+    keywords: []
+    when:
+    - type: 0
+      targetId: "alice_evidence_arc.fulfilled"
+      amount: 0
+    - type: 9
+      targetId: "Room01"
+      amount: 0
+    replies:
+    - "...เธอรักษาคำพูดที่ให้ไว้ ฉันจำได้ มีอะไรใหม่ก็เอามาคุยกันได้"
+    - "...กลับมาแล้วสินะ คราวนี้อยากคุยเรื่องอะไร? ฉันฟังอยู่"
+    relationshipDelta: 0
+    emotion: ""
+  - ruleId: "evidence_promise_missed"
+    intent: 0
+    keywords: []
+    when:
+    - type: 0
+      targetId: "alice_evidence_arc.neglected"
+      amount: 0
+    - type: 9
+      targetId: "Room01"
+      amount: 0
+    replies:
+    - "...กลับมาแล้วเหรอ คราวหน้าถ้าจะไปต่อโดยไม่กลับมาคุย ก็บอกกันตรงๆ ได้"
+    - "...มีอะไรจะบอกฉันไหม? อย่างน้อยคราวนี้เธอก็กลับมาคุย"
     relationshipDelta: 0
     emotion: ""
   - ruleId: "close"
@@ -343,24 +463,12 @@ MonoBehaviour:
     - "กลับมาแล้วสินะ ดีเลย ฉันสบายใจขึ้นเมื่อมีเธออยู่ใกล้ ๆ"
     relationshipDelta: 0
     emotion: ""
-  - ruleId: "hurt"
-    intent: 0
-    keywords: []
-    when:
-    - type: 5
-      targetId: "Alice"
-      secondaryId: ""
-      amount: 35
-    replies:
-    - "เธอกลับมาคุยอีกแล้ว... ฉันยังไม่ลืมสิ่งที่เกิดขึ้นหรอกนะ"
-    relationshipDelta: 0
-    emotion: ""
   - ruleId: "default"
     intent: 0
     keywords: []
     when: []
     replies:
-    - "กลับมาแล้วเหรอ ระหว่างนี้สถานการณ์ในห้องเปลี่ยนไปพอสมควรนะ"
+    - "กลับมาแล้วเหรอ มีอะไรอยากคุยหรือเปล่า?"
     relationshipDelta: 0
     emotion: ""
   startleLines: []

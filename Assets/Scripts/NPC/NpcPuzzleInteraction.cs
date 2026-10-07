@@ -14,7 +14,8 @@ public class NpcPuzzleInteraction : MonoBehaviour, IFocusable
     private NpcEventController events;
     private bool IsSolved { get { return definition != null && definition.puzzle != null &&
         GameState.Instance != null && GameState.Instance.HasFlag(definition.puzzle.solvedFlag); } }
-    public bool CanFocus { get { return definition != null && !solving && !IsSolved; } }
+    public bool CanFocus { get { return definition != null && !solving &&
+        (!IsSolved || !definition.hideOnSolved); } }
     public string FocusPrompt
     {
         get
@@ -46,6 +47,14 @@ public class NpcPuzzleInteraction : MonoBehaviour, IFocusable
     {
         GameState state = GameState.Instance;
         if (!CanFocus || state == null || DialogueManager.Instance == null) return;
+        if (IsSolved)
+        {
+            if (events != null && events.TryStartPendingEvent()) return;
+            DialogueData after = definition.postSolvedDialogue != null
+                ? definition.postSolvedDialogue : definition.solvedDialogue;
+            if (after != null) DialogueManager.Instance.StartDialogue(after, null, isEvent: true);
+            return;
+        }
         bool carrying = !string.IsNullOrWhiteSpace(definition.requiredItemId) &&
             state.HasItem(definition.requiredItemId);
         if (!carrying && events != null && events.TryStartPendingEvent()) return;
@@ -68,21 +77,22 @@ public class NpcPuzzleInteraction : MonoBehaviour, IFocusable
     }
     private void OnReply(string npcId, string message)
     {
-        if (!CanFocus || npcId != definition.npcId || !definition.HasOffering(GameState.Instance)) return;
+        if (!CanFocus || IsSolved || npcId != definition.npcId || !definition.HasOffering(GameState.Instance)) return;
         if (definition.puzzle == null || !definition.puzzle.TrySolve(GameState.Instance, message)) return;
         solving = true;
-        if (area != null) area.enabled = false;
-        InteractionFocus.Exit(this);
-        StartCoroutine(SolvedSequence());
+        if (definition.hideOnSolved)
+        {
+            if (area != null) area.enabled = false;
+            InteractionFocus.Exit(this);
+        }
+        DialogueManager manager = DialogueManager.Instance;
+        StartCoroutine(SolvedSequence(manager, manager != null ? manager.ConversationVersion : -1));
     }
-    private IEnumerator SolvedSequence()
+    private IEnumerator SolvedSequence(DialogueManager manager, int conversationVersion)
     {
         yield return new WaitForSeconds(definition.readReplyDelay);
-        if (DialogueManager.Instance != null && definition.solvedDialogue != null)
-        {
-            DialogueManager.Instance.HideDialogue();
-            Open(definition.solvedDialogue);
-        }
+        if (manager != null)
+            manager.TryReplaceConversation(conversationVersion, definition.npcId, definition.solvedDialogue);
         if (!definition.hideOnSolved) { solving = false; yield break; }
         yield return new WaitForSeconds(0.8f);
         float duration = Mathf.Max(0.01f, definition.fadeDuration);

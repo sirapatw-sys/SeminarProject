@@ -5,6 +5,12 @@
 /// </summary>
 public static class InputGate
 {
+    /// <summary>Room simulation is active; a conversation/settings modal may still hold input.</summary>
+    public static bool IsGameplayActive
+    {
+        get { return !IntroSequence.IsPlaying && !TitleMenu.IsOpen && !RoomTransitionManager.IsBusy; }
+    }
+
     public static bool IsBlocked
     {
         get

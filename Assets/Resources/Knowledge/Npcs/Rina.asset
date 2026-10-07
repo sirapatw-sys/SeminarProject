@@ -38,6 +38,10 @@ MonoBehaviour:
       secondaryId: ""
       amount: 65
     statement: "จริงๆ แล้วรินะกลัวผีมาก ตอนเด็กเคยหลงอยู่ในบ้านร้างทั้งคืน ที่ทำเป็นนิ่งเพราะรู้ว่าถ้าเธอตื่นตระหนก สเตลจะแย่กว่านี้"
+    protectedTerms:
+    - "หลงอยู่ในบ้านร้าง"
+    - "หลงในบ้านร้าง"
+    - "abandoned house all night"
   - factId: "rina_forgetting"
     when:
     - type: 4
@@ -45,6 +49,10 @@ MonoBehaviour:
       secondaryId: ""
       amount: 75
     statement: "ตั้งแต่วันที่สองในห้องนี้ รินะเริ่มจำนามสกุลตัวเองไม่ได้ และกลัวว่ายิ่งอยู่ที่นี่นาน จะยิ่งลืมว่าตัวเองเป็นใคร"
+    protectedTerms:
+    - "นามสกุล"
+    - "surname"
+    - "last name"
   situationalNotes:
   - when:
     - type: 1

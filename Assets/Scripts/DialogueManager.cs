@@ -53,6 +53,7 @@ public class DialogueManager : MonoBehaviour
     private Button closeButton;
     private GameObject chatComposerObject;
     private bool chatRequestInProgress;
+    private AiRequestOperation chatOperation;
 
     // A typed request that never calls back (a crashed parser, a hung
     // socket) must not leave the chat box locked, so each request carries a
@@ -61,6 +62,8 @@ public class DialogueManager : MonoBehaviour
     private int chatRequestSerial;
     private float chatRequestDeadline;
     private string pendingPlayerMessage;
+    private EvidencePickerUI evidencePicker;
+    private string choiceCompletionFlag;
 
     // The emotion box: a small face card that pops up beside the text when a
     // line carries [:emotion] or the AI reply names one.
@@ -99,6 +102,56 @@ public class DialogueManager : MonoBehaviour
     private string activePersonalityPrompt;
     private string activeDialogueContext;
 
+    public int ConversationVersion { get; private set; }
+    public string ActiveNpcId { get { return activeNpcId; } }
+
+    public bool CanShareEvidence
+    {
+        get { return Instance == this && IsDialogueOpen && GameState.Instance != null &&
+            !chatRequestInProgress && !showingChoiceResponse && string.IsNullOrEmpty(choiceCompletionFlag) &&
+            chatComposerObject != null && chatComposerObject.activeSelf &&
+            KnowledgeLibrary.GetNpc(activeNpcId) != null; }
+    }
+
+    public bool TryShareEvidence(string factId)
+    {
+        if (!CanShareEvidence) return false;
+        EvidenceShareResult result;
+        if (!EvidenceSharing.TryShare(GameState.Instance, activeNpcId, factId, out result)) return false;
+        if (evidencePicker != null) evidencePicker.Close();
+        if (result.JournalEntryAdded) JournalUI.NotifyNewEntry();
+        choicePanel.SetActive(false);
+        showingChoiceResponse = false;
+        ShowSpeaker(activeNpcId);
+        HideEmotion();
+        // Preserve ordinary greeting choices; the next button resumes them.
+        dialogueLines = new[] { result.Reply };
+        currentLine = 0;
+        activeDialogueContext = result.Reply;
+        dialogueText.text = EscapeRichText(result.Reply);
+        AnimateSpeakerForText(result.Reply);
+        continueButton.gameObject.SetActive(activeChoices != null && activeChoices.Count > 0);
+        SfxPlayer.Play(SfxPlayer.Cue.Talk);
+        if (evidencePicker != null) evidencePicker.RefreshAvailability();
+        return true;
+    }
+
+    public bool IsCurrentConversation(int version, string npcId)
+    {
+        return Instance == this && IsDialogueOpen &&
+            ConversationVersion == version && activeNpcId == npcId;
+    }
+
+    /// <summary>A delayed story line must never reopen or replace another conversation.</summary>
+    public bool TryReplaceConversation(int version, string npcId, DialogueData data)
+    {
+        if (data == null || data.lines.Count == 0 || data.speakerId != npcId ||
+            !IsCurrentConversation(version, npcId)) return false;
+        HideDialogue();
+        StartDialogue(data, null, isEvent: true);
+        return true;
+    }
+
     // =========================================================
     // Awake
     // =========================================================
@@ -120,6 +173,11 @@ public class DialogueManager : MonoBehaviour
         if (IsDialogueOpen && !AiSettingsPanel.HoldsKeyboard &&
             Input.GetKeyDown(KeyCode.Escape))
         {
+            if (evidencePicker != null && evidencePicker.IsOpen)
+            {
+                evidencePicker.Close();
+                return;
+            }
             HideDialogue();
             return;
         }
@@ -177,6 +235,7 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        ConversationVersion++;
         dialoguePanel.SetActive(true);
         choicePanel.SetActive(false);
         continueButton.gameObject.SetActive(true);
@@ -185,6 +244,7 @@ public class DialogueManager : MonoBehaviour
 
         activeChoices = null;
         activeDialogueId = string.Empty;
+        choiceCompletionFlag = null;
         activeNpcId = characterName;
         activeSpeakerName = characterName;
         activePersonalityPrompt = string.Empty;
@@ -201,6 +261,7 @@ public class DialogueManager : MonoBehaviour
         currentLine = 0;
 
         ShowCurrentLine();
+        if (evidencePicker != null) evidencePicker.RefreshAvailability();
 
         // Player History
         if (GameState.Instance != null)
@@ -223,7 +284,8 @@ public class DialogueManager : MonoBehaviour
     public void StartDialogue(
         DialogueData data,
         GeneratedDialogueContent generated,
-        bool isEvent = false)
+        bool isEvent = false,
+        string completeOnChoiceFlag = null)
     {
         if (data == null)
         {
@@ -236,18 +298,21 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        ConversationVersion++;
         dialoguePanel.SetActive(true);
         choicePanel.SetActive(false);
         continueButton.gameObject.SetActive(true);
 
         showingChoiceResponse = false;
+        choiceCompletionFlag = completeOnChoiceFlag;
         activeChoices = BuildRuntimeChoices(data, generated);
         // Per dialogue, not per speaker: Alice's Room02 choices must still
         // appear the first time even though she was met in Room01.
         string metFlag = "dialogue." + data.dialogueId + ".met";
         if (GameState.Instance != null)
         {
-            if (data.firstMeetingChoicesOnly && GameState.Instance.HasFlag(metFlag))
+            if (data.firstMeetingChoicesOnly && GameState.Instance.HasFlag(metFlag) &&
+                string.IsNullOrEmpty(choiceCompletionFlag))
             {
                 activeChoices = new List<DialogueChoiceData>();
             }
@@ -259,7 +324,7 @@ public class DialogueManager : MonoBehaviour
         activePersonalityPrompt = data.personalityPrompt;
         if (chatComposerObject != null)
         {
-            chatComposerObject.SetActive(true);
+            chatComposerObject.SetActive(string.IsNullOrEmpty(choiceCompletionFlag));
         }
 
         nameText.text = data.speakerName;
@@ -284,6 +349,7 @@ public class DialogueManager : MonoBehaviour
         }
 
         ShowCurrentLine();
+        if (evidencePicker != null) evidencePicker.RefreshAvailability();
         if (chatInput != null)
         {
             chatInput.ActivateInputField();
@@ -724,7 +790,7 @@ public class DialogueManager : MonoBehaviour
         inputRect.anchorMin = Vector2.zero;
         inputRect.anchorMax = Vector2.one;
         inputRect.offsetMin = new Vector2(18f, 6f);
-        inputRect.offsetMax = new Vector2(-126f, -6f);
+        inputRect.offsetMax = new Vector2(-280f, -6f);
 
         TMP_Text inputText = CreateInputText(
             inputObject.transform,
@@ -766,6 +832,8 @@ public class DialogueManager : MonoBehaviour
         sendRect.anchoredPosition = new Vector2(-6f, 0f);
         sendRect.sizeDelta = new Vector2(108f, -12f);
         sendButton.onClick.AddListener(SendTypedMessage);
+        evidencePicker = composer.AddComponent<EvidencePickerUI>();
+        evidencePicker.Configure(this, composer.transform, dialoguePanel.transform, nameText.font);
     }
 
     private TMP_Text CreateInputText(
@@ -1152,6 +1220,9 @@ public class DialogueManager : MonoBehaviour
 
     public void SelectChoice(int choiceIndex)
     {
+        // A double click or stale button must never award the same choice twice.
+        if (!IsDialogueOpen || showingChoiceResponse || activeChoices == null ||
+            choiceIndex < 0 || choiceIndex >= activeChoices.Count) return;
         // ซ่อน Choice
         choicePanel.SetActive(false);
 
@@ -1161,17 +1232,9 @@ public class DialogueManager : MonoBehaviour
         // ตอนนี้กำลังแสดงคำตอบหลัง Choice
         showingChoiceResponse = true;
 
-        if (activeChoices == null ||
-            choiceIndex < 0 ||
-            choiceIndex >= activeChoices.Count)
-        {
-            Debug.LogError("Dialogue choice index is invalid.");
-            HideDialogue();
-            return;
-        }
-
         DialogueChoiceData selectedChoice =
             activeChoices[choiceIndex];
+        activeChoices = null;
 
         dialogueText.text = ApplyLineTag(selectedChoice.responseText);
         AnimateSpeakerForText(dialogueText.text);
@@ -1209,7 +1272,11 @@ public class DialogueManager : MonoBehaviour
                 "Selected " + activeDialogueId + " choice " +
                 (choiceIndex + 1)
             );
+            if (!string.IsNullOrWhiteSpace(choiceCompletionFlag))
+                GameState.Instance.SetFlag(choiceCompletionFlag);
         }
+        choiceCompletionFlag = null;
+        if (evidencePicker != null) evidencePicker.RefreshAvailability();
 
         Debug.Log(
             "Dialogue choice selected: " +
@@ -1219,7 +1286,8 @@ public class DialogueManager : MonoBehaviour
 
     public void SendTypedMessage()
     {
-        if (chatInput == null || chatRequestInProgress)
+        if (!IsDialogueOpen || chatInput == null || chatRequestInProgress ||
+            !string.IsNullOrEmpty(choiceCompletionFlag))
         {
             return;
         }
@@ -1233,6 +1301,7 @@ public class DialogueManager : MonoBehaviour
 
         chatInput.text = string.Empty;
         chatRequestInProgress = true;
+        if (evidencePicker != null) evidencePicker.RefreshAvailability();
         chatRequestSerial++;
         chatRequestDeadline = Time.unscaledTime + ChatRequestTimeoutSeconds;
         pendingPlayerMessage = playerMessage;
@@ -1256,15 +1325,23 @@ public class DialogueManager : MonoBehaviour
         IAiDialogueProvider generator = DialogueProviders.Current;
         if (generator != null && generator.CanGenerate)
         {
-            StartCoroutine(
-                generator.GenerateReply(
+            var operation = new AiRequestOperation(this);
+            chatOperation = operation;
+            operation.Start(
+                () => generator.GenerateReply(
                     activeNpcId,
                     activeSpeakerName,
                     activeDialogueContext,
                     playerMessage,
                     reply => CompleteTypedReply(playerMessage, reply, serial),
                     activePersonalityPrompt
-                )
+                ),
+                error =>
+                {
+                    Debug.LogWarning("Typed reply provider failed: " + error.GetType().Name);
+                    CompleteTypedReply(playerMessage, null, serial);
+                },
+                () => CompleteTypedReply(playerMessage, null, serial)
             );
             return;
         }
@@ -1295,18 +1372,22 @@ public class DialogueManager : MonoBehaviour
         }
 
         chatRequestInProgress = false;
+        CancelChatOperation();
         if (!IsDialogueOpen)
         {
             return;
         }
 
         var knowledge = AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
-        string policyReason;
+        string policyReason = null;
         var answerReply = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
         var hintReply = answerReply ?? NpcReplyPolicy.HintReply(knowledge);
-        if (generated != null && hintReply == null &&
-            !NpcReplyPolicy.Validate(knowledge, generated.referencedFactIds,
-                new[] { generated.reply }, out policyReason)) generated = null;
+        if (generated != null && hintReply == null)
+        {
+            GeneratedChatReply grounded;
+            generated = NpcReplyPolicy.TryGroundReply(knowledge, generated, out grounded, out policyReason)
+                ? grounded : null;
+        }
         bool usedFallback = generated == null && hintReply == null;
         GeneratedChatReply reply = hintReply ?? generated ?? BuildFallbackReply(playerMessage);
         // Offline replies author small gains (+1 to +4), so they count double.
@@ -1342,7 +1423,11 @@ public class DialogueManager : MonoBehaviour
 
         string serviceNotice = string.Empty;
         IAiDialogueProvider generator = DialogueProviders.Current;
-        if (usedFallback && generator != null && generator.CanGenerate &&
+        if (usedFallback && !string.IsNullOrWhiteSpace(policyReason))
+        {
+            serviceNotice = "\n\n<color=#FFB4A2><size=18>คำตอบ AI ไม่ตรงกับข้อมูลที่ตัวละครรู้ — จึงใช้บทสนทนาสำรอง</size></color>";
+        }
+        else if (usedFallback && generator != null && generator.CanGenerate &&
             !string.IsNullOrWhiteSpace(generator.LastError))
         {
             serviceNotice =
@@ -1373,6 +1458,7 @@ public class DialogueManager : MonoBehaviour
         chatInput.interactable = true;
         sendButton.interactable = true;
         chatInput.ActivateInputField();
+        if (evidencePicker != null) evidencePicker.RefreshAvailability();
     }
 
     /// <summary>
@@ -1436,13 +1522,18 @@ public class DialogueManager : MonoBehaviour
 
     public void HideDialogue()
     {
-        dialoguePanel.SetActive(false);
-        choicePanel.SetActive(false);
-        continueButton.gameObject.SetActive(false);
+        ConversationVersion++;
+        chatRequestSerial++;
+        chatRequestInProgress = false;
+        CancelChatOperation();
+        if (dialoguePanel != null) dialoguePanel.SetActive(false);
+        if (choicePanel != null) choicePanel.SetActive(false);
+        if (continueButton != null) continueButton.gameObject.SetActive(false);
 
         showingChoiceResponse = false;
         activeChoices = null;
         activeDialogueId = string.Empty;
+        choiceCompletionFlag = null;
         activeNpcId = string.Empty;
         activeSpeakerName = string.Empty;
         activePersonalityPrompt = string.Empty;
@@ -1450,6 +1541,7 @@ public class DialogueManager : MonoBehaviour
         speakerTalkingUntil = 0f;
         playerTalkingUntil = 0f;
         chatRequestInProgress = false;
+        if (evidencePicker != null) evidencePicker.Close();
         pendingPlayerMessage = string.Empty;
         HideEmotion();
         if (chatInput != null)
@@ -1461,6 +1553,25 @@ public class DialogueManager : MonoBehaviour
         {
             sendButton.interactable = true;
         }
+    }
+
+    private void CancelChatOperation()
+    {
+        var abandoned = chatOperation;
+        chatOperation = null;
+        abandoned?.Cancel();
+    }
+
+    private void OnDisable()
+    {
+        if (Instance == this) HideDialogue();
+        else CancelChatOperation();
+    }
+
+    private void OnDestroy()
+    {
+        CancelChatOperation();
+        if (Instance == this) Instance = null;
     }
 
     private void AnimateSpeakerForText(string text)

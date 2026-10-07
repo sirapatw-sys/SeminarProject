@@ -9,6 +9,8 @@ namespace MysteryGame.Core
     {
         public static GameState Instance { get; private set; }
         public event System.Action<string> ItemAdded;
+        /// <summary>New-game reset, not save restore. Scene adapters can reapply authored defaults.</summary>
+        public event System.Action StateReset;
 
         // =====================================================
         // Session
@@ -50,6 +52,9 @@ namespace MysteryGame.Core
             new Dictionary<string, int>();
         private readonly Dictionary<string, int> npcLastSeenRevision =
             new Dictionary<string, int>();
+        private readonly Dictionary<string, string> npcLastSeenRoomProgress =
+            new Dictionary<string, string>();
+        private bool readingRoomProgress;
         private int worldRevision;
 
         // =====================================================
@@ -443,6 +448,7 @@ namespace MysteryGame.Core
             int nextCount = GetConversationCount(npcId) + 1;
             conversationCounts[npcId] = nextCount;
             npcLastSeenRevision[npcId] = worldRevision;
+            npcLastSeenRoomProgress[npcId] = RoomProgressStamp();
             return nextCount;
         }
 
@@ -451,6 +457,56 @@ namespace MysteryGame.Core
             return !string.IsNullOrWhiteSpace(npcId) &&
                    npcLastSeenRevision.ContainsKey(npcId) &&
                    worldRevision > npcLastSeenRevision[npcId];
+        }
+
+        /// <summary>Room facts, puzzle completion and inventory, not social bookkeeping.</summary>
+        public bool HasRoomProgressChangedSinceConversation(string npcId)
+        {
+            string previous;
+            return !readingRoomProgress && !string.IsNullOrWhiteSpace(npcId) &&
+                npcLastSeenRoomProgress.TryGetValue(npcId, out previous) &&
+                previous != RoomProgressStamp();
+        }
+
+        private string RoomProgressStamp()
+        {
+            readingRoomProgress = true;
+            try { return BuildRoomProgressStamp(); }
+            finally { readingRoomProgress = false; }
+        }
+
+        private string BuildRoomProgressStamp()
+        {
+            var stamp = new System.Text.StringBuilder();
+            AppendProgress(stamp, GetCurrentScene());
+            var room = KnowledgeLibrary.GetRoom(GetCurrentScene());
+            if (room != null)
+            {
+                if (room.steps != null)
+                    foreach (var step in room.steps)
+                        if (step != null)
+                        {
+                            AppendProgress(stamp, step.stepId);
+                            stamp.Append(step.IsCompleted(this) ? '1' : '0');
+                        }
+                if (room.facts != null)
+                    foreach (var fact in room.facts)
+                        if (fact != null)
+                        {
+                            AppendProgress(stamp, fact.factId);
+                            stamp.Append(fact.IsRevealed(this) ? '1' : '0');
+                        }
+            }
+            var items = new List<string>(inventory);
+            items.Sort(System.StringComparer.Ordinal);
+            foreach (string item in items) AppendProgress(stamp, item);
+            return stamp.ToString();
+        }
+
+        private static void AppendProgress(System.Text.StringBuilder stamp, string value)
+        {
+            value = value ?? string.Empty;
+            stamp.Append(value.Length).Append(':').Append(value).Append(';');
         }
 
         // =====================================================
@@ -489,7 +545,8 @@ namespace MysteryGame.Core
             }
 
             npcNeeds[npcId][needId] = Mathf.Clamp(value, 0f, 100f);
-            worldRevision++;
+            // Passive needs are read directly by mini-event triggers. They are
+            // not player room progress and must not invalidate return greetings.
         }
 
         public void ChangeNpcNeed(string npcId, string needId, float amount)
@@ -526,7 +583,7 @@ namespace MysteryGame.Core
             }
 
             npcEmotions[npcId][emotionId] = Mathf.Clamp(value, 0f, 100f);
-            worldRevision++;
+            // Keep emotion-triggered events active without inventing room progress.
         }
 
         public void ChangeNpcEmotion(string npcId, string emotionId, float amount)
@@ -791,10 +848,21 @@ namespace MysteryGame.Core
         /// </summary>
         public void RestoreSnapshot(StateSnapshot snapshot)
         {
-            if (snapshot == null)
-            {
-                return;
-            }
+            if (snapshot == null) return;
+            string error;
+            if (!TryRestoreSnapshot(snapshot, out error)) Debug.LogWarning(error);
+        }
+
+        public bool TryRestoreSnapshot(StateSnapshot snapshot, out string error)
+        {
+            StateSnapshot normalized;
+            if (!SnapshotValidator.TryNormalize(snapshot, out normalized, out error)) return false;
+            ApplySnapshot(normalized);
+            return true;
+        }
+
+        private void ApplySnapshot(StateSnapshot snapshot)
+        {
 
             session.CurrentSceneId = snapshot.CurrentSceneId;
             session.CurrentChapterId = snapshot.CurrentChapterId;
@@ -851,6 +919,7 @@ namespace MysteryGame.Core
 
             conversationCounts.Clear();
             npcLastSeenRevision.Clear();
+            npcLastSeenRoomProgress.Clear();
             foreach (RelationshipSnapshot entry in snapshot.ConversationCounts)
             {
                 conversationCounts[entry.NpcId] = entry.Value;
@@ -891,6 +960,7 @@ namespace MysteryGame.Core
             conversationCounts.Clear();
             npcLastSeenRevision.Clear();
             worldRevision = 0;
+            npcLastSeenRoomProgress.Clear();
             npcMemories.Clear();
             npcNeeds.Clear();
             npcEmotions.Clear();
@@ -904,6 +974,7 @@ namespace MysteryGame.Core
                 SyncSceneState(activeScene);
             }
             AddHistory("Started new game");
+            StateReset?.Invoke();
         }
     }
 }
