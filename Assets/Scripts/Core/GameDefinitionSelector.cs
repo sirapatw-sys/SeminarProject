@@ -1,4 +1,3 @@
-using MysteryGame.Knowledge;
 using UnityEngine;
 
 namespace MysteryGame.Core
@@ -9,9 +8,9 @@ namespace MysteryGame.Core
         public GameDefinition definition;
         private void Awake()
         {
-            if (definition == null) return;
-            GameDefinition.Override = definition;
-            KnowledgeLibrary.ClearCache();
+            GameDefinition.SelectForScene(definition, this);
         }
+
+        private void OnDestroy() { GameDefinition.ReleaseForScene(this); }
     }
 }

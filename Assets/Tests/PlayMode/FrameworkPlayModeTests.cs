@@ -39,6 +39,33 @@ public class FrameworkPlayModeTests
                 relationshipDelta = 10, playerTone = "friendly" });
         }
     }
+    private class SwappedChoiceProvider : IAiDialogueProvider
+    {
+        public bool malformed;
+        public GeneratedDialogueContent LastContent;
+        public int Calls;
+        public bool CanGenerate { get { return true; } }
+        public string LastError { get { return string.Empty; } }
+        public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> callback)
+        {
+            Calls++;
+            int count = data.dialogue.choices.Count;
+            var choices = new GeneratedDialogueChoice[malformed ? count - 1 : count];
+            for (int i = 0; i < choices.Length; i++)
+            {
+                var opposite = data.dialogue.choices[count - 1 - i];
+                choices[i] = new GeneratedDialogueChoice
+                { optionText = opposite.optionText, responseText = opposite.responseText };
+            }
+            LastContent = new GeneratedDialogueContent
+            { lines = new[] { "วันนี้ฉันคิดถึงบ้านนิดหน่อย" }, choices = choices, referencedFactIds = Array.Empty<string>() };
+            yield return null;
+            callback(LastContent);
+        }
+        public IEnumerator GenerateReply(string id, string name, string context, string message,
+            Action<GeneratedChatReply> callback, string personality = null)
+        { callback(null); yield break; }
+    }
     private NpcPuzzleInteraction puzzleNpc;
     private NpcPuzzleData puzzleDefinition;
     private DialogueData afterDialogue;
@@ -201,6 +228,119 @@ public class FrameworkPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator PositiveEventChoiceCannotDisplayAiRejectionOrLoseItsAuthoredEffects()
+    { yield return VerifyLockedChoices(0, false, false); }
+
+    [UnityTest]
+    public IEnumerator NegativeEventChoiceCannotDisplayAiAcceptanceOrGainRelationship()
+    { yield return VerifyLockedChoices(2, false, false); }
+
+    [UnityTest]
+    public IEnumerator ChoiceWithoutActionsStillKeepsItsAuthoredTextAndCompletionMeaning()
+    { yield return VerifyLockedChoices(2, true, false); }
+
+    [UnityTest]
+    public IEnumerator MalformedAiChoicesUseAuthoredDialogueWithoutChangingEffects()
+    { yield return VerifyLockedChoices(0, false, true); }
+
+    private IEnumerator VerifyLockedChoices(int selectedIndex, bool noActions, bool malformed)
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var state = GameState.Instance; state.ResetState();
+        state.SetRelationship("Alice", 30); state.SetNpcNeed("Alice", "homesickness", 50f);
+        DialogueManager.Instance.HideDialogue();
+        var provider = new SwappedChoiceProvider { malformed = malformed };
+        DialogueProviders.Override = provider;
+        var controller = UnityEngine.Object.FindObjectOfType<NpcEventController>();
+        var source = UnityEngine.Object.Instantiate(Load<DialogueData>("Assets/Data/Dialogue/Alice_Homesick.asset"));
+        var ev = ScriptableObject.CreateInstance<MiniEventData>();
+        ev.eventId = "choice_lock_test"; ev.npcId = "Alice"; ev.dialogue = source;
+        ev.triggerType = MiniEventTriggerType.RandomAmbient; ev.useAiDialogue = true;
+        ev.completeOnChoice = true; ev.repeatable = false;
+        for (int i = 0; i < source.choices.Count; i++)
+        {
+            if (noActions) source.choices[i].actions.Clear();
+            else
+            {
+                source.choices[i].actions.Add(new ActionCommand
+                { type = ActionType.SetFlag, targetId = "choice_lock.effect." + i });
+                source.choices[i].actions.Add(new ActionCommand
+                { type = ActionType.AddNpcMemory, targetId = "Alice", text = "choice_lock.memory." + i });
+            }
+        }
+        try
+        {
+            var queue = typeof(NpcEventController).GetMethod("QueueEvent", BindingFlags.Instance | BindingFlags.NonPublic);
+            queue.Invoke(controller, new object[] { ev }); yield return null; yield return null;
+            Assert.That(controller.HasPendingEvent, Is.True);
+            if (!malformed)
+            {
+                string reason;
+                Assert.That(NpcReplyPolicy.ValidateEvent(BuildEventContext(state), provider.LastContent, out reason),
+                    Is.True, "The mock must pass fact validation despite its swapped choice meanings: " + reason);
+            }
+            Assert.That(controller.TryStartPendingEvent(), Is.True);
+            var text = (TMP_Text)typeof(DialogueManager).GetField("dialogueText", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(DialogueManager.Instance);
+            Assert.That(text.text, Is.EqualTo(malformed ? source.lines[0] : provider.LastContent.lines[0]));
+            // Closing early must not commit even an actionless completion choice.
+            DialogueManager.Instance.HideDialogue();
+            Assert.That(state.HasFlag(ev.CompletedFlag), Is.False);
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(30));
+            Assert.That(state.HasFlag("choice_lock.effect." + selectedIndex), Is.False);
+            queue.Invoke(controller, new object[] { ev }); yield return null; yield return null;
+            Assert.That(controller.TryStartPendingEvent(), Is.True);
+            // Advance through either the generated opening or the authored fallback.
+            for (int i = 0; i < (malformed ? source.lines.Count : 1); i++) DialogueManager.Instance.NextLine();
+            for (int i = 0; i < source.choices.Count; i++)
+            {
+                var button = (Button)typeof(DialogueManager).GetField("choiceButton" + (i + 1),
+                    BindingFlags.Instance | BindingFlags.NonPublic).GetValue(DialogueManager.Instance);
+                Assert.That(button.gameObject.activeSelf, Is.True);
+                Assert.That(button.GetComponentInChildren<TMP_Text>().text, Is.EqualTo(source.choices[i].optionText));
+            }
+            int delta = 0; float needDelta = 0f;
+            foreach (var action in source.choices[selectedIndex].actions)
+            {
+                if (action.type == ActionType.ChangeRelationship)
+                    delta += RelationshipTuning.ScaleGain(action.amount, RelationshipTuning.ChoiceGainScale);
+                if (action.type == ActionType.ChangeNpcNeed && action.secondaryId == "homesickness") needDelta += action.amount;
+            }
+            DialogueManager.Instance.SelectChoice(selectedIndex);
+            Assert.That(text.text, Is.EqualTo(source.choices[selectedIndex].responseText));
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(30 + delta));
+            Assert.That(state.GetNpcNeed("Alice", "homesickness"), Is.EqualTo(50f + needDelta).Within(0.5f));
+            Assert.That(state.HasFlag(ev.CompletedFlag), Is.True);
+            var log = state.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 2].Text, Does.EndWith(source.choices[selectedIndex].optionText));
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo(source.choices[selectedIndex].responseText));
+            for (int i = 0; i < source.choices.Count; i++)
+            {
+                Assert.That(state.HasFlag("choice_lock.effect." + i), Is.EqualTo(!noActions && i == selectedIndex));
+                if (!noActions && i == selectedIndex)
+                    Assert.That(state.GetNpcMemory("Alice"), Does.Contain("choice_lock.memory." + i));
+                else Assert.That(state.GetNpcMemory("Alice"), Does.Not.Contain("choice_lock.memory." + i));
+            }
+            // Repeated UI clicks and closed-dialogue calls cannot award the effects again.
+            DialogueManager.Instance.SelectChoice(selectedIndex);
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(30 + delta));
+            Assert.That(state.GetNpcNeed("Alice", "homesickness"), Is.EqualTo(50f + needDelta).Within(0.5f));
+            DialogueManager.Instance.HideDialogue(); DialogueManager.Instance.SelectChoice(selectedIndex);
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(30 + delta));
+            Assert.That(provider.Calls, Is.EqualTo(2));
+            Assert.That(ev.CanTrigger(state), Is.False);
+        }
+        finally
+        {
+            DialogueManager.Instance.HideDialogue();
+            UnityEngine.Object.Destroy(ev); UnityEngine.Object.Destroy(source);
+        }
+    }
+
+    private static NpcKnowledgeContext BuildEventContext(GameState state)
+    { return NpcKnowledgeContextBuilder.Build("Alice", "Room01", state, false); }
+
+    [UnityTest]
     public IEnumerator PendingStoryCannotConsumeOrReplaceAnotherConversation()
     {
         yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
@@ -337,6 +477,40 @@ public class FrameworkPlayModeTests
         Assert.That(state.HasFlag("ObservatoryB_entered"), Is.True);
         Assert.That(InteractionSystem.Instance.TryExecute(Load<InteractionData>("Assets/Samples/Observatory/Beacon.asset"), out response), Is.True);
         Assert.That(state.HasFlag("observatory_beacon_lit"), Is.True);
+    }
+
+    [UnityTest]
+    public IEnumerator LeavingSampleRestoresMainKnowledgeRoomLoadingAndSaveNamespace()
+    {
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        var main = GameDefinition.Current;
+        var alice = KnowledgeLibrary.GetNpc("Alice");
+        var mainRoom = KnowledgeLibrary.GetRoom("Room01");
+        string mainSave = SaveSystem.SavePath;
+        Assert.That(RoomTransitionManager.CanLoadRoom("Room02"), Is.True);
+        yield return SceneManager.LoadSceneAsync("ObservatoryA"); yield return null;
+        Assert.That(GameDefinition.Current.gameId, Is.EqualTo("observatory_sample"));
+        Assert.That(KnowledgeLibrary.GetNpc("Nora"), Is.Not.Null);
+        Assert.That(KnowledgeLibrary.GetNpc("Alice"), Is.Null);
+        string sampleSave = SaveSystem.SavePath;
+        Assert.That(sampleSave, Is.Not.EqualTo(mainSave));
+        yield return SceneManager.LoadSceneAsync("ObservatoryB"); yield return null;
+        Assert.That(GameDefinition.Current.gameId, Is.EqualTo("observatory_sample"));
+        Assert.That(SaveSystem.SavePath, Is.EqualTo(sampleSave));
+        Assert.That(RoomTransitionManager.CanLoadRoom("ObservatoryA"), Is.True);
+        GameState.Instance.RemoveFlag(mainRoom.enteredFlag);
+        // Do not manually clear Override: scene ownership must perform the restoration.
+        yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
+        Assert.That(GameDefinition.Override, Is.Null);
+        Assert.That(GameDefinition.Current, Is.SameAs(main));
+        Assert.That(KnowledgeLibrary.GetRoom("Room01"), Is.SameAs(mainRoom));
+        Assert.That(KnowledgeLibrary.GetNpc("Alice"), Is.SameAs(alice));
+        Assert.That(KnowledgeLibrary.GetNpc("Nora"), Is.Null);
+        Assert.That(GameState.Instance.HasFlag(mainRoom.enteredFlag), Is.True);
+        Assert.That(GameSession.CreateDefault().CurrentSceneId, Is.EqualTo("Room01"));
+        Assert.That(SaveSystem.SavePath, Is.EqualTo(mainSave));
+        Assert.That(RoomTransitionManager.CanLoadRoom("Room02"), Is.True);
+        Assert.That(RoomTransitionManager.CanLoadRoom("ObservatoryA"), Is.False);
     }
 
     private IEnumerator PreparePuzzle(bool keepNpc = false)

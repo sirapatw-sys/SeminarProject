@@ -92,6 +92,146 @@ namespace MysteryGame.Tests
             Assert.That(context.ToPromptSection(), Does.Contain("ยังไม่มีข้อมูล canon"));
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void EventPromptsKeepAuthoredChoiceTextAndLimitAiToOpeningLines(bool freeTopic)
+        {
+            var host = new GameObject("ChoicePromptTest"); host.SetActive(false);
+            var generator = host.AddComponent<AiDialogueGenerator>();
+            var ev = ScriptableObject.CreateInstance<MiniEventData>();
+            var dialogue = ScriptableObject.CreateInstance<DialogueData>();
+            try
+            {
+                ev.npcId = "Alice"; ev.dialogue = dialogue; ev.freeTopic = freeTopic;
+                dialogue.speakerName = "Alice"; dialogue.lines.Add("คุยเป็นเพื่อนกันนะ");
+                dialogue.choices.Add(new DialogueChoiceData
+                { optionText = "ฉันฟังอยู่", responseText = "ขอบคุณที่รับฟัง" });
+                string prompt = (string)typeof(AiDialogueGenerator)
+                    .GetMethod("BuildPrompt", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(generator, new object[] { ev });
+                Assert.That(prompt, Does.Contain("คัดลอก optionText และ responseText ต้นฉบับ"));
+                Assert.That(prompt, Does.Contain("แต่งเฉพาะ lines"));
+                Assert.That(prompt, Does.Contain("ฉันฟังอยู่"));
+                Assert.That(prompt, Does.Contain("ขอบคุณที่รับฟัง"));
+                Assert.That(prompt, Does.Not.Contain("ตัวอย่างด้านล่างเป็นแค่แนว"));
+            }
+            finally
+            { UnityEngine.Object.DestroyImmediate(host); UnityEngine.Object.DestroyImmediate(ev); UnityEngine.Object.DestroyImmediate(dialogue); }
+        }
+
+        private static void InvokeSelector(GameDefinitionSelector selector, string method)
+        {
+            typeof(GameDefinitionSelector).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(selector, null);
+        }
+
+        private static GameDefinitionSelector CreateSelector(GameDefinition definition)
+        {
+            var host = new GameObject("ScopedDefinitionTest"); host.SetActive(false);
+            var selector = host.AddComponent<GameDefinitionSelector>(); selector.definition = definition;
+            InvokeSelector(selector, "Awake");
+            return selector;
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SceneSelectionRestoresThePreviousUnscopedDefinitionAndKnowledge(bool explicitOverride)
+        {
+            var original = Resources.Load<GameDefinition>("GameDefinition");
+            var sample = ScriptableObject.CreateInstance<GameDefinition>();
+            var selector = (GameDefinitionSelector)null;
+            try
+            {
+                GameDefinition.Override = explicitOverride ? original : null;
+                var alice = KnowledgeLibrary.GetNpc("Alice"); Assert.That(alice, Is.Not.Null);
+                selector = CreateSelector(sample);
+                Assert.That(GameDefinition.Current, Is.SameAs(sample));
+                Assert.That(KnowledgeLibrary.GetNpc("Alice"), Is.Null);
+                InvokeSelector(selector, "OnDestroy");
+                Assert.That(GameDefinition.Override, Is.EqualTo(explicitOverride ? original : null));
+                Assert.That(GameDefinition.Current, Is.SameAs(original));
+                Assert.That(KnowledgeLibrary.GetNpc("Alice"), Is.SameAs(alice));
+                Assert.That(GameSession.CreateDefault().CurrentSceneId, Is.EqualTo("Room01"));
+            }
+            finally
+            {
+                GameDefinition.Override = null;
+                if (selector != null) UnityEngine.Object.DestroyImmediate(selector.gameObject);
+                UnityEngine.Object.DestroyImmediate(sample);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void OldSelectorCannotClearReplacementOrRestoreAnUnloadedSample(bool sameDefinition)
+        {
+            var first = ScriptableObject.CreateInstance<GameDefinition>();
+            var second = sameDefinition ? first : ScriptableObject.CreateInstance<GameDefinition>();
+            var oldSelector = (GameDefinitionSelector)null;
+            var newSelector = (GameDefinitionSelector)null;
+            try
+            {
+                oldSelector = CreateSelector(first); newSelector = CreateSelector(second);
+                InvokeSelector(oldSelector, "OnDestroy");
+                Assert.That(GameDefinition.Current, Is.SameAs(second));
+                InvokeSelector(newSelector, "OnDestroy");
+                Assert.That(GameDefinition.Override, Is.Null, "Do not restore the old scene's override.");
+                InvokeSelector(oldSelector, "OnDestroy");
+                Assert.That(GameDefinition.Override, Is.Null, "Repeated old cleanup must be harmless.");
+            }
+            finally
+            {
+                GameDefinition.Override = null;
+                if (oldSelector != null) UnityEngine.Object.DestroyImmediate(oldSelector.gameObject);
+                if (newSelector != null) UnityEngine.Object.DestroyImmediate(newSelector.gameObject);
+                if (!sameDefinition) UnityEngine.Object.DestroyImmediate(second);
+                UnityEngine.Object.DestroyImmediate(first);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ExplicitOverrideSupersedesSceneOwnershipEvenForTheSameAsset(bool sameDefinition)
+        {
+            var sample = ScriptableObject.CreateInstance<GameDefinition>();
+            var explicitGame = sameDefinition ? sample : Resources.Load<GameDefinition>("GameDefinition");
+            var selector = (GameDefinitionSelector)null;
+            try
+            {
+                selector = CreateSelector(sample); GameDefinition.Override = explicitGame;
+                InvokeSelector(selector, "OnDestroy");
+                Assert.That(GameDefinition.Override, Is.SameAs(explicitGame));
+            }
+            finally
+            {
+                GameDefinition.Override = null;
+                if (selector != null) UnityEngine.Object.DestroyImmediate(selector.gameObject);
+                UnityEngine.Object.DestroyImmediate(sample);
+            }
+        }
+
+        [Test]
+        public void EmptySelectorDoesNotTakeOwnershipFromTheActiveScene()
+        {
+            var sample = ScriptableObject.CreateInstance<GameDefinition>();
+            var active = (GameDefinitionSelector)null; var empty = (GameDefinitionSelector)null;
+            try
+            {
+                active = CreateSelector(sample); empty = CreateSelector(null);
+                InvokeSelector(empty, "OnDestroy");
+                Assert.That(GameDefinition.Current, Is.SameAs(sample));
+                InvokeSelector(active, "OnDestroy");
+                Assert.That(GameDefinition.Override, Is.Null);
+            }
+            finally
+            {
+                GameDefinition.Override = null;
+                if (active != null) UnityEngine.Object.DestroyImmediate(active.gameObject);
+                if (empty != null) UnityEngine.Object.DestroyImmediate(empty.gameObject);
+                UnityEngine.Object.DestroyImmediate(sample);
+            }
+        }
+
         [TestCase(10)]
         [TestCase(45)]
         [TestCase(70)]

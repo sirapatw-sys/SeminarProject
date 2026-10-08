@@ -895,7 +895,8 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         prompt.AppendLine("กฎ: ห้ามสร้างเบาะแส ไอเท็ม ตัวละคร หรือข้อเท็จจริงใหม่");
         prompt.AppendLine("กฎ: บทพูดต้องสั้น เป็นธรรมชาติ และไม่บังคับผู้เล่น");
         prompt.AppendLine("กฎ: ห้ามใช้คำว่า 'ทวาร' ให้ใช้ 'ประตู'");
-        prompt.AppendLine("กฎ: รักษาความหมายและลำดับของตัวเลือกต้นฉบับต่อไปนี้");
+        prompt.AppendLine("กฎ: คัดลอก optionText และ responseText ต้นฉบับตามลำดับ ห้ามแก้ข้อความตัวเลือกหรือคำตอบหลังกด เพราะเกมใช้ข้อความต้นฉบับคู่กับผลของ Action");
+        prompt.AppendLine("กฎ: แต่งเฉพาะ lines ให้เชื่อมกับตัวเลือกและคำตอบต้นฉบับต่อไปนี้อย่างเป็นธรรมชาติ");
         prompt.AppendLine(NpcReplyPolicy.GeneratedTextContract);
 
         for (int index = 0; index < eventData.dialogue.choices.Count; index++)
@@ -973,7 +974,8 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         prompt.AppendLine("กฎ: lines 1-3 บรรทัด สั้นและเป็นธรรมชาติ บรรทัดแรกเปิดหัวข้อให้ผู้เล่นรู้ว่าอยากคุยเรื่องอะไร ถ้าจะแสดงสีหน้า ให้ขึ้นต้นบรรทัดด้วย [:emotionId] จากรายการสีหน้าเท่านั้น");
         prompt.AppendLine("กฎ: ทุกบรรทัดใน lines และ responseText เป็นคำพูดของตัวละครเท่านั้น ห้ามเขียนบรรยายท่าทางหรือเล่าแบบบุคคลที่สาม");
         prompt.AppendLine("กฎ: ห้ามใช้คำว่า 'ทวาร' ให้ใช้ 'ประตู'");
-        prompt.AppendLine("กฎ: เขียนตัวเลือกของผู้เล่นและคำตอบของ NPC ใหม่ให้เข้ากับหัวข้อ แต่ต้องคงท่าทีของแต่ละข้อตามลำดับนี้ (ตัวอย่างด้านล่างเป็นแค่แนว):");
+        prompt.AppendLine("กฎ: คัดลอก optionText และ responseText ต้นฉบับตามลำดับ ห้ามแก้ข้อความตัวเลือกหรือคำตอบหลังกด เพราะเกมใช้ข้อความต้นฉบับคู่กับผลของ Action");
+        prompt.AppendLine("กฎ: เลือกหัวข้อและแต่งเฉพาะ lines ให้เข้ากับตัวเลือกและคำตอบต้นฉบับต่อไปนี้ ห้ามสร้างสถานการณ์ที่ทำให้ข้อความต้นฉบับขัดกัน:");
 
         for (int index = 0; index < eventData.dialogue.choices.Count; index++)
         {

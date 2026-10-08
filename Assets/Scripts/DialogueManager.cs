@@ -305,7 +305,10 @@ public class DialogueManager : MonoBehaviour
 
         showingChoiceResponse = false;
         choiceCompletionFlag = completeOnChoiceFlag;
-        activeChoices = BuildRuntimeChoices(data, generated);
+        // Generated opening lines are presentation only. Choice labels and
+        // responses must stay with their authored effects, including the
+        // completion flag that can exist even when a choice has no actions.
+        activeChoices = data.choices;
         // Per dialogue, not per speaker: Alice's Room02 choices must still
         // appear the first time even though she was met in Room01.
         string metFlag = "dialogue." + data.dialogueId + ".met";
@@ -999,36 +1002,6 @@ public class DialogueManager : MonoBehaviour
 
         playerPortraitImage.sprite = defaultPlayerPortrait;
         playerPortraitImage.gameObject.SetActive(defaultPlayerPortrait != null);
-    }
-
-    private List<DialogueChoiceData> BuildRuntimeChoices(
-        DialogueData data,
-        GeneratedDialogueContent generated)
-    {
-        if (generated == null || !generated.IsValid(data.choices.Count))
-        {
-            return data.choices;
-        }
-
-        List<DialogueChoiceData> runtimeChoices =
-            new List<DialogueChoiceData>();
-
-        for (int index = 0; index < data.choices.Count; index++)
-        {
-            DialogueChoiceData authoredChoice = data.choices[index];
-            GeneratedDialogueChoice generatedChoice = generated.choices[index];
-
-            runtimeChoices.Add(
-                new DialogueChoiceData
-                {
-                    optionText = generatedChoice.optionText,
-                    responseText = generatedChoice.responseText,
-                    actions = authoredChoice.actions
-                }
-            );
-        }
-
-        return runtimeChoices;
     }
 
     private string[] BuildContextualLines(DialogueData data, bool isEvent)
