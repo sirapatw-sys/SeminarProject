@@ -24,3 +24,23 @@
 
 sysinfo.txt
 crashlytics-build.properties
+
+# Local secrets & API keys (Never commit)
+.env
+.env.*
+api_keys.json
+*.key
+*.secret
+kku_api_key.txt
+gemini_api_key.txt
+
+# Scratch previews from art experiments (not part of the game)
+scratch/
+*_api_key*.txt
+
+# Source recording too large for GitHub (86 MB); the game uses the clips cut
+# from it in Assets/Resources/Audio/Noises/
+CopyPasteAssets/Sound/1 hour of silence occasionally broken up by random roblox horror sound effects.mp3
+
+# Seminar course paperwork (reports, proposal, infographic): kept locally, not part of the game
+seminar assignment docs/

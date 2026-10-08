@@ -39,3 +39,7 @@ MonoBehaviour:
     targetId: escape_room_complete
     amount: 0
     text: 
+  transitionScene: Room02
+  transitionMessage: "คุณใช้กุญแจเปิดประตูสำเร็จ...\nก้าวเดินเข้าสู่ห้องถัดไป (Room 02)"
+  endsDemo: 0
+  scareOnSuccess: 0

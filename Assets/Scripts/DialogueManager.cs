@@ -2,7 +2,9 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 using MysteryGame.Core;
+using MysteryGame.Knowledge;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 public class DialogueManager : MonoBehaviour
 {
@@ -39,11 +41,46 @@ public class DialogueManager : MonoBehaviour
     private Vector2 playerPortraitBasePosition;
     private float speakerTalkingUntil;
     private float playerTalkingUntil;
+    private float speakerTalkAmount;
+    private float playerTalkAmount;
+
+    // The talking portrait bobs gently: under one bob a second, a few pixels
+    // high, easing in and out instead of hopping and snapping back.
+    private const float TalkBobPerSecond = 0.9f;
+    private const float TalkBobPixels = 6f;
     private TMP_InputField chatInput;
     private Button sendButton;
     private Button closeButton;
     private GameObject chatComposerObject;
     private bool chatRequestInProgress;
+
+    // A typed request that never calls back (a crashed parser, a hung
+    // socket) must not leave the chat box locked, so each request carries a
+    // serial and a deadline; a late answer to an abandoned request is dropped.
+    private const float ChatRequestTimeoutSeconds = 30f;
+    private int chatRequestSerial;
+    private float chatRequestDeadline;
+    private string pendingPlayerMessage;
+
+    // The emotion box: a small face card that pops up beside the text when a
+    // line carries [:emotion] or the AI reply names one.
+    private RectTransform emotionBoxRect;
+    private Image emotionBoxImage;
+    private float emotionBoxShownAt;
+
+    // Heart + "x/100": how the NPC speaking this line feels about the player.
+    private GameObject relationshipBadge;
+    private RectTransform relationshipHeart;
+    private TMP_Text relationshipText;
+    private string badgeNpcId;
+    private int badgeShownValue = -1;
+    private float badgePulseStart = -10f;
+
+    private Button choiceButton4;
+    private Sprite activeSpeakerSprite;
+
+    private static readonly Regex LineTag = new Regex(
+        @"^\s*\[(?<who>[A-Za-z0-9_]*)(?::(?<emo>[A-Za-z0-9_]+))?\]\s*");
 
     // =========================================================
     // Dialogue Data
@@ -59,6 +96,7 @@ public class DialogueManager : MonoBehaviour
     private string activeDialogueId;
     private string activeNpcId;
     private string activeSpeakerName;
+    private string activePersonalityPrompt;
     private string activeDialogueContext;
 
     // =========================================================
@@ -79,22 +117,34 @@ public class DialogueManager : MonoBehaviour
 
     private void Update()
     {
-        if (IsDialogueOpen && !AiSettingsPanel.IsOpen &&
+        if (IsDialogueOpen && !AiSettingsPanel.HoldsKeyboard &&
             Input.GetKeyDown(KeyCode.Escape))
         {
             HideDialogue();
             return;
         }
 
+        if (chatRequestInProgress && Time.unscaledTime > chatRequestDeadline)
+        {
+            Debug.LogWarning("Typed reply timed out; answering with the fallback.");
+            chatRequestSerial++; // the late answer, if any, is now stale
+            CompleteTypedReply(pendingPlayerMessage, null, chatRequestSerial);
+        }
+
+        AnimateEmotionBox();
+        UpdateRelationshipBadge();
+
         AnimatePortrait(
             speakerPortraitImage,
             speakerPortraitBasePosition,
-            speakerTalkingUntil
+            speakerTalkingUntil,
+            ref speakerTalkAmount
         );
         AnimatePortrait(
             playerPortraitImage,
             playerPortraitBasePosition,
-            playerTalkingUntil
+            playerTalkingUntil,
+            ref playerTalkAmount
         );
     }
 
@@ -106,6 +156,15 @@ public class DialogueManager : MonoBehaviour
         string characterName,
         string[] lines,
         bool showChoicesAfterDialogue = true)
+    {
+        StartDialogue(characterName, lines, showChoicesAfterDialogue, null);
+    }
+
+    public void StartDialogue(
+        string characterName,
+        string[] lines,
+        bool showChoicesAfterDialogue,
+        Sprite speakerPortrait)
     {
         if (IsDialogueOpen)
         {
@@ -128,8 +187,9 @@ public class DialogueManager : MonoBehaviour
         activeDialogueId = string.Empty;
         activeNpcId = characterName;
         activeSpeakerName = characterName;
+        activePersonalityPrompt = string.Empty;
         activeDialogueContext = string.Join(" ", lines);
-        SetPortraits(null);
+        SetPortraits(speakerPortrait);
         if (chatComposerObject != null)
         {
             chatComposerObject.SetActive(false);
@@ -156,9 +216,14 @@ public class DialogueManager : MonoBehaviour
         StartDialogue(data, null);
     }
 
+    /// <param name="isEvent">
+    /// A mini event (the quarrel, Stelle's fright) always plays its own
+    /// lines; only a plain talk is swapped for a "you're back" greeting.
+    /// </param>
     public void StartDialogue(
         DialogueData data,
-        GeneratedDialogueContent generated)
+        GeneratedDialogueContent generated,
+        bool isEvent = false)
     {
         if (data == null)
         {
@@ -177,25 +242,45 @@ public class DialogueManager : MonoBehaviour
 
         showingChoiceResponse = false;
         activeChoices = BuildRuntimeChoices(data, generated);
+        // Per dialogue, not per speaker: Alice's Room02 choices must still
+        // appear the first time even though she was met in Room01.
+        string metFlag = "dialogue." + data.dialogueId + ".met";
+        if (GameState.Instance != null)
+        {
+            if (data.firstMeetingChoicesOnly && GameState.Instance.HasFlag(metFlag))
+            {
+                activeChoices = new List<DialogueChoiceData>();
+            }
+            GameState.Instance.SetFlag(metFlag);
+        }
         activeDialogueId = data.dialogueId;
         activeNpcId = data.speakerId;
         activeSpeakerName = data.speakerName;
+        activePersonalityPrompt = data.personalityPrompt;
         if (chatComposerObject != null)
         {
             chatComposerObject.SetActive(true);
         }
 
         nameText.text = data.speakerName;
-        SetPortraits(data.speakerPortrait);
+        Sprite portrait = data.speakerPortrait;
+        NpcProfileData profile = KnowledgeLibrary.GetNpc(data.speakerId);
+        if (portrait == null && profile != null)
+        {
+            portrait = profile.portrait;
+        }
+        SetPortraits(portrait);
         dialogueLines = generated != null && generated.IsValid(data.choices.Count)
             ? generated.lines
-            : BuildContextualLines(data);
-        activeDialogueContext = string.Join(" ", dialogueLines);
+            : BuildContextualLines(data, isEvent);
+        activeDialogueContext = StripLineTags(string.Join(" ", dialogueLines));
         currentLine = 0;
 
         if (GameState.Instance != null)
         {
             GameState.Instance.RecordConversation(data.speakerId);
+            GameState.Instance.AddConversationTurn(
+                data.speakerId, data.speakerId, activeDialogueContext);
         }
 
         ShowCurrentLine();
@@ -231,8 +316,6 @@ public class DialogueManager : MonoBehaviour
             panelImage.color = new Color(0.025f, 0.045f, 0.075f, 0.975f);
         }
 
-        CreateAccentLine();
-
         speakerPortraitImage = CreatePortraitImage(
             "SpeakerPortrait",
             new Vector2(0f, 0f),
@@ -262,6 +345,12 @@ public class DialogueManager : MonoBehaviour
         textRect.offsetMin = new Vector2(0f, 92f);
         textRect.offsetMax = new Vector2(-150f, -72f);
         dialogueText.fontSize = 25f;
+        // Long replies shrink to fit instead of spilling past the box.
+        dialogueText.enableAutoSizing = true;
+        dialogueText.fontSizeMax = 25f;
+        dialogueText.fontSizeMin = 15f;
+        dialogueText.enableWordWrapping = true;
+        dialogueText.overflowMode = TextOverflowModes.Truncate;
         dialogueText.lineSpacing = 5f;
         dialogueText.color = new Color(1f, 1f, 1f, 1f);
 
@@ -276,14 +365,16 @@ public class DialogueManager : MonoBehaviour
 
         CreateChatComposer();
         CreateCloseButton();
+        CreateEmotionBox();
+        CreateRelationshipBadge();
 
         if (choicePanel != null)
         {
             RectTransform choiceRect = choicePanel.GetComponent<RectTransform>();
             choiceRect.anchorMin = new Vector2(0.5f, 0f);
             choiceRect.anchorMax = new Vector2(0.5f, 0f);
-            choiceRect.anchoredPosition = new Vector2(0f, 485f);
-            choiceRect.sizeDelta = new Vector2(760f, 244f);
+            choiceRect.pivot = new Vector2(0.5f, 0f);
+            choiceRect.anchoredPosition = new Vector2(0f, 345f);
 
             Image choiceImage = choicePanel.GetComponent<Image>();
             if (choiceImage != null)
@@ -291,10 +382,298 @@ public class DialogueManager : MonoBehaviour
                 choiceImage.color = new Color(0.035f, 0.065f, 0.1f, 0.975f);
             }
 
-            LayoutChoiceButton(choiceButton1, 72f);
-            LayoutChoiceButton(choiceButton2, 0f);
-            LayoutChoiceButton(choiceButton3, -72f);
+            // The fourth option exists for events such as a quarrel, where
+            // the player can listen, mediate, or side with either person.
+            choiceButton4 = CreateRuntimeButton(
+                choicePanel.transform,
+                "ChoiceButton4",
+                string.Empty,
+                new Color(0.08f, 0.2f, 0.28f)
+            );
+            choiceButton4.onClick.AddListener(() => SelectChoice(3));
+
+            LayoutChoices(3);
         }
+    }
+
+    private const float ChoiceSpacing = 70f;
+
+    /// <summary>Stacks the visible choice buttons and sizes the panel to fit.</summary>
+    private void LayoutChoices(int count)
+    {
+        if (choicePanel == null)
+        {
+            return;
+        }
+
+        count = Mathf.Clamp(count, 1, 4);
+        RectTransform choiceRect = choicePanel.GetComponent<RectTransform>();
+        choiceRect.sizeDelta = new Vector2(760f, count * ChoiceSpacing + 34f);
+
+        Button[] buttons = { choiceButton1, choiceButton2, choiceButton3, choiceButton4 };
+        float top = (count - 1) * 0.5f * ChoiceSpacing;
+        for (int index = 0; index < buttons.Length; index++)
+        {
+            LayoutChoiceButton(buttons[index], top - index * ChoiceSpacing);
+        }
+    }
+
+    private void CreateEmotionBox()
+    {
+        GameObject frame = new GameObject(
+            "EmotionBox",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
+        frame.layer = dialoguePanel.layer;
+        frame.transform.SetParent(dialoguePanel.transform, false);
+        emotionBoxRect = frame.GetComponent<RectTransform>();
+        emotionBoxRect.anchorMin = new Vector2(0.21f, 1f);
+        emotionBoxRect.anchorMax = new Vector2(0.21f, 1f);
+        emotionBoxRect.pivot = new Vector2(0f, 0f);
+        emotionBoxRect.anchoredPosition = new Vector2(0f, 12f);
+        emotionBoxRect.sizeDelta = new Vector2(196f, 196f);
+        // No frame: the faces have transparent backgrounds and float on
+        // their own above the dialogue box.
+        Image frameImage = frame.GetComponent<Image>();
+        frameImage.enabled = false;
+        frameImage.raycastTarget = false;
+
+        GameObject face = new GameObject(
+            "EmotionFace",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
+        face.layer = dialoguePanel.layer;
+        face.transform.SetParent(frame.transform, false);
+        RectTransform faceRect = face.GetComponent<RectTransform>();
+        faceRect.anchorMin = Vector2.zero;
+        faceRect.anchorMax = Vector2.one;
+        faceRect.offsetMin = Vector2.zero;
+        faceRect.offsetMax = Vector2.zero;
+        emotionBoxImage = face.GetComponent<Image>();
+        emotionBoxImage.preserveAspect = true;
+        emotionBoxImage.raycastTarget = false;
+
+        frame.SetActive(false);
+    }
+
+    private void CreateRelationshipBadge()
+    {
+        relationshipBadge = new GameObject("RelationshipBadge", typeof(RectTransform));
+        relationshipBadge.layer = dialoguePanel.layer;
+        relationshipBadge.transform.SetParent(dialoguePanel.transform, false);
+        RectTransform badgeRect = relationshipBadge.GetComponent<RectTransform>();
+        // Right end of the name row.
+        badgeRect.anchorMin = new Vector2(0.79f, 1f);
+        badgeRect.anchorMax = new Vector2(0.79f, 1f);
+        badgeRect.pivot = new Vector2(1f, 0.5f);
+        badgeRect.anchoredPosition = new Vector2(-8f, -30f);
+        badgeRect.sizeDelta = new Vector2(160f, 40f);
+
+        GameObject heart = new GameObject(
+            "Heart", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        heart.layer = dialoguePanel.layer;
+        heart.transform.SetParent(relationshipBadge.transform, false);
+        relationshipHeart = heart.GetComponent<RectTransform>();
+        relationshipHeart.anchorMin = new Vector2(0f, 0.5f);
+        relationshipHeart.anchorMax = new Vector2(0f, 0.5f);
+        relationshipHeart.pivot = new Vector2(0.5f, 0.5f);
+        relationshipHeart.anchoredPosition = new Vector2(20f, 0f);
+        relationshipHeart.sizeDelta = new Vector2(34f, 30f);   // the art is 15 x 13
+        Image heartImage = heart.GetComponent<Image>();
+        heartImage.sprite = Resources.Load<Sprite>("UI/pixel_heart");
+        heartImage.preserveAspect = true;
+        heartImage.raycastTarget = false;
+
+        GameObject label = new GameObject("Value", typeof(RectTransform));
+        label.layer = dialoguePanel.layer;
+        label.transform.SetParent(relationshipBadge.transform, false);
+        RectTransform labelRect = label.GetComponent<RectTransform>();
+        labelRect.anchorMin = new Vector2(0f, 0f);
+        labelRect.anchorMax = new Vector2(1f, 1f);
+        labelRect.offsetMin = new Vector2(44f, 0f);
+        labelRect.offsetMax = Vector2.zero;
+        relationshipText = label.AddComponent<TextMeshProUGUI>();
+        relationshipText.font = nameText.font;
+        relationshipText.fontSize = 24f;
+        relationshipText.fontStyle = FontStyles.Bold;
+        relationshipText.alignment = TextAlignmentOptions.Left;
+        relationshipText.color = new Color(1f, 0.9f, 0.9f);
+        relationshipText.raycastTarget = false;
+
+        relationshipBadge.SetActive(false);
+    }
+
+    /// <summary>Shows the badge for an NPC with a profile; hides it for objects and narration.</summary>
+    private void ShowRelationshipFor(string npcId)
+    {
+        if (relationshipBadge == null)
+        {
+            return;
+        }
+
+        bool isNpc = !string.IsNullOrEmpty(npcId) && GameState.Instance != null &&
+                     KnowledgeLibrary.GetNpc(npcId) != null;
+        if (npcId != badgeNpcId)
+        {
+            badgeShownValue = -1;   // a different NPC: no pulse for the switch
+        }
+
+        badgeNpcId = isNpc ? npcId : null;
+        relationshipBadge.SetActive(isNpc);
+        UpdateRelationshipBadge();
+    }
+
+    private void UpdateRelationshipBadge()
+    {
+        if (relationshipBadge == null || !relationshipBadge.activeInHierarchy ||
+            badgeNpcId == null || GameState.Instance == null)
+        {
+            return;
+        }
+
+        int value = GameState.Instance.GetRelationship(badgeNpcId);
+        if (value != badgeShownValue)
+        {
+            if (badgeShownValue >= 0)
+            {
+                badgePulseStart = Time.unscaledTime;   // it just went up or down
+            }
+
+            badgeShownValue = value;
+            relationshipText.text = value + "/100";
+        }
+
+        float t = (Time.unscaledTime - badgePulseStart) / 0.4f;
+        float pulse = t >= 0f && t < 1f ? Mathf.Sin(t * Mathf.PI) * 0.35f : 0f;
+        relationshipHeart.localScale = Vector3.one * (1f + pulse);
+    }
+
+    private void ShowEmotion(string speakerId, string emotionId)
+    {
+        if (emotionBoxRect == null)
+        {
+            return;
+        }
+
+        NpcProfileData profile = KnowledgeLibrary.GetNpc(speakerId);
+        EmotionPortrait emotion = profile != null
+            ? profile.FindEmotion(emotionId)
+            : null;
+        if (emotion == null)
+        {
+            HideEmotion();
+            return;
+        }
+
+        emotionBoxImage.sprite = emotion.sprite;
+        emotionBoxRect.gameObject.SetActive(true);
+        emotionBoxShownAt = Time.unscaledTime;
+    }
+
+    private void HideEmotion()
+    {
+        if (emotionBoxRect != null)
+        {
+            emotionBoxRect.gameObject.SetActive(false);
+        }
+    }
+
+    private void AnimateEmotionBox()
+    {
+        if (emotionBoxRect == null || !emotionBoxRect.gameObject.activeInHierarchy)
+        {
+            return;
+        }
+
+        // A quick overshoot so the face "pops" like a reaction bubble.
+        float t = Mathf.Clamp01((Time.unscaledTime - emotionBoxShownAt) / 0.22f);
+        float scale = t < 1f
+            ? Mathf.Lerp(0.55f, 1.08f, t)
+            : 1f + 0.08f * Mathf.Exp(-(Time.unscaledTime - emotionBoxShownAt - 0.22f) * 18f);
+        emotionBoxRect.localScale = new Vector3(scale, scale, 1f);
+    }
+
+    /// <summary>
+    /// Applies a line's leading tag and returns the text to show. [Stelle]
+    /// switches the name and portrait to that NPC for this line, [:shock]
+    /// pops the emotion box, and [Stelle:shock] does both.
+    /// </summary>
+    private string ApplyLineTag(string line)
+    {
+        string speakerId = activeNpcId;
+        string emotionId = null;
+        string text = line ?? string.Empty;
+
+        Match match = LineTag.Match(text);
+        if (match.Success)
+        {
+            text = text.Substring(match.Length);
+            string who = match.Groups["who"].Value;
+            if (!string.IsNullOrEmpty(who))
+            {
+                speakerId = who;
+            }
+            emotionId = match.Groups["emo"].Success
+                ? match.Groups["emo"].Value
+                : null;
+        }
+
+        ShowSpeaker(speakerId);
+        if (string.IsNullOrEmpty(emotionId))
+        {
+            HideEmotion();
+        }
+        else
+        {
+            ShowEmotion(speakerId, emotionId);
+        }
+
+        return text;
+    }
+
+    private void ShowSpeaker(string speakerId)
+    {
+        ShowRelationshipFor(string.IsNullOrEmpty(speakerId) ? activeNpcId : speakerId);
+        if (string.IsNullOrEmpty(speakerId) || speakerId == activeNpcId)
+        {
+            nameText.text = activeSpeakerName;
+            if (speakerPortraitImage != null)
+            {
+                speakerPortraitImage.sprite = activeSpeakerSprite;
+                speakerPortraitImage.gameObject.SetActive(activeSpeakerSprite != null);
+            }
+            return;
+        }
+
+        NpcProfileData profile = KnowledgeLibrary.GetNpc(speakerId);
+        nameText.text = profile != null && !string.IsNullOrWhiteSpace(profile.displayName)
+            ? profile.displayName
+            : speakerId;
+        if (speakerPortraitImage != null && profile != null && profile.portrait != null)
+        {
+            speakerPortraitImage.sprite = profile.portrait;
+            speakerPortraitImage.gameObject.SetActive(true);
+        }
+    }
+
+    /// <summary>Line text for logs and prompts: [Who] becomes "Who: ", faces vanish.</summary>
+    public static string StripLineTags(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        return Regex.Replace(
+            text,
+            @"\[(?<who>[A-Za-z0-9_]*)(?::[A-Za-z0-9_]+)?\]\s*",
+            m => string.IsNullOrEmpty(m.Groups["who"].Value)
+                ? string.Empty
+                : m.Groups["who"].Value + ": ");
     }
 
     private void CreateCloseButton()
@@ -313,26 +692,6 @@ public class DialogueManager : MonoBehaviour
         rect.anchoredPosition = new Vector2(-14f, -14f);
         rect.sizeDelta = new Vector2(112f, 42f);
         closeButton.onClick.AddListener(HideDialogue);
-    }
-
-    private void CreateAccentLine()
-    {
-        GameObject accent = new GameObject(
-            "DialogueAccent",
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(Image)
-        );
-        accent.layer = dialoguePanel.layer;
-        accent.transform.SetParent(dialoguePanel.transform, false);
-        RectTransform rect = accent.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(0f, 4f);
-        accent.GetComponent<Image>().color =
-            new Color(0.78f, 0.55f, 0.2f, 0.95f);
     }
 
     private void CreateChatComposer()
@@ -522,6 +881,10 @@ public class DialogueManager : MonoBehaviour
         if (text != null)
         {
             text.fontSize = 22f;
+            text.enableAutoSizing = true;
+            text.fontSizeMax = 22f;
+            text.fontSizeMin = 14f;
+            text.enableWordWrapping = true;
             text.color = new Color(0.92f, 0.95f, 1f);
         }
     }
@@ -562,6 +925,7 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        activeSpeakerSprite = speakerPortrait;
         speakerPortraitImage.sprite = speakerPortrait;
         speakerPortraitImage.gameObject.SetActive(speakerPortrait != null);
 
@@ -599,57 +963,54 @@ public class DialogueManager : MonoBehaviour
         return runtimeChoices;
     }
 
-    private string[] BuildContextualLines(DialogueData data)
+    private string[] BuildContextualLines(DialogueData data, bool isEvent)
     {
         GameState state = GameState.Instance;
+        if (isEvent)
+        {
+            return data.lines.ToArray();
+        }
+
+        // Authored repeat lines are tracked per dialogue, not per speaker:
+        // Sena owns several dialogues and each stage needs its own
+        // "you are back" variant, and none of them may fall through to the
+        // generic friendly greeting.
+        if (data.overrideReturnLines && data.returnLines.Count > 0)
+        {
+            if (state == null)
+            {
+                return data.lines.ToArray();
+            }
+
+            string seenFlag = "dialogue." + data.dialogueId + ".seen";
+            bool alreadySeen = state.HasFlag(seenFlag);
+            state.SetFlag(seenFlag);
+
+            return alreadySeen
+                ? data.returnLines.ToArray()
+                : data.lines.ToArray();
+        }
+
         if (state == null || state.GetConversationCount(data.speakerId) == 0)
         {
             return data.lines.ToArray();
         }
 
-        List<string> lines = new List<string>();
-        int relationship = state.GetRelationship(data.speakerId);
-        bool worldChanged =
-            state.HasWorldChangedSinceConversation(data.speakerId);
-        if (worldChanged && relationship >= 70)
+        // Repeat visits open with the NPC's own authored greeting, chosen by
+        // relationship and by whether the room changed since the last talk.
+        NpcProfileData profile = KnowledgeLibrary.GetNpc(data.speakerId);
+        string greeting = NpcOfflineReplies.ReturnGreeting(profile, state);
+        if (string.IsNullOrWhiteSpace(greeting))
         {
-            lines.Add("กลับมาแล้วสินะ ฉันเห็นว่าเธอจัดการบางอย่างในห้องไปแล้ว เรามาทบทวนกันเถอะ");
-        }
-        else if (worldChanged)
-        {
-            lines.Add("ระหว่างที่เราแยกกัน สถานการณ์ในห้องเปลี่ยนไปแล้วสินะ เธอพบอะไรเพิ่มบ้าง");
-        }
-        else if (relationship >= 70)
-        {
-            lines.Add("กลับมาแล้วสินะ ดีเลย ฉันสบายใจขึ้นเมื่อมีเธออยู่ใกล้ ๆ");
-        }
-        else if (relationship <= 35)
-        {
-            lines.Add("เธอกลับมาคุยอีกแล้ว... ฉันยังไม่ลืมสิ่งที่เกิดขึ้นหรอกนะ");
-        }
-        else
-        {
-            lines.Add("กลับมาแล้วเหรอ ระหว่างนี้สถานการณ์ในห้องเปลี่ยนไปพอสมควรนะ");
+            return data.lines.ToArray();
         }
 
-        IReadOnlyList<string> memories = state.GetNpcMemory(data.speakerId);
-        if (memories.Count > 0)
-        {
-            string memory = memories[memories.Count - 1];
-            memory = memory.Replace("ผู้เล่นพูดว่า:", "ครั้งก่อนเธอบอกว่า");
-            lines.Add(memory + " ฉันยังจำได้อยู่");
-        }
-        else if (worldChanged && state.GetPlayerHistory().Count > 2)
-        {
-            lines.Add("ดูเหมือนเธอจะตรวจสอบอะไรเพิ่มมาแล้ว เล่าให้ฉันฟังได้นะ");
-        }
-        else if (data.lines.Count > 0)
-        {
-            lines.Add(data.lines[data.lines.Count - 1]);
-        }
-
-        return lines.ToArray();
+        // The greeting alone: what the player said before still reaches the
+        // AI through the conversation log, so she can bring it up herself.
+        return new[] { greeting };
     }
+
+    private const string ChoicePrefix = "(เลือก) ";
 
     // =========================================================
     // Show Current Line
@@ -669,8 +1030,9 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
-        dialogueText.text = dialogueLines[currentLine];
+        dialogueText.text = ApplyLineTag(dialogueLines[currentLine]);
         AnimateSpeakerForText(dialogueText.text);
+        SfxPlayer.Play(SfxPlayer.Cue.Talk);
     }
 
     // =========================================================
@@ -700,6 +1062,18 @@ public class DialogueManager : MonoBehaviour
 
         if (activeChoices == null || activeChoices.Count == 0)
         {
+            // A conversation with a chat box stays open on its last line so
+            // the player can type; plain descriptions simply close.
+            if (chatComposerObject != null && chatComposerObject.activeSelf)
+            {
+                currentLine = dialogueLines.Length - 1;
+                if (chatInput != null)
+                {
+                    chatInput.ActivateInputField();
+                }
+                return;
+            }
+
             HideDialogue();
             return;
         }
@@ -717,14 +1091,22 @@ public class DialogueManager : MonoBehaviour
         choicePanel.SetActive(true);
 
         continueButton.gameObject.SetActive(false);
+        HideEmotion();
 
+        LayoutChoices(activeChoices != null ? activeChoices.Count : 1);
         ConfigureChoiceButton(choiceButton1, 0);
         ConfigureChoiceButton(choiceButton2, 1);
         ConfigureChoiceButton(choiceButton3, 2);
+        ConfigureChoiceButton(choiceButton4, 3);
     }
 
     private void ConfigureChoiceButton(Button button, int index)
     {
+        if (button == null)
+        {
+            return;
+        }
+
         bool isAvailable =
             activeChoices != null && index < activeChoices.Count;
 
@@ -791,8 +1173,19 @@ public class DialogueManager : MonoBehaviour
         DialogueChoiceData selectedChoice =
             activeChoices[choiceIndex];
 
-        dialogueText.text = selectedChoice.responseText;
+        dialogueText.text = ApplyLineTag(selectedChoice.responseText);
         AnimateSpeakerForText(dialogueText.text);
+        SfxPlayer.Play(SfxPlayer.Cue.Talk);
+
+        if (GameState.Instance != null && !string.IsNullOrWhiteSpace(activeNpcId))
+        {
+            GameState.Instance.AddConversationTurn(
+                activeNpcId, ConversationTurn.Player,
+                ChoicePrefix + selectedChoice.optionText);
+            GameState.Instance.AddConversationTurn(
+                activeNpcId, activeNpcId,
+                StripLineTags(selectedChoice.responseText));
+        }
 
         // ---------------------------------------------
         // Relationship
@@ -840,10 +1233,16 @@ public class DialogueManager : MonoBehaviour
 
         chatInput.text = string.Empty;
         chatRequestInProgress = true;
+        chatRequestSerial++;
+        chatRequestDeadline = Time.unscaledTime + ChatRequestTimeoutSeconds;
+        pendingPlayerMessage = playerMessage;
+        int serial = chatRequestSerial;
         chatInput.interactable = false;
         sendButton.interactable = false;
         choicePanel.SetActive(false);
         continueButton.gameObject.SetActive(false);
+        HideEmotion();
+        ShowSpeaker(activeNpcId);
         playerTalkingUntil = Time.unscaledTime +
                              Mathf.Clamp(playerMessage.Length * 0.025f, 0.5f, 2f);
 
@@ -863,13 +1262,14 @@ public class DialogueManager : MonoBehaviour
                     activeSpeakerName,
                     activeDialogueContext,
                     playerMessage,
-                    reply => CompleteTypedReply(playerMessage, reply)
+                    reply => CompleteTypedReply(playerMessage, reply, serial),
+                    activePersonalityPrompt
                 )
             );
             return;
         }
 
-        CompleteTypedReply(playerMessage, null);
+        CompleteTypedReply(playerMessage, null, serial);
     }
 
     private void HandleChatEndEdit(string value)
@@ -884,35 +1284,49 @@ public class DialogueManager : MonoBehaviour
 
     private void CompleteTypedReply(
         string playerMessage,
-        GeneratedChatReply generated)
+        GeneratedChatReply generated,
+        int serial)
     {
+        // A reply to a request that timed out or belongs to a conversation
+        // the player already closed.
+        if (serial != chatRequestSerial || !chatRequestInProgress)
+        {
+            return;
+        }
+
+        chatRequestInProgress = false;
         if (!IsDialogueOpen)
         {
-            chatRequestInProgress = false;
             return;
         }
 
         bool usedFallback = generated == null;
         GeneratedChatReply reply = generated ?? BuildFallbackReply(playerMessage);
-        int relationshipDelta = Mathf.Clamp(reply.relationshipDelta, -3, 3);
+        // Offline replies author small gains (+1 to +4), so they count double.
+        // The AI's reading and the rules' reading are combined there; a rude
+        // or distancing message never raises the relationship.
+        int relationshipDelta = RelationshipTuning.Judge(
+            usedFallback
+                ? RelationshipTuning.ScaleGain(reply.relationshipDelta, RelationshipTuning.OfflineGainScale)
+                : reply.relationshipDelta,
+            usedFallback ? null : reply.playerTone,
+            PlayerToneClassifier.Read(playerMessage));
 
-        if (GameState.Instance != null && !string.IsNullOrWhiteSpace(activeNpcId))
+        GameState state = GameState.Instance;
+        if (state != null && !string.IsNullOrWhiteSpace(activeNpcId))
         {
             if (relationshipDelta != 0)
             {
-                GameState.Instance.ChangeRelationship(
-                    activeNpcId,
-                    relationshipDelta
-                );
+                state.ChangeRelationship(activeNpcId, relationshipDelta);
             }
-            GameState.Instance.AddNpcMemory(
-                activeNpcId,
-                "ผู้เล่นพูดว่า: " + playerMessage
-            );
-            GameState.Instance.AddHistory(
+            state.AddConversationTurn(
+                activeNpcId, ConversationTurn.Player, playerMessage);
+            state.AddConversationTurn(activeNpcId, activeNpcId, reply.reply);
+            state.AddHistory(
                 "Typed dialogue with " + activeNpcId +
                 " (relationship " + relationshipDelta + ")"
             );
+            RememberToldSecrets(state, reply);
         }
 
         string serviceNotice = string.Empty;
@@ -934,88 +1348,78 @@ public class DialogueManager : MonoBehaviour
             ":</b></color> " + EscapeRichText(reply.reply) +
             serviceNotice;
         AnimateSpeakerForText(reply.reply);
+        if (string.IsNullOrWhiteSpace(reply.emotion))
+        {
+            HideEmotion();
+        }
+        else
+        {
+            ShowEmotion(activeNpcId, reply.emotion);
+        }
 
-        chatRequestInProgress = false;
+        // Check if player answered Sena's riddle correctly
+        bool isSena = activeNpcId != null &&
+                      activeNpcId.ToLowerInvariant().Contains("sena");
+        if (isSena &&
+            SenaInteraction.IsListeningForAnswer &&
+            SenaInteraction.IsCorrectRiddleAnswer(playerMessage))
+        {
+            if (SenaInteraction.Instance != null)
+            {
+                SenaInteraction.Instance.HandleRiddleSolved();
+            }
+        }
+
         chatInput.interactable = true;
         sendButton.interactable = true;
         chatInput.ActivateInputField();
     }
 
-    private GeneratedChatReply BuildFallbackReply(string playerMessage)
+    /// <summary>
+    /// A secret the NPC actually told becomes a lasting flag
+    /// (secret.&lt;npc&gt;.&lt;id&gt;.told) and a memory, so later dialogue and
+    /// conditions can react to the player knowing it.
+    /// </summary>
+    private void RememberToldSecrets(GameState state, GeneratedChatReply reply)
     {
-        string normalized = playerMessage.ToLowerInvariant();
-        if (ContainsAny(
-            normalized,
-            "ขอบคุณ", "ไม่เป็นไร", "ช่วย", "เป็นห่วง", "เข้าใจ", "โอเค"))
+        if (reply.referencedFactIds == null)
         {
-            return new GeneratedChatReply
-            {
-                reply = "ขอบคุณนะ อย่างน้อยฉันก็รู้ว่าไม่ได้ต้องรับมือกับเรื่องนี้คนเดียว",
-                relationshipDelta = 1
-            };
+            return;
         }
 
-        if (ContainsAny(
-            normalized,
-            "รำคาญ", "เงียบ", "ไม่สน", "ไร้สาระ", "โง่"))
+        NpcProfileData profile = KnowledgeLibrary.GetNpc(activeNpcId);
+        if (profile == null)
         {
-            return new GeneratedChatReply
-            {
-                reply = "เข้าใจแล้ว ฉันจะไม่รบกวน แต่คำพูดนั้นก็เจ็บอยู่เหมือนกัน",
-                relationshipDelta = -1
-            };
+            return;
         }
 
-        if (ContainsAny(
-            normalized,
-            "ทำยังไง", "ทำอย่างไร", "ทางออก", "เบาะแส", "ต่อไป"))
+        foreach (string factId in reply.referencedFactIds)
         {
-            return new GeneratedChatReply
+            if (string.IsNullOrWhiteSpace(factId) || !profile.IsSecret(factId))
             {
-                reply = "ลองทบทวนสิ่งที่เราเพิ่งตรวจพบก่อนนะ บางอย่างในห้องอาจเชื่อมโยงกันมากกว่าที่เห็น",
-                relationshipDelta = 0
-            };
-        }
+                continue;
+            }
 
-        if (ContainsAny(
-            normalized,
-            "เป็นไง", "เป็นอย่างไร", "รู้สึก", "กลัว", "โอเคไหม"))
-        {
-            return new GeneratedChatReply
+            string flag = "secret." + profile.npcId + "." + factId + ".told";
+            if (!state.HasFlag(flag))
             {
-                reply = "ยังไม่ถึงกับสบายใจ แต่การได้คุยกันก็ช่วยให้ฉันตั้งสติได้มากขึ้น",
-                relationshipDelta = 1
-            };
-        }
-
-        int conversationIndex = GameState.Instance != null
-            ? GameState.Instance.GetConversationCount(activeNpcId)
-            : 0;
-        string[] neutralReplies =
-        {
-            "ฉันฟังอยู่ ลองเล่าต่อสิ เผื่อเราจะเห็นรายละเอียดที่มองข้ามไป",
-            "เรื่องนั้นน่าสนใจนะ ฉันจะจำไว้ตอนที่เราตรวจห้องต่อ",
-            "เข้าใจแล้ว เราค่อย ๆ แยกสิ่งที่รู้จริงออกจากสิ่งที่เราคาดเดากันเถอะ"
-        };
-
-        return new GeneratedChatReply
-        {
-            reply = neutralReplies[Mathf.Abs(conversationIndex) % neutralReplies.Length],
-            relationshipDelta = 0
-        };
-    }
-
-    private static bool ContainsAny(string source, params string[] values)
-    {
-        foreach (string value in values)
-        {
-            if (source.Contains(value))
-            {
-                return true;
+                state.SetFlag(flag);
+                state.AddNpcMemory(
+                    profile.npcId,
+                    "เล่าความลับเรื่อง " + factId + " ให้ผู้เล่นฟังแล้ว");
             }
         }
+    }
 
-        return false;
+    /// <summary>
+    /// Offline reply, entirely from data: the NPC's own reply rules, then the
+    /// room's hint ladder, then her neutral lines. See NpcOfflineReplies.
+    /// </summary>
+    private GeneratedChatReply BuildFallbackReply(string playerMessage)
+    {
+        NpcKnowledgeContext knowledge =
+            AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
+        return NpcOfflineReplies.Build(knowledge, playerMessage, GameState.Instance);
     }
 
     private static string EscapeRichText(string value)
@@ -1041,10 +1445,13 @@ public class DialogueManager : MonoBehaviour
         activeDialogueId = string.Empty;
         activeNpcId = string.Empty;
         activeSpeakerName = string.Empty;
+        activePersonalityPrompt = string.Empty;
         activeDialogueContext = string.Empty;
         speakerTalkingUntil = 0f;
         playerTalkingUntil = 0f;
         chatRequestInProgress = false;
+        pendingPlayerMessage = string.Empty;
+        HideEmotion();
         if (chatInput != null)
         {
             chatInput.text = string.Empty;
@@ -1066,25 +1473,21 @@ public class DialogueManager : MonoBehaviour
     private static void AnimatePortrait(
         Image portrait,
         Vector2 basePosition,
-        float talkingUntil)
+        float talkingUntil,
+        ref float talkAmount)
     {
         if (portrait == null || !portrait.gameObject.activeInHierarchy)
         {
+            talkAmount = 0f;
             return;
         }
 
-        RectTransform portraitRect = portrait.GetComponent<RectTransform>();
-        if (Time.unscaledTime < talkingUntil)
-        {
-            float bounce = Mathf.Abs(
-                Mathf.Sin(Time.unscaledTime * 10f)
-            ) * 13f;
-            portraitRect.anchoredPosition =
-                basePosition + new Vector2(0f, bounce);
-        }
-        else
-        {
-            portraitRect.anchoredPosition = basePosition;
-        }
+        float target = Time.unscaledTime < talkingUntil ? 1f : 0f;
+        talkAmount = Mathf.MoveTowards(talkAmount, target, Time.unscaledDeltaTime * 2.5f);
+
+        float wave = 0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * TalkBobPerSecond * 2f * Mathf.PI);
+        float bob = wave * TalkBobPixels * Mathf.SmoothStep(0f, 1f, talkAmount);
+        portrait.GetComponent<RectTransform>().anchoredPosition =
+            basePosition + new Vector2(0f, bob);
     }
 }

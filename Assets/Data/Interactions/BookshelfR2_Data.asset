@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: BookshelfR2_Data
+  m_EditorClassIdentifier: 
+  interactionId: inspect_bookshelf_r2
+  displayName: "ตู้หนังสือชั้นกลาง (Middle Shelf)"
+  interactionMessage: "เล่มหนึ่งถูกดึงออกมาครึ่งเล่ม ราวกับมีใครอ่านค้างไว้แล้วไม่ได้กลับมาอีกเลย ในนั้นมีบทกวีบทเดียว:\n'ข้าวิ่งนำหน้าเจ้าเสมอ แต่ไม่เคยไปถึงไหน\nเจ้าใช้ทั้งชีวิตรอคอยข้า แต่วินาทีที่ข้ามาถึง ข้าก็ถูกเรียกด้วยชื่ออื่นไปแล้ว'\nข้างใต้มีลายมือเขียนแทรกไว้ว่า: 'มันไม่ใช่สิ่งของ... มันคือช่วงเวลา'"
+  failureMessage: "ไม่มีเล่มไหนบนชั้นนี้ที่คุณหยิบออกมาได้"
+  repeatable: 1
+  alreadyCompletedMessage: ""
+  conditions: []
+  actions:
+  - type: 0
+    targetId: inspected_bookshelf_r2
+    amount: 0
+    text: 
+  - type: 5
+    targetId: 
+    amount: 0
+    text: "Read the riddle poem on the Room02 middle shelf"
+  popupItemId: 
+  popupItemName: 
+  popupItemDescription: 

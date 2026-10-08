@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
+  m_Name: Altar_Data
+  m_EditorClassIdentifier: 
+  interactionId: inspect_altar
+  displayName: "แท่นไฟศักดิ์สิทธิ์ (Sacred Brazier)"
+  interactionMessage: "เปลวไฟในแท่นไม่ร้อนเลยสักนิด ที่ฐานมีศิลาจารึกสลักไว้:\n'ผู้เฝ้าประตูจะเรียกของถวายก่อน แล้วจึงตั้งคำถามถึงช่วงเวลาที่ไม่มีวันมาถึง\nผู้ที่ตอบด้วยสิ่งของจะถูกปฏิเสธ มีเพียงผู้ที่ตอบด้วยวันเวลาเท่านั้นที่จะผ่านไปได้'\nบรรทัดสุดท้ายสลักลึกกว่าบรรทัดอื่น: 'อย่าขอคำใบ้จากนาง นางไม่เคยให้ผู้ใด'"
+  failureMessage: "เปลวไฟในแท่นเงียบสงบ ไม่ตอบสนองคุณ"
+  repeatable: 1
+  alreadyCompletedMessage: ""
+  conditions: []
+  actions:
+  - type: 0
+    targetId: inspected_altar
+    amount: 0
+    text: 
+  - type: 5
+    targetId: 
+    amount: 0
+    text: "Read the brazier stele in Room02"
+  popupItemId: 
+  popupItemName: 
+  popupItemDescription: 
