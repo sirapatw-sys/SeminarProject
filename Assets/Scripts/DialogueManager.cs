@@ -1382,14 +1382,14 @@ public class DialogueManager : MonoBehaviour
         string policyReason = null;
         var answerReply = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
         var hintReply = answerReply ?? NpcReplyPolicy.HintReply(knowledge);
-        if (generated != null && hintReply == null)
+        if (generated != null && answerReply == null)
         {
             GeneratedChatReply grounded;
             generated = NpcReplyPolicy.TryGroundReply(knowledge, generated, out grounded, out policyReason)
                 ? grounded : null;
         }
         bool usedFallback = generated == null && hintReply == null;
-        GeneratedChatReply reply = hintReply ?? generated ?? BuildFallbackReply(playerMessage);
+        GeneratedChatReply reply = answerReply ?? generated ?? hintReply ?? BuildFallbackReply(playerMessage);
         // Offline replies author small gains (+1 to +4), so they count double.
         // The AI's reading and the rules' reading are combined there; a rude
         // or distancing message never raises the relationship.
@@ -1409,7 +1409,8 @@ public class DialogueManager : MonoBehaviour
                 state, activeNpcId, playerMessage, relationshipDelta);
             if (relationshipDelta != 0) state.ChangeRelationship(activeNpcId, relationshipDelta);
             if (!string.IsNullOrWhiteSpace(reply.hintId) &&
-                state.AddJournalEntry(reply.hintId, "คำใบ้จาก " + activeSpeakerName, reply.reply))
+                state.AddJournalEntry(reply.hintId, "คำใบ้จาก " + activeSpeakerName,
+                    hintReply != null && hintReply.hintId == reply.hintId ? hintReply.reply : reply.reply))
                 JournalUI.NotifyNewEntry();
             state.AddConversationTurn(
                 activeNpcId, ConversationTurn.Player, playerMessage);
@@ -1423,9 +1424,9 @@ public class DialogueManager : MonoBehaviour
 
         string serviceNotice = string.Empty;
         IAiDialogueProvider generator = DialogueProviders.Current;
-        if (usedFallback && !string.IsNullOrWhiteSpace(policyReason))
+        if (!string.IsNullOrWhiteSpace(policyReason))
         {
-            serviceNotice = "\n\n<color=#FFB4A2><size=18>คำตอบ AI ไม่ตรงกับข้อมูลที่ตัวละครรู้ — จึงใช้บทสนทนาสำรอง</size></color>";
+            Debug.LogWarning("AI reply rejected by knowledge policy: " + policyReason);
         }
         else if (usedFallback && generator != null && generator.CanGenerate &&
             !string.IsNullOrWhiteSpace(generator.LastError))

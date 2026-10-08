@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using MysteryGame.Core;
 using MysteryGame.Knowledge;
@@ -27,11 +26,9 @@ public class NpcEventController : MonoBehaviour
     private TextMeshPro indicatorText;
     private bool generationInProgress;
     private MiniEventData generatingEvent;
-    private Coroutine generationRoutine;
+    private AiRequestOperation generationOperation;
     private int generationVersion;
     private float generationDeadline;
-    private Stack<IEnumerator> activeGenerationIterators;
-    private bool advancingProvider;
 
     private void Awake()
     {
@@ -303,9 +300,18 @@ public class NpcEventController : MonoBehaviour
             generatingEvent = candidate;
             int version = generationVersion;
             generationDeadline = Time.realtimeSinceStartup + Mathf.Max(0.05f, generationTimeoutSeconds);
-            Coroutine started = StartCoroutine(GenerateSafely(candidate, version));
-            // A synchronous provider may already have completed in StartCoroutine.
-            if (IsCurrentGeneration(candidate, version)) generationRoutine = started;
+            var operation = new AiRequestOperation(this);
+            generationOperation = operation;
+            IAiDialogueProvider provider = DialogueProviders.Current;
+            operation.Start(
+                () => provider.Generate(candidate, content => CompleteGeneration(candidate, version, content)),
+                error =>
+                {
+                    if (!IsCurrentGeneration(candidate, version)) return;
+                    Debug.LogWarning("NPC event provider failed: " + error.GetType().Name);
+                    CompleteGeneration(candidate, version, null);
+                },
+                () => CompleteGeneration(candidate, version, null));
             return;
         }
 
@@ -318,86 +324,15 @@ public class NpcEventController : MonoBehaviour
             version == generationVersion && candidate == generatingEvent;
     }
 
-    // Drive nested IEnumerators as well: otherwise an exception in a provider's
-    // nested HTTP routine escapes the guard and leaves the request locked.
-    private IEnumerator GenerateSafely(MiniEventData candidate, int version)
-    {
-        IEnumerator request = null;
-        string error = null;
-        try
-        {
-            request = DialogueProviders.Current.Generate(candidate,
-                content => CompleteGeneration(candidate, version, content));
-        }
-        catch (Exception exception) { error = exception.GetType().Name; }
-        if (request == null)
-        {
-            if (error != null) Debug.LogWarning("NPC event provider failed: " + error);
-            CompleteGeneration(candidate, version, null);
-            yield break;
-        }
-
-        var stack = new Stack<IEnumerator>();
-        activeGenerationIterators = stack;
-        stack.Push(request);
-        try
-        {
-            while (IsCurrentGeneration(candidate, version) && stack.Count > 0)
-            {
-                IEnumerator current = stack.Peek();
-                bool advanced = false;
-                object yielded = null;
-                error = null;
-                try
-                {
-                    advancingProvider = true;
-                    advanced = current.MoveNext();
-                    if (advanced) yielded = current.Current;
-                }
-                catch (Exception exception) { error = exception.GetType().Name; }
-                finally { advancingProvider = false; }
-                if (error != null)
-                {
-                    Debug.LogWarning("NPC event provider failed: " + error);
-                    break;
-                }
-                if (!IsCurrentGeneration(candidate, version)) break;
-                if (!advanced)
-                {
-                    stack.Pop();
-                    DisposeRequest(current);
-                }
-                else if (yielded is IEnumerator nested) stack.Push(nested);
-                else yield return yielded;
-            }
-            // The iterator ended without calling back: use authored content.
-            CompleteGeneration(candidate, version, null);
-        }
-        finally
-        {
-            while (stack.Count > 0) DisposeRequest(stack.Pop());
-            if (ReferenceEquals(activeGenerationIterators, stack)) activeGenerationIterators = null;
-        }
-    }
-
-    private static void DisposeRequest(IEnumerator request)
-    {
-        try { (request as IDisposable)?.Dispose(); }
-        catch (Exception exception)
-        { Debug.LogWarning("NPC event provider cleanup failed: " + exception.GetType().Name); }
-    }
-
     private void CompleteGeneration(MiniEventData candidate, int version, GeneratedDialogueContent generated)
     {
         if (!IsCurrentGeneration(candidate, version)) return;
         generationInProgress = false;
-        Coroutine completed = generationRoutine;
-        generationRoutine = null;
+        var completed = generationOperation;
+        generationOperation = null;
         generatingEvent = null;
         generationVersion++; // Discard duplicate, late, cancelled and old-scene callbacks.
-        // External callbacks may arrive while the iterator is waiting. Release
-        // it now; an in-MoveNext callback is disposed by GenerateSafely instead.
-        if (!advancingProvider) StopGenerationRoutine(completed);
+        completed?.Cancel();
         if (GameState.Instance == null || candidate == null || !candidate.CanTrigger(GameState.Instance)) return;
         var context = NpcKnowledgeContextBuilder.Build(candidate.npcId,
             GameState.Instance.GetCurrentScene(), GameState.Instance, false);
@@ -412,20 +347,9 @@ public class NpcEventController : MonoBehaviour
         generationVersion++;
         generationInProgress = false;
         generatingEvent = null;
-        Coroutine previous = generationRoutine;
-        generationRoutine = null;
-        StopGenerationRoutine(previous);
-    }
-
-    private void StopGenerationRoutine(Coroutine routine)
-    {
-        var abandoned = activeGenerationIterators;
-        activeGenerationIterators = null;
-        if (routine != null) StopCoroutine(routine);
-        // Explicit disposal also releases network requests on Unity versions
-        // that do not dispose every iterator when StopCoroutine is called.
-        if (abandoned != null)
-            while (abandoned.Count > 0) DisposeRequest(abandoned.Pop());
+        var previous = generationOperation;
+        generationOperation = null;
+        previous?.Cancel();
     }
 
     private void OnDisable()

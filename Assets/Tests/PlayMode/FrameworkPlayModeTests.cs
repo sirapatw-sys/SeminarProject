@@ -455,7 +455,7 @@ public class FrameworkPlayModeTests
             Assert.That(log[log.Count - 1].Text, Does.Not.Contain("{fact:"));
             var text = (TMP_Text)typeof(DialogueManager).GetField("dialogueText",
                 BindingFlags.Instance | BindingFlags.NonPublic).GetValue(DialogueManager.Instance);
-            Assert.That(text.text, Does.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
+            Assert.That(text.text, Does.Not.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
             DialogueManager.Instance.HideDialogue();
         }
     }

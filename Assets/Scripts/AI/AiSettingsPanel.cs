@@ -427,6 +427,8 @@ public class AiSettingsPanel : MonoBehaviour
         }
         GUILayout.EndHorizontal();
         Note("key ที่พิมพ์ตรงนี้ใช้เฉพาะรอบที่เล่นอยู่ ไม่ถูกบันทึกลงฉากหรือ PlayerPrefs (key ในโฟลเดอร์ UserSettings โหลดให้เองตอนเริ่มเกม)");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            Note("ช่องว่างไม่ได้แปลว่า key ในเครื่องถูกลบ: เมื่อกดบันทึก ระบบจะอ่าน key ของผู้ให้บริการที่เลือกจาก Environment → UserSettings → api_keys.json (ถ้ามี) ไม่ยืม key ของผู้ให้บริการอื่น");
 
         GUILayout.Space(14f);
         Rect divider = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));

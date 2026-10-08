@@ -452,11 +452,10 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 
         NpcKnowledgeContext knowledge = BuildKnowledgeContext(
             npcId, playerMessage);
-        GeneratedChatReply hint = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance)
-            ?? NpcReplyPolicy.HintReply(knowledge);
-        if (hint != null)
+        GeneratedChatReply answer = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
+        if (answer != null)
         {
-            onComplete(hint);
+            onComplete(answer);
             yield break;
         }
 
@@ -493,15 +492,13 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                     result.reply = ScrubGateWord(result.reply);
                 }
 
-                string offendingFactId;
+                string offendingFactId = null;
+                GeneratedChatReply ignored;
                 if (result != null && (knowledge.HasData || knowledge.HasProfile) &&
-                    !NpcReplyPolicy.Validate(BuildKnowledgeContext(npcId, playerMessage),
-                        result.referencedFactIds, new[] { result.reply }, out offendingFactId))
+                    !NpcReplyPolicy.TryGroundReply(BuildKnowledgeContext(npcId, playerMessage),
+                        result, out ignored, out offendingFactId))
                 {
-                    LastError =
-                        "AI อ้างถึงข้อมูลที่ตัวละครนี้ไม่มีสิทธิ์รู้ (" +
-                        offendingFactId + ") จึงใช้คำตอบสำรองแทน";
-                    Debug.LogWarning(LastError);
+                    Debug.LogWarning("AI reply rejected by knowledge policy: " + offendingFactId);
                     result = null;
                 }
             }
@@ -747,6 +744,23 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         string customPersonality = null,
         NpcKnowledgeContext knowledge = null)
     {
+        var authoredHint = NpcReplyPolicy.HintReply(knowledge);
+        if (authoredHint != null)
+        {
+            var hintPrompt = new StringBuilder();
+            hintPrompt.AppendLine("คุณคือ " + speakerName + " (" + npcId + ") ตอบคำขอคำใบ้ในเกม");
+            if (knowledge.Npc != null)
+            {
+                hintPrompt.AppendLine("บุคลิก: " + knowledge.Npc.persona);
+                hintPrompt.AppendLine("สำนวน: " + knowledge.Npc.speechStyle);
+            }
+            hintPrompt.AppendLine("น้ำเสียงตามความสัมพันธ์: " + knowledge.Tone);
+            hintPrompt.AppendLine("ระดับที่อนุญาต: " + knowledge.AllowedHintLevel);
+            hintPrompt.AppendLine("ข้อมูลคำใบ้ที่ล็อกไว้: " + authoredHint.reply);
+            hintPrompt.AppendLine(NpcReplyPolicy.HintStyleContract);
+            hintPrompt.AppendLine("ผู้เล่นพูดว่า: " + playerMessage);
+            return hintPrompt.ToString();
+        }
         StringBuilder prompt = new StringBuilder();
         PlayerIntent intent = PlayerIntentClassifier.Classify(playerMessage);
         bool hostile = (intent & PlayerIntent.Hostile) != 0;
@@ -873,7 +887,8 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             prompt.Append(knowledge.ToCharacterSection());
         }
         prompt.AppendLine("สถานการณ์: " + eventData.situationPrompt);
-        prompt.AppendLine(knowledge.ToPromptSection());
+        if (knowledge.HasData) prompt.AppendLine(knowledge.ToPromptSection());
+        else prompt.AppendLine("=== ห้องนี้ยังไม่มีข้อมูล canon ===\nห้ามให้คำใบ้หรือแต่งข้อมูลห้อง ให้คุยตามบุคลิกเท่านั้น");
         prompt.AppendLine("โทน: " + eventData.tonePrompt);
         prompt.AppendLine("เป้าหมายปัจจุบัน: " +
                           (state != null ? state.GetCurrentGoal() : "escape_room"));

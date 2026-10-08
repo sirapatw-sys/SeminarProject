@@ -7,7 +7,7 @@ namespace MysteryGame.Knowledge
     /// <summary>
     /// Exactly what one NPC is allowed to say right now: the facts they may
     /// reference, the facts they must not, the single next step of the puzzle,
-    /// and the deterministic hint the model is only permitted to rephrase.
+    /// and the deterministic hint whose presentation the model may style.
     /// </summary>
     public class NpcKnowledgeContext
     {
@@ -270,6 +270,8 @@ namespace MysteryGame.Knowledge
 
         public string ToPromptSection()
         {
+            if (!HasData)
+                return "=== ห้องนี้ยังไม่มีข้อมูล canon ===\nห้ามให้คำใบ้หรือแต่งข้อมูลห้อง ให้คุยตามบุคลิกเท่านั้น\n";
             StringBuilder sb = new StringBuilder();
 
             sb.AppendLine("=== ข้อมูลความจริงของห้อง (CANON — ห้ามแต่งเพิ่ม) ===");
@@ -337,7 +339,7 @@ namespace MysteryGame.Knowledge
             else
             {
                 sb.AppendLine("ระดับคำใบ้ที่อนุญาตตอนนี้: " + AllowedHintLevel);
-                sb.AppendLine("**คำใบ้ที่อนุญาตมีเพียงข้อความนี้เท่านั้น** คุณมีหน้าที่เรียบเรียงใหม่ให้เข้ากับบุคลิก ห้ามเพิ่มข้อมูลอื่น ห้ามข้ามขั้น:");
+                sb.AppendLine("**คำใบ้ที่อนุญาตมีเพียงข้อความนี้เท่านั้น** เกมจะใส่ข้อความนี้แทน {hint}; ปรับเฉพาะสำนวนเปิด/ปิด ห้ามเพิ่มข้อมูลอื่น ห้ามข้ามขั้น:");
                 sb.AppendLine("\"" + DeterministicHint + "\"");
             }
             sb.AppendLine();

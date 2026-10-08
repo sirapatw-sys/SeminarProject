@@ -86,6 +86,7 @@ public static class PlayerIntentClassifier
         @"^\s*(?:ทำยังไง|ทำไง|ทำอย่างไร|ต้องทำอะไร|หาอะไร|what\s+to\s+do(?:\s+next)?|" +
         @"what\s+(?:do|should)\s+(?:i|we)\s+do(?:\s+next)?|where\s+should\s+(?:i|we)\s+go|how\s+to\s+proceed)" +
         @"\s*(?:ครับ|ค่ะ|คะ|นะ|ดี)?[?.!]*\s*$");
+    private static readonly Regex EnglishSubject = new Regex(@"^[a-z ]+$", RegexOptions.CultureInvariant);
     private static readonly Regex DefaultGameplayQuestion = R(BuildGameplayQuestion(null));
     private static readonly Regex ExplorationQuestion = R(
         @"(?:เริ่ม|สำรวจ|ค้นหา)" + QuestionGap + @"{0,24}(?:ตรงไหน|ที่ไหน|อย่างไร|ยังไง)|" +
@@ -151,10 +152,42 @@ public static class PlayerIntentClassifier
         return ReadHintRequest(NormalizeHintText(message), gameplaySubjects);
     }
 
+    private const int GameplayQuestionCacheLimit = 32;
+    private static readonly Dictionary<string, Regex> GameplayQuestionCache = new Dictionary<string, Regex>(StringComparer.Ordinal);
+    private static readonly Queue<string> GameplayQuestionCacheOrder = new Queue<string>();
+    [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetQuestionCache()
+    {
+        GameplayQuestionCache.Clear(); GameplayQuestionCacheOrder.Clear();
+    }
+
+    private static Regex GetGameplayQuestion(IEnumerable<string> roomSubjects)
+    {
+        if (roomSubjects == null) return DefaultGameplayQuestion;
+        var subjects = new List<string>(); var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string subject in roomSubjects)
+        {
+            string term = NormalizeHintText(subject).Trim();
+            if (term.Length > 0 && seen.Add(term)) subjects.Add(term);
+        }
+        if (subjects.Count == 0) return DefaultGameplayQuestion;
+        subjects.Sort(StringComparer.Ordinal);
+        var key = new StringBuilder();
+        foreach (string subject in subjects) key.Append(subject.Length).Append(':').Append(subject);
+        string cacheKey = key.ToString();
+        Regex question;
+        if (GameplayQuestionCache.TryGetValue(cacheKey, out question)) return question;
+        question = R(BuildGameplayQuestion(subjects));
+        if (GameplayQuestionCache.Count >= GameplayQuestionCacheLimit)
+            GameplayQuestionCache.Remove(GameplayQuestionCacheOrder.Dequeue());
+        GameplayQuestionCache.Add(cacheKey, question); GameplayQuestionCacheOrder.Enqueue(cacheKey);
+        return question;
+    }
+
     private static bool ReadHintRequest(string message, IEnumerable<string> roomSubjects)
     {
         if (string.IsNullOrWhiteSpace(message)) return false;
-        Regex question = roomSubjects == null ? DefaultGameplayQuestion : R(BuildGameplayQuestion(roomSubjects));
+        Regex question = GetGameplayQuestion(roomSubjects);
         bool social = SocialTopic.IsMatch(message);
         bool asking = false, declined = false;
         foreach (string clause in Clauses.Split(message))
@@ -214,7 +247,7 @@ public static class PlayerIntentClassifier
             if (term.Length == 0 || !seen.Add(term)) continue;
             // "key" in "monkey" must not turn a personal question into a hint.
             string pattern = Regex.Escape(term);
-            if (Regex.IsMatch(term, @"^[a-z ]+$")) pattern = @"(?<![a-z])" + pattern + @"(?![a-z])";
+            if (EnglishSubject.IsMatch(term)) pattern = @"(?<![a-z])" + pattern + @"(?![a-z])";
             nouns.Add(pattern);
         }
     }

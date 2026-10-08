@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using MysteryGame.Core;
 using MysteryGame.Knowledge;
@@ -18,13 +19,14 @@ public class NpcReplyBoundaryPlayModeTests
         public bool Online;
         public string Reply = SplitAnswer;
         public string[] FactIds = Array.Empty<string>();
+        public Action BeforeReply;
         public bool CanGenerate { get { return Online; } }
         public string LastError { get { return string.Empty; } }
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> complete)
         { complete(null); yield break; }
         public IEnumerator GenerateReply(string npc, string name, string context, string message,
             Action<GeneratedChatReply> complete, string personality = null)
-        { complete(new GeneratedChatReply { reply = Reply, referencedFactIds = FactIds }); yield break; }
+        { BeforeReply?.Invoke(); complete(new GeneratedChatReply { reply = Reply, referencedFactIds = FactIds }); yield break; }
     }
     private Provider provider;
     private DialogueData intro;
@@ -53,6 +55,85 @@ public class NpcReplyBoundaryPlayModeTests
         if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
         DialogueProviders.Override = null; GameDefinition.Override = null;
         SaveSystem.PersistenceEnabled = true; KnowledgeLibrary.ClearCache();
+    }
+
+    [UnityTest]
+    public IEnumerator NaturalSocialMentionsAndNumbersReachTheUiWithoutPolicyWarnings()
+    {
+        provider.Online = true;
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (string reply in new[] { "มาช่วยกันหาทางออกต่อเถอะ", "ฉันจะอยู่ข้างๆ เธอเอง", "ลองหายใจช้าๆ 3 ครั้งนะ" })
+        {
+            provider.Reply = reply;
+            DialogueManager.Instance.StartDialogue(intro); input.text = "คุยเป็นเพื่อนหน่อย";
+            DialogueManager.Instance.SendTypedMessage(); yield return null;
+            var log = GameState.Instance.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo(reply));
+            Assert.That(Text().text, Does.Contain(reply));
+            Assert.That(Text().text, Does.Not.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
+            Assert.That(GameState.Instance.GetJournal().Count, Is.Zero);
+            DialogueManager.Instance.HideDialogue();
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator AiHintStyleIsDisplayedButJournalAndRelationshipKeepTheAuthoredTier()
+    {
+        provider.Online = true; provider.Reply = "ฉันบอกได้เท่านี้นะ: {hint} ค่อยๆ คิดไปด้วยกัน";
+        var state = GameState.Instance;
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (int score in new[] { 10, 45, 70 })
+        {
+            state.SetRelationship("Alice", score);
+            DialogueManager.Instance.StartDialogue(intro); input.text = "ช่วยใบ้หน่อย";
+            DialogueManager.Instance.SendTypedMessage(); yield return null;
+            var authored = NpcReplyPolicy.HintReply(AiDialogueGenerator.BuildKnowledgeContext("Alice", "ช่วยใบ้หน่อย"));
+            var log = state.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo(provider.Reply.Replace("{hint}", authored.reply)));
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(score));
+            Assert.That(state.GetJournal().Single(e => e.Id == authored.hintId).Text, Is.EqualTo(authored.reply));
+            Assert.That(Text().text, Does.Not.Contain("{hint}"));
+            DialogueManager.Instance.HideDialogue();
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator HintStyleCannotRetainAnOldHigherTierWhenRelationshipChangesDuringRequest()
+    {
+        provider.Online = true; provider.Reply = "เอาล่ะ {hint}";
+        var state = GameState.Instance;
+        state.SetRelationship("Alice", 70);
+        provider.BeforeReply = () => state.SetRelationship("Alice", 10);
+        DialogueManager.Instance.StartDialogue(intro);
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        input.text = "ช่วยใบ้หน่อย"; DialogueManager.Instance.SendTypedMessage(); yield return null;
+        var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "ช่วยใบ้หน่อย");
+        Assert.That(context.AllowedHintLevel, Is.EqualTo(HintLevel.Vague));
+        var log = state.GetConversationLog("Alice");
+        Assert.That(log[log.Count - 1].Text, Is.EqualTo("เอาล่ะ " + context.DeterministicHint));
+        Assert.That(state.GetJournal()[0].Id, Does.EndWith(".Vague"));
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator UnsafeAiHintStylesFallBackWithoutLeakingOrShowingTechnicalWarnings()
+    {
+        provider.Online = true;
+        var state = GameState.Instance; state.SetRelationship("Alice", 10);
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        foreach (string reply in new[] { "{hint} รหัสคือ 4592", "Go inspect the painting.", "{hint} {hint}" })
+        {
+            provider.Reply = reply; DialogueManager.Instance.StartDialogue(intro);
+            input.text = "ช่วยใบ้หน่อย"; DialogueManager.Instance.SendTypedMessage(); yield return null;
+            var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "ช่วยใบ้หน่อย");
+            var log = state.GetConversationLog("Alice");
+            Assert.That(log[log.Count - 1].Text, Is.EqualTo(context.DeterministicHint));
+            Assert.That(Text().text, Does.Not.Contain("4592"));
+            Assert.That(Text().text, Does.Not.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
+            Assert.That(state.GetRelationship("Alice"), Is.EqualTo(10));
+            DialogueManager.Instance.HideDialogue();
+        }
+        Assert.That(state.GetJournal().Count, Is.EqualTo(1));
     }
 
     [UnityTest]
@@ -86,7 +167,7 @@ public class NpcReplyBoundaryPlayModeTests
         input.text = "สวัสดี"; DialogueManager.Instance.SendTypedMessage();
         yield return null;
         Assert.That(Text().text, Does.Not.Contain(SplitAnswer));
-        Assert.That(Text().text, Does.Contain("บทสนทนาสำรอง"), "The invalid generated answer must use fallback.");
+        Assert.That(Text().text, Does.Not.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
         Assert.That(GameState.Instance.HasFlag("drawer_opened"), Is.False);
         DialogueManager.Instance.HideDialogue();
         Assert.That(DialogueManager.IsDialogueOpen, Is.False);
@@ -159,7 +240,7 @@ public class NpcReplyBoundaryPlayModeTests
         var log = GameState.Instance.GetConversationLog("Alice");
         Assert.That(log[log.Count - 1].Text, Does.Not.Contain(fact.statement));
         Assert.That(Text().text, Does.Not.Contain(fact.statement));
-        Assert.That(Text().text, Does.Contain("บทสนทนาสำรอง"));
+        Assert.That(Text().text, Does.Not.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
         DialogueManager.Instance.HideDialogue();
     }
 
@@ -178,7 +259,7 @@ public class NpcReplyBoundaryPlayModeTests
             var log = state.GetConversationLog("Alice");
             Assert.That(log[log.Count - 1].Text, Is.Not.EqualTo(text));
             Assert.That(Text().text, Does.Not.Contain(text));
-            Assert.That(Text().text, Does.Contain("บทสนทนาสำรอง"));
+            Assert.That(Text().text, Does.Not.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
             Assert.That(state.HasFlag("inspected_painting"), Is.False);
             DialogueManager.Instance.HideDialogue();
             Assert.That(DialogueManager.IsDialogueOpen, Is.False);
