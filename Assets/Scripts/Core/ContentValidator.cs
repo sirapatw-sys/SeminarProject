@@ -22,6 +22,16 @@ namespace MysteryGame.Core
             var facts = new HashSet<string>();
             foreach (var room in game.rooms.Where(r => r != null))
             {
+                if (room.visibleAmbientTerms != null)
+                {
+                    Unique(room.visibleAmbientTerms, room.roomId + "/ambient", errors);
+                    foreach (string term in room.visibleAmbientTerms)
+                        if (!string.IsNullOrWhiteSpace(term) &&
+                            (room.gameplayTerms == null || !room.gameplayTerms.Any(t =>
+                                string.Equals(t, term, System.StringComparison.OrdinalIgnoreCase)) ||
+                             NpcReplyPolicy.IsCoreWorldSubject(term)))
+                            errors.Add(room.roomId + ": invalid visible ambient term " + term);
+                }
                 Unique(room.steps.Where(s => s != null).Select(s => s.stepId), room.roomId + "/step", errors);
                 foreach (var fact in room.facts.Where(f => f != null))
                 {

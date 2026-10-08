@@ -34,6 +34,11 @@ MonoBehaviour:
   - "fireplace"
   - "ashes"
   - "winding key"
+  visibleAmbientTerms:
+  - "กระจก"
+  - "กล่องดนตรี"
+  - "mirror"
+  - "music box"
   facts:
   - factId: "parlor_cold"
     statement: "ห้องนี้หนาวผิดปกติ เปลวเทียนเป็นสีฟ้าซีดทั้งที่ไม่มีใครจุด และเก้าอี้โยกข้างเตาผิงโยกไปมาเองช้าๆ"

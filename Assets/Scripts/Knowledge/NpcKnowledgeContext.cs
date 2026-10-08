@@ -282,6 +282,14 @@ namespace MysteryGame.Knowledge
             }
             sb.AppendLine();
 
+            if (Room.visibleAmbientTerms != null && Room.visibleAmbientTerms.Count > 0)
+            {
+                sb.AppendLine("--- สิ่งที่เห็นได้ในห้องสำหรับบทคุยบรรยากาศ ---");
+                sb.AppendLine(string.Join(", ", Room.visibleAmbientTerms));
+                sb.AppendLine("พูดถึงการเห็น/ความรู้สึกต่อสิ่งเหล่านี้ได้ แต่ห้ามแต่งตำแหน่ง คุณสมบัติ กลไก หรือคำสั่งสำรวจ; ข้อมูลด่านยังต้องใช้ factId และห้ามเพิ่มชื่อสิ่งของรอบ {hint}");
+                sb.AppendLine();
+            }
+
             sb.AppendLine("--- สิ่งที่ตัวละครนี้ 'รู้' และพูดถึงได้ (อ้างด้วย factId) ---");
             if (KnownFacts.Count == 0)
             {

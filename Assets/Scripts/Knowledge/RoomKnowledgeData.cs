@@ -180,8 +180,11 @@ namespace MysteryGame.Knowledge
         [TextArea(2, 5)]
         public string roomDescription;
 
-        [Tooltip("Room-specific gameplay words that may only appear in generated text through {fact:id} references.")]
+        [Tooltip("Room-specific objects/mechanics used to detect generated gameplay claims. Social mentions alone are allowed.")]
         public List<string> gameplayTerms = new List<string>();
+
+        [Tooltip("A subset of gameplayTerms for visibly present scenery. Allows social existence/reflection mentions only, not locations, mechanics, instructions or extra hint details. Never put hidden items or answers here.")]
+        public List<string> visibleAmbientTerms = new List<string>();
 
         [Tooltip(
             "The illustrated background for this room. Lives here so one room " +

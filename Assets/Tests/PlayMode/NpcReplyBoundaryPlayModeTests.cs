@@ -77,6 +77,87 @@ public class NpcReplyBoundaryPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator VisibleRoom03AtmosphereReachesTheUiWithoutCreatingHints()
+    {
+        yield return SceneManager.LoadSceneAsync("Room03"); yield return null;
+        var state = GameState.Instance; state.ResetState(); DialogueManager.Instance.HideDialogue();
+        DialogueData stelle = null;
+#if UNITY_EDITOR
+        stelle = UnityEditor.AssetDatabase.LoadAssetAtPath<DialogueData>("Assets/Data/Dialogue/Stelle_Room03.asset");
+#endif
+        Assert.That(stelle, Is.Not.Null); provider.Online = true;
+        var disabled = new List<NpcEventController>();
+        foreach (var controller in UnityEngine.Object.FindObjectsOfType<NpcEventController>())
+            if (controller.enabled) { disabled.Add(controller); controller.enabled = false; }
+        try
+        {
+            var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+            foreach (string reply in new[] { "มีเสียงเพลงจากกล่องดนตรีอีกแล้วค่ะ สเตลกลัวจัง",
+                "เจอกระจกบานนั้นทีไรขนลุกทุกที", "มองกระจกแล้วเห็นแต่หน้าตัวเองซีดๆ" })
+            {
+                provider.Reply = reply; DialogueManager.Instance.StartDialogue(stelle);
+                int score = state.GetRelationship("Stelle");
+                Assert.That(PlayerToneClassifier.Read("โอเค").Tone, Is.EqualTo(PlayerTone.Neutral));
+                input.text = "โอเค"; DialogueManager.Instance.SendTypedMessage(); yield return null;
+                var log = state.GetConversationLog("Stelle");
+                Assert.That(log[log.Count - 1].Text, Is.EqualTo(reply));
+                Assert.That(Text().text, Does.Contain(reply));
+                Assert.That(Text().text, Does.Not.Contain("คำตอบ AI ไม่ตรงกับข้อมูล"));
+                Assert.That(state.GetRelationship("Stelle"), Is.EqualTo(score));
+                Assert.That(state.GetJournal().Count, Is.Zero);
+                DialogueManager.Instance.HideDialogue();
+            }
+        }
+        finally
+        {
+            DialogueManager.Instance.HideDialogue();
+            foreach (var controller in disabled) if (controller != null) controller.enabled = true;
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator NeutralHintThinkingFramesReachAliceAndSenaUiWithCanonicalJournal()
+    {
+        yield return VerifyThinkingFrameUi("Room01", "Alice", "Assets/Data/Dialogue/Alice_Intro.asset", "ลองคิดดูนะ: {hint}");
+        yield return VerifyThinkingFrameUi("Room01", "Alice", "Assets/Data/Dialogue/Alice_Intro.asset", "ค่อนข้างยากหน่อย {hint}");
+        yield return VerifyThinkingFrameUi("Room02", "Sena", "Assets/Data/Dialogue/Sena_Demand.asset", "จงใช้ปัญญาของเจ้าเถิด {hint}");
+    }
+
+    private IEnumerator VerifyThinkingFrameUi(string room, string npc, string path, string frame)
+    {
+        yield return SceneManager.LoadSceneAsync(room); yield return null;
+        var state = GameState.Instance; state.ResetState(); state.SetRelationship(npc, 10);
+        DialogueManager.Instance.HideDialogue(); provider.Online = true; provider.Reply = frame;
+        DialogueData data = null;
+#if UNITY_EDITOR
+        data = UnityEditor.AssetDatabase.LoadAssetAtPath<DialogueData>(path);
+#endif
+        Assert.That(data, Is.Not.Null);
+        var context = AiDialogueGenerator.BuildKnowledgeContext(npc, "ช่วยใบ้หน่อย");
+        var authored = NpcReplyPolicy.HintReply(context);
+        Assert.That(authored, Is.Not.Null);
+        if (context.Npc.givesHints) Assert.That(authored.hintId, Is.Not.Null);
+        else
+        {
+            Assert.That(context.AllowedHintLevel, Is.EqualTo(HintLevel.None));
+            Assert.That(authored.hintId, Is.Null);
+            Assert.That(authored.reply, Is.EqualTo(context.Npc.refuseHintLine));
+        }
+        DialogueManager.Instance.StartDialogue(data);
+        var input = (TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        input.text = "ช่วยใบ้หน่อย"; DialogueManager.Instance.SendTypedMessage(); yield return null;
+        var log = state.GetConversationLog(npc);
+        Assert.That(log[log.Count - 1].Text, Is.EqualTo(frame.Replace("{hint}", authored.reply)));
+        Assert.That(Text().text, Does.Contain(frame.Replace("{hint}", authored.reply)));
+        Assert.That(Text().text, Does.Not.Contain("{hint}"));
+        Assert.That(state.GetRelationship(npc), Is.EqualTo(10));
+        if (authored.hintId != null)
+            Assert.That(state.GetJournal().Single(e => e.Id == authored.hintId).Text, Is.EqualTo(authored.reply));
+        else Assert.That(state.GetJournal().Count, Is.Zero, "Sena's refusal must not create a hint.");
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
     public IEnumerator AiHintStyleIsDisplayedButJournalAndRelationshipKeepTheAuthoredTier()
     {
         provider.Online = true; provider.Reply = "ฉันบอกได้เท่านี้นะ: {hint} ค่อยๆ คิดไปด้วยกัน";

@@ -61,6 +61,141 @@ namespace MysteryGame.Tests
                 out ev, out reason), Is.True, reason);
         }
 
+        private static void AssertChatAndEvent(NpcKnowledgeContext context, string text, bool accepted)
+        {
+            GeneratedChatReply reply; GeneratedDialogueContent ev; string reason;
+            Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply
+            { reply = text, referencedFactIds = Array.Empty<string>() }, out reply, out reason), Is.EqualTo(accepted), reason);
+            Assert.That(NpcReplyPolicy.TryGroundEvent(context, new GeneratedDialogueContent
+            { lines = new[] { text }, choices = Array.Empty<GeneratedDialogueChoice>(), referencedFactIds = Array.Empty<string>() },
+                out ev, out reason), Is.EqualTo(accepted), reason);
+            if (accepted) { Assert.That(reply.reply, Is.EqualTo(text)); Assert.That(ev.lines[0], Is.EqualTo(text)); }
+            else { Assert.That(reply, Is.Null); Assert.That(ev, Is.Null); }
+        }
+
+        [TestCase("มีเสียงเพลงจากกล่องดนตรีอีกแล้วค่ะ สเตลกลัวจัง")]
+        [TestCase("เจอกระจกบานนั้นทีไรขนลุกทุกที")]
+        [TestCase("มองกระจกแล้วเห็นแต่หน้าตัวเองซีดๆ")]
+        [TestCase("มองกระจกบานนั้นแล้วเห็นแต่ใบหน้าตัวเอง")]
+        [TestCase("There is a mirror here. It makes me nervous.")]
+        [TestCase("There is a music box here and I feel uneasy.")]
+        [TestCase("I look at the mirror and see only my own face.")]
+        public void VisibleRoomAtmosphereIsAllowedInChatAndEvents(string text)
+        { AssertChatAndEvent(Build("Stelle", "Room03", false), text, true); }
+
+        [TestCase("Stelle", "Room03", "กล่องดนตรีอยู่บนโต๊ะเครื่องแป้ง")]
+        [TestCase("Rina", "Room03", "ลองดูที่เตาผิงสิ")]
+        [TestCase("Rina", "Room03", "There is a hidden key in the music box.")]
+        [TestCase("Rina", "Room03", "The mirror is near the fireplace.")]
+        [TestCase("Rina", "Room03", "There is a music box underneath the table.")]
+        [TestCase("Rina", "Room03", "The drawer contains the music box.")]
+        [TestCase("Rina", "Room03", "มีเสียงเพลงจากกล่องดนตรีบนโต๊ะเครื่องแป้ง")]
+        [TestCase("Rina", "Room03", "มีเสียงเพลงจากกล่องดนตรีอีกแล้วค่ะ ใช้กล่องดนตรีสิ")]
+        [TestCase("Rina", "Room03", "มองกระจกแล้วเห็นแต่หน้าตัวเองซีดๆ แล้วหมุนกล่องดนตรี")]
+        [TestCase("Rina", "Room03", "I look at the mirror and see my own face and wind the music box.")]
+        [TestCase("Rina", "Room03", "มองกระจกแล้วเห็นแต่หน้าตัวเอง กล่องดนตรีอยู่บนโต๊ะเครื่องแป้ง")]
+        [TestCase("Rina", "Room03", "มีเสียงเพลงจากกล่องดนตรีอีกแล้วค่ะ ลองดูที่เตาผิงสิ")]
+        [TestCase("Rina", "Room03", "เจอกระจกบานนั้นทีไรขนลุก รหัสคือ 4592")]
+        [TestCase("Rina", "Room03", "ลองมองกระจกแล้วเห็นแต่หน้าตัวเอง")]
+        [TestCase("Rina", "Room03", "Look at the mirror and see my face.")]
+        [TestCase("Sena", "Room02", "ผู้ที่มิมีของถวาย จงเสาะหาจารึกที่ยังเขียนมิจบ")]
+        [TestCase("Alice", "Room01", "มีนางฟ้ายืนขวางประตู")]
+        public void AmbientMentionsDoNotAuthorizeLocationsInstructionsOrPuzzleClaims(string npc, string room, string text)
+        { AssertChatAndEvent(Build(npc, room, false), text, false); }
+
+        [Test]
+        public void VisibleTermsAreOptInAndDoNotBypassWithheldFactsOrCoreSubjects()
+        {
+            var room = ScriptableObject.CreateInstance<RoomKnowledgeData>();
+            try
+            {
+                room.gameplayTerms.Add("statue");
+                var context = new NpcKnowledgeContext { Room = room };
+                AssertChatAndEvent(context, "There is a statue here.", false);
+                room.visibleAmbientTerms.Add("statue");
+                AssertChatAndEvent(context, "There is a statue here.", true);
+                AssertChatAndEvent(context, "The statue is behind the door.", false);
+                room.gameplayTerms.Add("key"); room.visibleAmbientTerms.Add("key");
+                AssertChatAndEvent(context, "There is a key here.", false);
+                context.WithheldFacts.Add(new RoomFact { factId = "hidden_statue", isPuzzleAnswer = true,
+                    protectedTerms = new List<string> { "statue" } });
+                AssertChatAndEvent(context, "There is a statue here.", false);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(room); }
+        }
+
+        [TestCase(10)]
+        [TestCase(70)]
+        public void VisibleSceneryIsStillForbiddenInTheAiHintFrame(int relationship)
+        {
+            State.SetRelationship("Rina", relationship);
+            var context = Build("Rina", "Room03", true);
+            foreach (string text in new[] { "{hint} เจอกระจกแล้วฉันกลัว", "{hint} There is a music box here." })
+            {
+                GeneratedChatReply reply; string reason;
+                Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply
+                { reply = text, referencedFactIds = Array.Empty<string>() }, out reply, out reason), Is.False);
+            }
+        }
+
+        [TestCase("Alice", "Room01", "ลองคิดดูนะ: {hint}")]
+        [TestCase("Alice", "Room01", "ค่อนข้างยากหน่อยนะ {hint}")]
+        [TestCase("Sena", "Room02", "จงใช้ปัญญาของเจ้าเถิด {hint}")]
+        [TestCase("Sena", "Room02", "ลองใช้เหตุผลและไตร่ตรองดู {hint}")]
+        [TestCase("Alice", "Room01", "ค่อน\u200bข้างยากหน่อย {hint}")]
+        [TestCase("Sena", "Room02", "จงใช้ ปัญญาของเจ้าเถิด {hint}")]
+        public void NeutralThinkingFramesKeepPersonalityAndTheLockedHintAtEveryTier(string npc, string room, string text)
+        {
+            foreach (int relationship in new[] { 10, 45, 70 })
+            {
+                State.SetRelationship(npc, relationship);
+                var context = Build(npc, room, true);
+                var authored = NpcReplyPolicy.HintReply(context); Assert.That(authored, Is.Not.Null);
+                GeneratedChatReply reply; string reason;
+                Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply
+                { reply = text, referencedFactIds = Array.Empty<string>(), relationshipDelta = 10 }, out reply, out reason), Is.True, reason);
+                Assert.That(reply.reply, Is.EqualTo(text.Replace("{hint}", authored.reply)));
+                Assert.That(reply.hintId, Is.EqualTo(authored.hintId));
+                Assert.That(reply.relationshipDelta, Is.Zero);
+            }
+        }
+
+        [TestCase("{hint} ลองดูมัน")]
+        [TestCase("{hint} จงใช้มัน")]
+        [TestCase("{hint} ลองคิดดูนะ กุญแจอยู่ใต้โต๊ะ")]
+        [TestCase("{hint} ค่อนข้างยาก ดูข้างหลังนะ")]
+        [TestCase("{hint} จงใช้ปัญญาแล้วลองเปิดมัน")]
+        [TestCase("{hint} ลองคิดดูนะ รหัสคือ 4592")]
+        [TestCase("{hint} ค่อนข้างยาก อยู่ข้างโซฟานะ")]
+        [TestCase("{hint} ลองคิดดูนะ\nไปตรวจที่นั่น")]
+        public void NeutralFrameExemptionsCannotHideRealDirectionsOrPuzzleDetails(string text)
+        {
+            GeneratedChatReply reply; string reason;
+            Assert.That(NpcReplyPolicy.TryGroundReply(Build("Alice", "Room01", true), new GeneratedChatReply
+            { reply = text, referencedFactIds = Array.Empty<string>() }, out reply, out reason), Is.False);
+            Assert.That(reply, Is.Null);
+        }
+
+        [TestCase("unknown")]
+        [TestCase("key")]
+        [TestCase("")]
+        [TestCase("duplicate")]
+        public void ValidatorRejectsInvalidVisibleAmbientConfiguration(string term)
+        {
+            var game = ScriptableObject.CreateInstance<GameDefinition>();
+            var room = ScriptableObject.CreateInstance<RoomKnowledgeData>();
+            try
+            {
+                room.roomId = game.firstScene; game.rooms.Add(room); room.gameplayTerms.Add("mirror");
+                room.gameplayTerms.Add("key");
+                if (term == "duplicate") { room.visibleAmbientTerms.Add("mirror"); room.visibleAmbientTerms.Add("mirror"); }
+                else room.visibleAmbientTerms.Add(term);
+                Assert.That(ContentValidator.Validate(game, Array.Empty<InteractionData>(), Array.Empty<InputPuzzleData>(),
+                    Array.Empty<MiniEventData>()), Is.Not.Empty);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(game); UnityEngine.Object.DestroyImmediate(room); }
+        }
+
         [Test]
         public void OrdinaryEventPromptWorksWithoutRoomKnowledge()
         {
