@@ -608,6 +608,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   events:
+  - {fileID: 11400000, guid: 59dc4fa5073441c0947f8651c3b82e20, type: 2}
+  - {fileID: 11400000, guid: 59dc4fa5073441c0947f8651c3b82e21, type: 2}
+  - {fileID: 11400000, guid: 59dc4fa5073441c0947f8651c3b82e22, type: 2}
   - {fileID: 11400000, guid: b8c9d0e1f2a34671ef7a8b9c0d1e2f3a, type: 2}
   - {fileID: 11400000, guid: f2a3b4c5d6e74015c3be2f3a4b5c6d7e, type: 2}
   - {fileID: 11400000, guid: a35735b3dd8748f0b5903a3e0bf1cbec, type: 2}

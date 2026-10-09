@@ -11,6 +11,8 @@ using UnityEngine;
 public static class SaveSystem
 {
     public const int Version = 1;
+    public static bool PersistenceEnabled { get; set; } = true;
+    public static string LastError { get; private set; }
     private const string FileName = "save.json";
 
     [Serializable]
@@ -23,7 +25,15 @@ public static class SaveSystem
 
     public static string SavePath
     {
-        get { return Path.Combine(Application.persistentDataPath, FileName); }
+        get
+        {
+            var game = GameDefinition.Current;
+            string id = game != null ? game.gameId : "mystery";
+            if (string.IsNullOrWhiteSpace(id) || id == "mystery")
+                return Path.Combine(Application.persistentDataPath, FileName); // existing saves
+            string safeId = System.Text.RegularExpressions.Regex.Replace(id, "[^a-zA-Z0-9_-]", "_");
+            return Path.Combine(Application.persistentDataPath, safeId + "_" + FileName);
+        }
     }
 
     public static bool HasSave
@@ -40,6 +50,7 @@ public static class SaveSystem
 
     public static bool Save()
     {
+        if (!PersistenceEnabled) return false;
         if (GameState.Instance == null)
         {
             return false;
@@ -68,20 +79,47 @@ public static class SaveSystem
     /// </summary>
     public static bool Load()
     {
+        LastError = null;
         SaveFile file = Read();
         if (file == null || file.state == null || GameState.Instance == null)
         {
+            if (string.IsNullOrEmpty(LastError)) LastError = "ไม่พบเซฟที่ใช้งานได้";
             return false;
         }
+        return TryLoadSnapshot(file.state);
+    }
 
-        GameState.Instance.RestoreSnapshot(file.state);
-        string scene = string.IsNullOrWhiteSpace(file.state.CurrentSceneId)
-            ? "Room01"
-            : file.state.CurrentSceneId;
-        RoomTransitionManager.Instance.TransitionToRoom(
-            scene,
-            "กำลังกลับไปยังจุดที่บันทึกไว้...");
-        return true;
+    /// <summary>The same safe load path, also usable with in-memory snapshots.</summary>
+    public static bool TryLoadSnapshot(StateSnapshot snapshot)
+    {
+        LastError = null;
+        var state = GameState.Instance;
+        StateSnapshot normalized;
+        string error;
+        if (state == null || RoomTransitionManager.IsBusy)
+        { LastError = "ยังโหลดเกมไม่ได้ในขณะนี้"; return false; }
+        if (!SnapshotValidator.TryNormalize(snapshot, out normalized, out error))
+        { LastError = "ข้อมูลเซฟไม่ถูกต้อง เกมเดิมยังคงอยู่"; return false; }
+        if (!RoomTransitionManager.CanLoadRoom(normalized.CurrentSceneId))
+        { LastError = "เซฟอ้างถึงห้องที่ไม่มีอยู่ เกมเดิมยังคงอยู่"; return false; }
+
+        var previous = state.CreateSnapshot();
+        if (!state.TryRestoreSnapshot(normalized, out error))
+        { LastError = "ข้อมูลเซฟไม่ถูกต้อง เกมเดิมยังคงอยู่"; return false; }
+        var transition = RoomTransitionManager.Instance;
+        bool started = transition.TryTransitionToRoom(normalized.CurrentSceneId,
+            "กำลังกลับไปยังจุดที่บันทึกไว้...", onFailure: () =>
+            {
+                string recoveryError;
+                if (state != null) state.TryRestoreSnapshot(previous, out recoveryError);
+                LastError = "โหลดห้องไม่สำเร็จ คืนสถานะเกมเดิมแล้ว";
+            });
+        if (!started)
+        {
+            state.TryRestoreSnapshot(previous, out error);
+            LastError = transition.LastError;
+        }
+        return started;
     }
 
     public static void Delete()
@@ -109,8 +147,9 @@ public static class SaveSystem
             }
 
             SaveFile file = JsonUtility.FromJson<SaveFile>(File.ReadAllText(SavePath));
-            if (file == null || file.version > Version)
+            if (file == null || file.version < 1 || file.version > Version)
             {
+                LastError = "เซฟเป็นเวอร์ชันที่ไม่รองรับ";
                 return null;
             }
 
@@ -118,6 +157,7 @@ public static class SaveSystem
         }
         catch (Exception ex)
         {
+            LastError = "ไฟล์เซฟอ่านไม่ได้ เกมเดิมยังคงอยู่";
             Debug.LogWarning("Save file is unreadable: " + ex.Message);
             return null;
         }

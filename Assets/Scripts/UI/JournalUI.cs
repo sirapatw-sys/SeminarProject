@@ -14,6 +14,8 @@ public class JournalUI : MonoBehaviour
 
     public static bool IsOpen { get; private set; }
 
+    public static void Close() { IsOpen = false; }
+
     private const float PopupMagnify = 1.25f;
     private const float ToastSeconds = 3.5f;
 

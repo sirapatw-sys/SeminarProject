@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0423ebc4d5e6f7a8b9c0d, type: 3}
+  m_Name: Alice_PromiseKept_Event
+  m_EditorClassIdentifier:
+  eventId: alice_promise_kept
+  npcId: Alice
+  triggerType: 4
+  minimumRoomTimeSeconds: 0
+  weight: 1
+  cooldownSeconds: 5
+  expiresSeconds: 120
+  repeatable: 0
+  useAiDialogue: 0
+  completeOnChoice: 1
+  storyBeat: 1
+  autoStart: 0
+  freeTopic: 0
+  situationPrompt: "ผู้เล่นรักษาสัญญาและให้ Alice ดูหลักฐานแล้ว เธอรู้สึกว่ามีคนช่วยคิด"
+  dialogue: {fileID: 11400000, guid: 59dc4fa5073441c0947f8651c3b82e11, type: 2}
+  offlineVariants: []
+  conditions:
+  - type: 0
+    targetId: alice_evidence_arc.promised
+  - type: 0
+    targetId: evidence.Alice.Room01.shared_any
+  - type: 1
+    targetId: alice_evidence_arc.resolved

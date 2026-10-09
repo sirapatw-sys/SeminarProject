@@ -7,7 +7,7 @@ namespace MysteryGame.Knowledge
     /// <summary>
     /// Exactly what one NPC is allowed to say right now: the facts they may
     /// reference, the facts they must not, the single next step of the puzzle,
-    /// and the deterministic hint the model is only permitted to rephrase.
+    /// and the deterministic hint whose presentation the model may style.
     /// </summary>
     public class NpcKnowledgeContext
     {
@@ -59,7 +59,7 @@ namespace MysteryGame.Knowledge
 
             foreach (RoomFact fact in KnownFacts)
             {
-                if (fact != null && fact.factId == factId)
+                if (fact != null && fact.factId == factId && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance)
                 {
                     return true;
                 }
@@ -270,6 +270,8 @@ namespace MysteryGame.Knowledge
 
         public string ToPromptSection()
         {
+            if (!HasData)
+                return "=== ห้องนี้ยังไม่มีข้อมูล canon ===\nห้ามให้คำใบ้หรือแต่งข้อมูลห้อง ให้คุยตามบุคลิกเท่านั้น\n";
             StringBuilder sb = new StringBuilder();
 
             sb.AppendLine("=== ข้อมูลความจริงของห้อง (CANON — ห้ามแต่งเพิ่ม) ===");
@@ -279,6 +281,14 @@ namespace MysteryGame.Knowledge
                 sb.AppendLine(Room.roomDescription);
             }
             sb.AppendLine();
+
+            if (Room.visibleAmbientTerms != null && Room.visibleAmbientTerms.Count > 0)
+            {
+                sb.AppendLine("--- สิ่งที่เห็นได้ในห้องสำหรับบทคุยบรรยากาศ ---");
+                sb.AppendLine(string.Join(", ", Room.visibleAmbientTerms));
+                sb.AppendLine("พูดถึงการเห็น/ความรู้สึกต่อสิ่งเหล่านี้ได้ แต่ห้ามแต่งตำแหน่ง คุณสมบัติ กลไก หรือคำสั่งสำรวจ; ข้อมูลด่านยังต้องใช้ factId และห้ามเพิ่มชื่อสิ่งของรอบ {hint}");
+                sb.AppendLine();
+            }
 
             sb.AppendLine("--- สิ่งที่ตัวละครนี้ 'รู้' และพูดถึงได้ (อ้างด้วย factId) ---");
             if (KnownFacts.Count == 0)
@@ -309,11 +319,13 @@ namespace MysteryGame.Knowledge
             sb.AppendLine("ทำสำเร็จไปแล้ว " + CompletedSteps + "/" + TotalSteps + " ขั้น");
             if (CurrentStep != null)
             {
-                sb.AppendLine("ขั้นตอนถัดไปที่ผู้เล่นทำได้จริงตอนนี้: " + CurrentStep.summary);
+                sb.AppendLine("ยังมีขั้นตอนที่ทำได้ แต่ห้ามเปิดเผยนอกเหนือจากคำใบ้ที่อนุญาตด้านล่าง");
             }
             else
             {
-                sb.AppendLine("ผู้เล่นทำครบทุกขั้นของห้องนี้แล้ว");
+                sb.AppendLine(CompletedSteps == TotalSteps
+                    ? "ผู้เล่นทำครบทุกขั้นของห้องนี้แล้ว"
+                    : "ยังไม่ครบทุกขั้น แต่เงื่อนไขขั้นถัดไปยังไม่พร้อม ห้ามอ้างว่าห้องเสร็จแล้ว");
             }
             sb.AppendLine();
 
@@ -335,7 +347,7 @@ namespace MysteryGame.Knowledge
             else
             {
                 sb.AppendLine("ระดับคำใบ้ที่อนุญาตตอนนี้: " + AllowedHintLevel);
-                sb.AppendLine("**คำใบ้ที่อนุญาตมีเพียงข้อความนี้เท่านั้น** คุณมีหน้าที่เรียบเรียงใหม่ให้เข้ากับบุคลิก ห้ามเพิ่มข้อมูลอื่น ห้ามข้ามขั้น:");
+                sb.AppendLine("**คำใบ้ที่อนุญาตมีเพียงข้อความนี้เท่านั้น** เกมจะใส่ข้อความนี้แทน {hint}; ปรับเฉพาะสำนวนเปิด/ปิด ห้ามเพิ่มข้อมูลอื่น ห้ามข้ามขั้น:");
                 sb.AppendLine("\"" + DeterministicHint + "\"");
             }
             sb.AppendLine();

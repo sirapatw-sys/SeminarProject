@@ -26,4 +26,5 @@ MonoBehaviour:
   - type: 0
     targetId: found_note
     amount: 0
-    text: 
+    text:
+  popupItemId: paper

@@ -23,6 +23,8 @@ public class MiniEventData : ScriptableObject
     [Min(0f)] public float expiresSeconds = 45f;
     public bool repeatable = true;
     public bool useAiDialogue = true;
+    [Tooltip("Commit completion only after choosing. Closing early leaves the event available after cooldown.")]
+    public bool completeOnChoice;
 
     [Tooltip(
         "A story beat fires as soon as it is eligible instead of waiting on " +
@@ -40,8 +42,8 @@ public class MiniEventData : ScriptableObject
     [Tooltip(
         "The NPC starts a conversation about something it picks itself: the AI " +
         "chooses a topic from what this NPC knows, what has happened and what " +
-        "it remembers, and rewrites the choices to fit while keeping their " +
-        "order (their actions stay). Needs AI; without it the event is skipped."
+        "it remembers. AI varies opening lines only; choice labels, responses " +
+        "and effects stay authored. Without AI, offlineVariants vary the opening lines."
     )]
     public bool freeTopic;
 
@@ -50,6 +52,8 @@ public class MiniEventData : ScriptableObject
 
     [Tooltip("Used immediately when AI is unavailable or returns invalid data.")]
     public DialogueData dialogue;
+    [Tooltip("Authored topic variants used when AI is unavailable. Choice effects must match dialogue.")]
+    public List<DialogueData> offlineVariants = new List<DialogueData>();
     public List<ConditionRule> conditions = new List<ConditionRule>();
 
     public string CompletedFlag
@@ -59,7 +63,8 @@ public class MiniEventData : ScriptableObject
 
     public bool CanTrigger(GameState state)
     {
-        if (state == null || dialogue == null ||
+        if (state == null || dialogue == null || dialogue.lines == null || dialogue.lines.Count == 0 ||
+            (completeOnChoice && (dialogue.choices == null || dialogue.choices.Count == 0)) ||
             Time.timeSinceLevelLoad < minimumRoomTimeSeconds)
         {
             return false;

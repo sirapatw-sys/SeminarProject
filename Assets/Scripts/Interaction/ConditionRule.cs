@@ -40,6 +40,10 @@ public class ConditionRule
                 return state.GetNpcRelationship(targetId, secondaryId) <= amount;
             case ConditionType.WorldChangedSinceLastTalk:
                 return state.HasWorldChangedSinceConversation(targetId);
+            case ConditionType.CurrentScene:
+                return string.Equals(state.GetCurrentScene(), targetId, StringComparison.Ordinal);
+            case ConditionType.RoomProgressSinceLastTalk:
+                return state.HasRoomProgressChangedSinceConversation(targetId);
             default:
                 return false;
         }
@@ -75,5 +79,7 @@ public enum ConditionType
     RelationshipAtMost,
     NpcRelationshipAtLeast,
     NpcRelationshipAtMost,
-    WorldChangedSinceLastTalk
+    WorldChangedSinceLastTalk,
+    CurrentScene,
+    RoomProgressSinceLastTalk
 }

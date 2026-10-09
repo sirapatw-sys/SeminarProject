@@ -10,6 +10,9 @@ public class InteractionData : ScriptableObject
     [Header("Identity")]
     public string interactionId;
     public string displayName;
+    public InputPuzzleData inputPuzzle;
+    [Tooltip("Hide from focus selection until conditions hold (e.g. a guarded door).")]
+    public bool hideFocusUntilAvailable;
 
     [Header("Dialogue")]
     [TextArea(2, 5)]

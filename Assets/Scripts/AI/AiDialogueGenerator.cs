@@ -8,7 +8,7 @@ using MysteryGame.Knowledge;
 using UnityEngine;
 using UnityEngine.Networking;
 
-public class AiDialogueGenerator : MonoBehaviour
+public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 {
     public const string OpenAiResponsesUrl =
         "https://api.openai.com/v1/responses";
@@ -393,33 +393,44 @@ public class AiDialogueGenerator : MonoBehaviour
             : BuildCompatibleChatRequestJson(prompt, eventData.dialogue.choices.Count);
 
         UnityWebRequest request = null;
-        yield return Post(requestJson, sent => request = sent);
-
         GeneratedDialogueContent result = null;
-        if (string.IsNullOrEmpty(request.error))
+        try
         {
-            result = AiResponseParser.ParseDialogue(
-                request.downloadHandler.text,
-                provider == AiProviderType.OpenAiResponses,
-                eventData.dialogue.choices.Count
-            );
-            ScrubGateWord(result);
+            yield return Post(requestJson, sent => request = sent);
 
-            if (result == null)
+            if (string.IsNullOrEmpty(request.error))
             {
-                LastError = "AI ส่งคำตอบกลับมาในรูปแบบที่เกมอ่านไม่ได้";
+                result = AiResponseParser.ParseDialogue(
+                    request.downloadHandler.text,
+                    provider == AiProviderType.OpenAiResponses,
+                    eventData.dialogue.choices.Count
+                );
+                ScrubGateWord(result);
+                string policyReason;
+                var eventContext = NpcKnowledgeContextBuilder.Build(eventData.npcId,
+                    GameState.Instance != null ? GameState.Instance.GetCurrentScene() : string.Empty,
+                    GameState.Instance, false);
+                if (result != null && !NpcReplyPolicy.ValidateEvent(eventContext, result, out policyReason))
+                {
+                    LastError = "AI event อ้างข้อมูลที่ไม่อนุญาต (" + policyReason + ")";
+                    result = null;
+                }
+
+                if (result == null && string.IsNullOrEmpty(LastError))
+                {
+                    LastError = "AI ส่งคำตอบกลับมาในรูปแบบที่เกมอ่านไม่ได้";
+                }
+            }
+            else
+            {
+                LastError = GetRequestError(request);
+                Debug.LogWarning(
+                    "AI dialogue generation failed; using fallback. " +
+                    LastError
+                );
             }
         }
-        else
-        {
-            LastError = GetRequestError(request);
-            Debug.LogWarning(
-                "AI dialogue generation failed; using fallback. " +
-                LastError
-            );
-        }
-
-        request.Dispose();
+        finally { request?.Dispose(); }
         onComplete(result);
     }
 
@@ -441,6 +452,12 @@ public class AiDialogueGenerator : MonoBehaviour
 
         NpcKnowledgeContext knowledge = BuildKnowledgeContext(
             npcId, playerMessage);
+        GeneratedChatReply answer = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
+        if (answer != null)
+        {
+            onComplete(answer);
+            yield break;
+        }
 
         string prompt = BuildReplyPrompt(
             npcId,
@@ -455,45 +472,45 @@ public class AiDialogueGenerator : MonoBehaviour
             : BuildCompatibleReplyRequestJson(prompt);
 
         UnityWebRequest request = null;
-        yield return Post(requestJson, sent => request = sent);
-
         GeneratedChatReply result = null;
-        if (string.IsNullOrEmpty(request.error))
+        try
         {
-            result = AiResponseParser.ParseReply(
-                request.downloadHandler.text,
-                provider == AiProviderType.OpenAiResponses
-            );
-            if (result == null)
+            yield return Post(requestJson, sent => request = sent);
+
+            if (string.IsNullOrEmpty(request.error))
             {
-                LastError = "AI ตอบกลับมาแล้ว แต่รูปแบบข้อมูลไม่ถูกต้อง";
+                result = AiResponseParser.ParseReply(
+                    request.downloadHandler.text,
+                    provider == AiProviderType.OpenAiResponses
+                );
+                if (result == null)
+                {
+                    LastError = "AI ตอบกลับมาแล้ว แต่รูปแบบข้อมูลไม่ถูกต้อง";
+                }
+                else
+                {
+                    result.reply = ScrubGateWord(result.reply);
+                }
+
+                string offendingFactId = null;
+                GeneratedChatReply ignored;
+                if (result != null && (knowledge.HasData || knowledge.HasProfile) &&
+                    !NpcReplyPolicy.TryGroundReply(BuildKnowledgeContext(npcId, playerMessage),
+                        result, out ignored, out offendingFactId))
+                {
+                    Debug.LogWarning("AI reply rejected by knowledge policy: " + offendingFactId);
+                    result = null;
+                }
             }
             else
             {
-                result.reply = ScrubGateWord(result.reply);
-            }
-
-            string offendingFactId;
-            if (result != null && (knowledge.HasData || knowledge.HasProfile) &&
-                !knowledge.ValidateReferences(
-                    result.referencedFactIds, out offendingFactId))
-            {
-                LastError =
-                    "AI อ้างถึงข้อมูลที่ตัวละครนี้ไม่มีสิทธิ์รู้ (" +
-                    offendingFactId + ") จึงใช้คำตอบสำรองแทน";
-                Debug.LogWarning(LastError);
-                result = null;
+                LastError = GetRequestError(request);
+                Debug.LogWarning(
+                    "AI typed reply failed; using local fallback. " + LastError
+                );
             }
         }
-        else
-        {
-            LastError = GetRequestError(request);
-            Debug.LogWarning(
-                "AI typed reply failed; using local fallback. " + LastError
-            );
-        }
-
-        request.Dispose();
+        finally { request?.Dispose(); }
         onComplete(result);
     }
 
@@ -507,29 +524,34 @@ public class AiDialogueGenerator : MonoBehaviour
     {
         for (int attempt = 0; ; attempt++)
         {
-            string key = GetApiKey();
-            UnityWebRequest request = new UnityWebRequest(apiUrl, "POST");
-            request.uploadHandler = new UploadHandlerRaw(
-                Encoding.UTF8.GetBytes(requestJson)
-            );
-            request.downloadHandler = new DownloadHandlerBuffer();
-            request.timeout = timeoutSeconds;
-            request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("Authorization", "Bearer " + key);
-
-            yield return request.SendWebRequest();
-            RecordQuota(request);
-
-            if (attempt == 0 && !string.IsNullOrEmpty(request.error) &&
-                ClassifyFailure(request) == AiFailureKind.DailyLimitReached &&
-                TrySwitchToBackupKey(key))
+            UnityWebRequest request = null;
+            bool handedOff = false;
+            try
             {
-                request.Dispose();
-                continue;
-            }
+                string key = GetApiKey();
+                request = new UnityWebRequest(apiUrl, "POST");
+                request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(requestJson));
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.timeout = timeoutSeconds;
+                request.SetRequestHeader("Content-Type", "application/json");
+                request.SetRequestHeader("Authorization", "Bearer " + key);
+                yield return request.SendWebRequest();
+                RecordQuota(request);
 
-            onDone(request);
-            yield break;
+                if (attempt == 0 && !string.IsNullOrEmpty(request.error) &&
+                    ClassifyFailure(request) == AiFailureKind.DailyLimitReached &&
+                    TrySwitchToBackupKey(key))
+                    continue; // finally releases the failed attempt before retrying.
+
+                onDone(request);
+                handedOff = true; // Caller owns response parsing and its own finally.
+                yield break;
+            }
+            finally
+            {
+                // Cancellation can happen before the caller receives the request.
+                if (!handedOff) request?.Dispose();
+            }
         }
     }
 
@@ -622,22 +644,21 @@ public class AiDialogueGenerator : MonoBehaviour
             yield break;
         }
 
-        UnityWebRequest request = UnityWebRequest.Get(url);
-        request.timeout = timeoutSeconds;
-        request.SetRequestHeader("Authorization", "Bearer " + GetApiKey());
-
-        yield return request.SendWebRequest();
-
-        if (!string.IsNullOrEmpty(request.error))
+        string body = null;
+        string error = null;
+        using (UnityWebRequest request = UnityWebRequest.Get(url))
         {
-            string error = GetRequestError(request);
-            request.Dispose();
+            request.timeout = timeoutSeconds;
+            request.SetRequestHeader("Authorization", "Bearer " + GetApiKey());
+            yield return request.SendWebRequest();
+            if (!string.IsNullOrEmpty(request.error)) error = GetRequestError(request);
+            else body = request.downloadHandler.text;
+        }
+        if (error != null)
+        {
             onComplete(null, error);
             yield break;
         }
-
-        string body = request.downloadHandler.text;
-        request.Dispose();
 
         List<string> ids = new List<string>();
         foreach (Match match in Regex.Matches(
@@ -700,11 +721,12 @@ public class AiDialogueGenerator : MonoBehaviour
     {
         GameState state = GameState.Instance;
         string roomId = state != null ? state.GetCurrentScene() : string.Empty;
+        RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
         return NpcKnowledgeContextBuilder.Build(
             npcId,
             roomId,
             state,
-            IsAskingForHelpOrHint(playerMessage)
+            PlayerIntentClassifier.IsAskingForHint(playerMessage, room != null ? room.gameplayTerms : null)
         );
     }
 
@@ -722,10 +744,29 @@ public class AiDialogueGenerator : MonoBehaviour
         string customPersonality = null,
         NpcKnowledgeContext knowledge = null)
     {
+        var authoredHint = NpcReplyPolicy.HintReply(knowledge);
+        if (authoredHint != null)
+        {
+            var hintPrompt = new StringBuilder();
+            hintPrompt.AppendLine("คุณคือ " + speakerName + " (" + npcId + ") ตอบคำขอคำใบ้ในเกม");
+            if (knowledge.Npc != null)
+            {
+                hintPrompt.AppendLine("บุคลิก: " + knowledge.Npc.persona);
+                hintPrompt.AppendLine("สำนวน: " + knowledge.Npc.speechStyle);
+            }
+            hintPrompt.AppendLine("น้ำเสียงตามความสัมพันธ์: " + knowledge.Tone);
+            hintPrompt.AppendLine("ระดับที่อนุญาต: " + knowledge.AllowedHintLevel);
+            hintPrompt.AppendLine("ข้อมูลคำใบ้ที่ล็อกไว้: " + authoredHint.reply);
+            hintPrompt.AppendLine(NpcReplyPolicy.HintStyleContract);
+            hintPrompt.AppendLine("ผู้เล่นพูดว่า: " + playerMessage);
+            return hintPrompt.ToString();
+        }
         StringBuilder prompt = new StringBuilder();
         PlayerIntent intent = PlayerIntentClassifier.Classify(playerMessage);
         bool hostile = (intent & PlayerIntent.Hostile) != 0;
-        bool askingForHint = (intent & PlayerIntent.AskingHint) != 0;
+        bool askingForHint = knowledge != null
+            ? knowledge.PlayerAskedForHint
+            : (intent & PlayerIntent.AskingHint) != 0;
         bool givesHints = knowledge == null || knowledge.Npc == null ||
                           knowledge.Npc.givesHints;
 
@@ -818,6 +859,7 @@ public class AiDialogueGenerator : MonoBehaviour
 
         prompt.AppendLine("บริบทของบทสนทนานี้: " + dialogueContext);
         prompt.AppendLine("ผู้เล่นพูดว่า: \"" + playerMessage + "\"");
+        prompt.AppendLine(NpcReplyPolicy.GeneratedTextContract);
 
         return prompt.ToString();
     }
@@ -845,13 +887,17 @@ public class AiDialogueGenerator : MonoBehaviour
             prompt.Append(knowledge.ToCharacterSection());
         }
         prompt.AppendLine("สถานการณ์: " + eventData.situationPrompt);
+        if (knowledge.HasData) prompt.AppendLine(knowledge.ToPromptSection());
+        else prompt.AppendLine("=== ห้องนี้ยังไม่มีข้อมูล canon ===\nห้ามให้คำใบ้หรือแต่งข้อมูลห้อง ให้คุยตามบุคลิกเท่านั้น");
         prompt.AppendLine("โทน: " + eventData.tonePrompt);
         prompt.AppendLine("เป้าหมายปัจจุบัน: " +
                           (state != null ? state.GetCurrentGoal() : "escape_room"));
         prompt.AppendLine("กฎ: ห้ามสร้างเบาะแส ไอเท็ม ตัวละคร หรือข้อเท็จจริงใหม่");
         prompt.AppendLine("กฎ: บทพูดต้องสั้น เป็นธรรมชาติ และไม่บังคับผู้เล่น");
         prompt.AppendLine("กฎ: ห้ามใช้คำว่า 'ทวาร' ให้ใช้ 'ประตู'");
-        prompt.AppendLine("กฎ: รักษาความหมายและลำดับของตัวเลือกต้นฉบับต่อไปนี้");
+        prompt.AppendLine("กฎ: คัดลอก optionText และ responseText ต้นฉบับตามลำดับ ห้ามแก้ข้อความตัวเลือกหรือคำตอบหลังกด เพราะเกมใช้ข้อความต้นฉบับคู่กับผลของ Action");
+        prompt.AppendLine("กฎ: แต่งเฉพาะ lines ให้เชื่อมกับตัวเลือกและคำตอบต้นฉบับต่อไปนี้อย่างเป็นธรรมชาติ");
+        prompt.AppendLine(NpcReplyPolicy.GeneratedTextContract);
 
         for (int index = 0; index < eventData.dialogue.choices.Count; index++)
         {
@@ -928,7 +974,8 @@ public class AiDialogueGenerator : MonoBehaviour
         prompt.AppendLine("กฎ: lines 1-3 บรรทัด สั้นและเป็นธรรมชาติ บรรทัดแรกเปิดหัวข้อให้ผู้เล่นรู้ว่าอยากคุยเรื่องอะไร ถ้าจะแสดงสีหน้า ให้ขึ้นต้นบรรทัดด้วย [:emotionId] จากรายการสีหน้าเท่านั้น");
         prompt.AppendLine("กฎ: ทุกบรรทัดใน lines และ responseText เป็นคำพูดของตัวละครเท่านั้น ห้ามเขียนบรรยายท่าทางหรือเล่าแบบบุคคลที่สาม");
         prompt.AppendLine("กฎ: ห้ามใช้คำว่า 'ทวาร' ให้ใช้ 'ประตู'");
-        prompt.AppendLine("กฎ: เขียนตัวเลือกของผู้เล่นและคำตอบของ NPC ใหม่ให้เข้ากับหัวข้อ แต่ต้องคงท่าทีของแต่ละข้อตามลำดับนี้ (ตัวอย่างด้านล่างเป็นแค่แนว):");
+        prompt.AppendLine("กฎ: คัดลอก optionText และ responseText ต้นฉบับตามลำดับ ห้ามแก้ข้อความตัวเลือกหรือคำตอบหลังกด เพราะเกมใช้ข้อความต้นฉบับคู่กับผลของ Action");
+        prompt.AppendLine("กฎ: เลือกหัวข้อและแต่งเฉพาะ lines ให้เข้ากับตัวเลือกและคำตอบต้นฉบับต่อไปนี้ ห้ามสร้างสถานการณ์ที่ทำให้ข้อความต้นฉบับขัดกัน:");
 
         for (int index = 0; index < eventData.dialogue.choices.Count; index++)
         {
@@ -939,7 +986,8 @@ public class AiDialogueGenerator : MonoBehaviour
             );
         }
 
-        prompt.AppendLine("ไม่ต้องส่ง referencedFactIds ส่งแค่ lines และ choices");
+        prompt.AppendLine("ส่ง referencedFactIds เป็นรายการ factId ที่อ้างจริง หรือรายการว่าง");
+        prompt.AppendLine(NpcReplyPolicy.GeneratedTextContract);
         prompt.AppendLine("variation_id: " + Guid.NewGuid().ToString("N"));
         return prompt.ToString();
     }
@@ -986,6 +1034,7 @@ public class AiDialogueGenerator : MonoBehaviour
                "\"type\":\"object\"," +
                "\"properties\":{" +
                "\"lines\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"maxItems\":3}," +
+               "\"referencedFactIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}," +
                "\"choices\":{\"type\":\"array\",\"items\":{" +
                "\"type\":\"object\",\"properties\":{" +
                "\"optionText\":{\"type\":\"string\"}," +
@@ -993,7 +1042,7 @@ public class AiDialogueGenerator : MonoBehaviour
                "\"required\":[\"optionText\",\"responseText\"]," +
                "\"additionalProperties\":false}," +
                "\"minItems\":" + choiceCount + ",\"maxItems\":" + choiceCount + "}}," +
-               "\"required\":[\"lines\",\"choices\"]," +
+               "\"required\":[\"lines\",\"choices\",\"referencedFactIds\"]," +
                "\"additionalProperties\":false}}}}";
     }
 
@@ -1006,7 +1055,7 @@ public class AiDialogueGenerator : MonoBehaviour
     public static string CompatibleDialogueFormat(int choiceCount)
     {
         return "Return only valid JSON in exactly this shape: " +
-               "{\"lines\":[\"...\"],\"choices\":[{\"optionText\":\"...\",\"responseText\":\"...\"}]} " +
+               "{\"lines\":[\"...\"],\"referencedFactIds\":[],\"choices\":[{\"optionText\":\"...\",\"responseText\":\"...\"}]} " +
                "with 1-3 lines and exactly " + choiceCount + " choices, in the order given. Keep game canon.";
     }
 
@@ -1112,6 +1161,7 @@ public class GeneratedChatReply
     /// is not allowed to know makes the reply invalid.
     /// </summary>
     public string[] referencedFactIds;
+    [NonSerialized] public string hintId;
 
     /// <summary>Optional face for the emotion box; empty when none.</summary>
     public string emotion;

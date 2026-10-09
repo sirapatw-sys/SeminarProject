@@ -13,7 +13,27 @@ MonoBehaviour:
   m_Name: Room01
   m_EditorClassIdentifier:
   roomId: Room01
+  enteredFlag: room01_entered
   roomName: "ห้องทำงานเก่า"
+  gameplayTerms:
+  - "ภาพวาด"
+  - "กรอบภาพ"
+  - "โต๊ะทำงาน"
+  - "กระดาษโน้ต"
+  - "แม่กุญแจ"
+  - "รูปเอียง"
+  - "รูปที่เอียง"
+  - "รูปบนกำแพง"
+  - "รูปบนผนัง"
+  - "ภาพบนผนัง"
+  - "กรอบรูป"
+  - "painting"
+  - "picture"
+  - "portrait"
+  - "desk"
+  - "table"
+  - "note"
+  - "padlock"
   roomDescription: "ห้องทำงานธรรมดาที่มืดสลัว ผนังวอลเปเปอร์ลายทางสีเขียวหม่น มีเพียงโคมไฟบนโต๊ะทำงานที่ยังเปิดทิ้งไว้กับเทียนไม่กี่เล่มบนตู้ข้างผนัง แสงจันทร์ซีดลอดหน้าต่างที่เปิดไม่ได้ ผนังด้านบนมีตู้หนังสือสองตู้ทางซ้าย นาฬิกาแขวนที่หยุดเดิน ภาพวาดปราสาทใต้แสงจันทร์ที่แขวนเอียงนิดๆ อยู่ตรงกลาง กระดานโน้ต และตู้วางของที่มีเทียนกับรูปถ่าย ประตูทางออกอยู่มุมขวาบน ข้างประตูมีรอยขีดนับวันกรีดลงบนวอลเปเปอร์ โต๊ะทำงานอยู่ฝั่งซ้าย ข้างกันเป็นตู้ลิ้นชักสูงที่คล้องแม่กุญแจไว้ มีกระดาษกระจายอยู่บนพื้น พรมแดงกลางห้อง และโซฟาตัวยาวที่มุมขวาหันเข้าหาโต๊ะเตี้ย"
   background: {fileID: 21300000, guid: 5cf722e816c54ff5a0704b0968fe5701, type: 3}
   sounds:
@@ -24,6 +44,8 @@ MonoBehaviour:
   hauntedDrone: 0
   facts:
   - factId: painting_arrow
+    canShareAsEvidence: 1
+    evidenceTitle: "ข้อความหลังกรอบภาพ"
     statement: "ด้านหลังกรอบภาพวาดบนผนังมีลายมือเขียนไว้ว่า 'ลองตรวจขอบโต๊ะทำงานให้ดี ฉันซ่อนไว้ตรงนั้น'"
     revealedWhen:
     - type: 0
@@ -31,6 +53,8 @@ MonoBehaviour:
       amount: 0
     isPuzzleAnswer: 0
   - factId: desk_note
+    canShareAsEvidence: 1
+    evidenceTitle: "กระดาษโน้ตจากขอบโต๊ะ"
     statement: "ในซอกขอบโต๊ะทำงานมีกระดาษโน้ตพับซ่อนอยู่ เขียนโดยคนที่เคยติดอยู่ในห้องนี้"
     revealedWhen:
     - type: 0
@@ -44,7 +68,11 @@ MonoBehaviour:
       targetId: found_note
       amount: 0
     isPuzzleAnswer: 1
+    protectedTerms:
+    - "4592"
   - factId: drawer_key
+    canShareAsEvidence: 1
+    evidenceTitle: "กุญแจทองเหลืองในลิ้นชัก"
     statement: "ในลิ้นชักที่ปลดล็อคแล้วมีกุญแจทองเหลืองโบราณอยู่ ใช้ไขประตูทางออกของห้องนี้ได้"
     revealedWhen:
     - type: 0
@@ -52,7 +80,7 @@ MonoBehaviour:
       amount: 0
     isPuzzleAnswer: 0
   - factId: door_locked
-    statement: "ประตูทางออกถูกล็อคอยู่ และเปิดได้ด้วยกุญแจทองเหลืองจากลิ้นชักเท่านั้น"
+    statement: "ประตูทางออกถูกล็อคอยู่"
     revealedWhen: []
     isPuzzleAnswer: 0
   steps:

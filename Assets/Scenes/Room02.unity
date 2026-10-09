@@ -3889,12 +3889,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c4b18360d8e84a5697d022b7a956e147, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  senaPortrait: {fileID: 21300000, guid: 1d146046dd6d494f921da5feb73d96ba, type: 3}
-  senaDemandDialogue: {fileID: 11400000, guid: 7a421c3d9c82490bac96ec0629df4e9d, type: 2}
-  senaRiddleDialogue: {fileID: 11400000, guid: f383aba9e04643d981ef304859d950bc, type: 2}
-  riddleText: "I am always running ahead of you, yet I never arrive. You spend your life anticipating me, but the moment I reach you, my name has already changed. What am I?"
-  readReplyDelay: 2.4
-  fadeDuration: 2
+  definition: {fileID: 11400000, guid: a6a76c44268332648aa8f25328dfb9cf, type: 2}
 
 --- !u!1 &770000011
 GameObject:

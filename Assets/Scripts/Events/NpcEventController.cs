@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
 using MysteryGame.Core;
+using MysteryGame.Knowledge;
 using TMPro;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class NpcEventController : MonoBehaviour
 {
@@ -9,20 +12,23 @@ public class NpcEventController : MonoBehaviour
     [SerializeField, Min(0.5f)] private float checkInterval = 5f;
     [SerializeField, Range(0f, 1f)] private float triggerChancePerCheck = 0.5f;
     [SerializeField] private Vector3 indicatorOffset = new Vector3(0f, 1.2f, 0f);
-
-    /// <summary>Wait before asking the AI for another topic after a failed try.</summary>
-    private const float FailedTopicRetrySeconds = 60f;
+    [SerializeField, Min(0.5f)] private float generationTimeoutSeconds = 25f;
 
     private readonly Dictionary<string, float> cooldownUntil =
         new Dictionary<string, float>();
 
     private MiniEventData pendingEvent;
     private GeneratedDialogueContent pendingDialogue;
+    private bool pendingIsAi;
     private float pendingUntil;
     private float nextCheckTime;
     private float nextStoryCheckTime;
     private TextMeshPro indicatorText;
     private bool generationInProgress;
+    private MiniEventData generatingEvent;
+    private AiRequestOperation generationOperation;
+    private int generationVersion;
+    private float generationDeadline;
 
     private void Awake()
     {
@@ -53,6 +59,12 @@ public class NpcEventController : MonoBehaviour
 
     private void Update()
     {
+        // Independent of the provider's HTTP timeout, and of the game's time scale.
+        if (generationInProgress && Time.realtimeSinceStartup >= generationDeadline)
+        {
+            CompleteGeneration(generatingEvent, generationVersion, null);
+        }
+
         if (pendingEvent != null)
         {
             // A story beat that the player has already moved past (Stelle's
@@ -71,7 +83,7 @@ public class NpcEventController : MonoBehaviour
             // waiting (Stelle asking for company, then the mirror message)
             // takes its place, so the story is never held up by small talk.
             if (!pendingEvent.storyBeat && Time.time >= nextStoryCheckTime &&
-                !DialogueManager.IsDialogueOpen)
+                !DialogueManager.IsDialogueOpen && InputGate.IsGameplayActive)
             {
                 nextStoryCheckTime = Time.time + 1f;
                 MiniEventData beat = FindDueStoryBeat();
@@ -85,6 +97,7 @@ public class NpcEventController : MonoBehaviour
 
             if (stale || Time.time >= pendingUntil)
             {
+                cooldownUntil[pendingEvent.eventId] = Time.time + pendingEvent.cooldownSeconds;
                 ClearPendingEvent();
             }
             else if (pendingEvent.autoStart && !InputGate.IsBlocked &&
@@ -96,8 +109,22 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
-        if (generationInProgress || DialogueManager.IsDialogueOpen)
+        // Keep the watchdog and pending-event cleanup above running even
+        // while gameplay is inactive, but do not start any new AI requests.
+        if (DialogueManager.IsDialogueOpen || !InputGate.IsGameplayActive)
         {
+            return;
+        }
+
+        // A slow ambient request must never hold an authored story beat hostage.
+        if (generationInProgress)
+        {
+            if (generatingEvent != null && !generatingEvent.storyBeat && Time.time >= nextStoryCheckTime)
+            {
+                nextStoryCheckTime = Time.time + 1f;
+                MiniEventData beat = FindDueStoryBeat();
+                if (beat != null) QueueEvent(beat);
+            }
             return;
         }
 
@@ -134,19 +161,35 @@ public class NpcEventController : MonoBehaviour
 
     public bool TryStartPendingEvent()
     {
-        if (pendingEvent == null || DialogueManager.Instance == null)
+        if (pendingEvent == null || DialogueManager.Instance == null || DialogueManager.IsDialogueOpen ||
+            !InputGate.IsGameplayActive)
         {
             return false;
         }
 
         MiniEventData selectedEvent = pendingEvent;
+        if (GameState.Instance == null || !selectedEvent.CanTrigger(GameState.Instance))
+        {
+            ClearPendingEvent();
+            return false;
+        }
         GeneratedDialogueContent selectedDialogue = pendingDialogue;
+        if (pendingIsAi)
+        {
+            var context = NpcKnowledgeContextBuilder.Build(selectedEvent.npcId,
+                GameState.Instance.GetCurrentScene(), GameState.Instance, false);
+            GeneratedDialogueContent grounded;
+            string reason;
+            selectedDialogue = selectedDialogue != null && selectedDialogue.IsValid(selectedEvent.dialogue.choices.Count) &&
+                NpcReplyPolicy.TryGroundEvent(context, selectedDialogue, out grounded, out reason)
+                ? grounded : BuildOfflineTopic(selectedEvent);
+        }
         ClearPendingEvent();
 
         cooldownUntil[selectedEvent.eventId] =
             Time.time + selectedEvent.cooldownSeconds;
 
-        if (!selectedEvent.repeatable && GameState.Instance != null)
+        if (!selectedEvent.repeatable && !selectedEvent.completeOnChoice && GameState.Instance != null)
         {
             GameState.Instance.SetFlag(selectedEvent.CompletedFlag);
         }
@@ -154,7 +197,8 @@ public class NpcEventController : MonoBehaviour
         DialogueManager.Instance.StartDialogue(
             selectedEvent.dialogue,
             selectedDialogue,
-            isEvent: true
+            isEvent: true,
+            completeOnChoiceFlag: selectedEvent.completeOnChoice ? selectedEvent.CompletedFlag : null
         );
         return true;
     }
@@ -205,7 +249,6 @@ public class NpcEventController : MonoBehaviour
         {
             if (candidate == null || candidate.storyBeat ||
                 IsOnCooldown(candidate) ||
-                (candidate.freeTopic && !AiAvailable) ||
                 !candidate.CanTrigger(GameState.Instance))
             {
                 continue;
@@ -242,55 +285,103 @@ public class NpcEventController : MonoBehaviour
 
     private static bool AiAvailable
     {
-        get { return AiDialogueGenerator.Instance != null && AiDialogueGenerator.Instance.CanGenerate; }
+        get { return DialogueProviders.Current != null && DialogueProviders.Current.CanGenerate; }
     }
 
     private void QueueEvent(MiniEventData candidate)
     {
+        if (!InputGate.IsGameplayActive) return;
+        CancelGeneration();
+        ClearPendingEvent();
+        if (candidate == null || candidate.dialogue == null) return;
         if ((candidate.useAiDialogue || candidate.freeTopic) && AiAvailable)
         {
             generationInProgress = true;
-            StartCoroutine(
-                AiDialogueGenerator.Instance.Generate(
-                    candidate,
-                    generated =>
-                    {
-                        generationInProgress = false;
-                        if (this == null)
-                        {
-                            return;
-                        }
-
-                        // A topic of its own is all a free-topic event has:
-                        // when the AI could not write one, there is no "!".
-                        if (candidate.freeTopic &&
-                            (generated == null || !generated.IsValid(candidate.dialogue.choices.Count)))
-                        {
-                            cooldownUntil[candidate.eventId] = Time.time + FailedTopicRetrySeconds;
-                            return;
-                        }
-
-                        SetPendingEvent(candidate, generated);
-                    }
-                )
-            );
+            generatingEvent = candidate;
+            int version = generationVersion;
+            generationDeadline = Time.realtimeSinceStartup + Mathf.Max(0.05f, generationTimeoutSeconds);
+            var operation = new AiRequestOperation(this);
+            generationOperation = operation;
+            IAiDialogueProvider provider = DialogueProviders.Current;
+            operation.Start(
+                () => provider.Generate(candidate, content => CompleteGeneration(candidate, version, content)),
+                error =>
+                {
+                    if (!IsCurrentGeneration(candidate, version)) return;
+                    Debug.LogWarning("NPC event provider failed: " + error.GetType().Name);
+                    CompleteGeneration(candidate, version, null);
+                },
+                () => CompleteGeneration(candidate, version, null));
             return;
         }
 
-        if (candidate.freeTopic)
-        {
-            return;
-        }
+        SetPendingEvent(candidate, candidate.freeTopic ? BuildOfflineTopic(candidate) : null);
+    }
 
-        SetPendingEvent(candidate, null);
+    private bool IsCurrentGeneration(MiniEventData candidate, int version)
+    {
+        return this != null && isActiveAndEnabled && generationInProgress &&
+            version == generationVersion && candidate == generatingEvent;
+    }
+
+    private void CompleteGeneration(MiniEventData candidate, int version, GeneratedDialogueContent generated)
+    {
+        if (!IsCurrentGeneration(candidate, version)) return;
+        generationInProgress = false;
+        var completed = generationOperation;
+        generationOperation = null;
+        generatingEvent = null;
+        generationVersion++; // Discard duplicate, late, cancelled and old-scene callbacks.
+        completed?.Cancel();
+        if (GameState.Instance == null || candidate == null || !candidate.CanTrigger(GameState.Instance)) return;
+        var context = NpcKnowledgeContextBuilder.Build(candidate.npcId,
+            GameState.Instance.GetCurrentScene(), GameState.Instance, false);
+        string reason;
+        bool validAi = generated != null && generated.IsValid(candidate.dialogue.choices.Count) &&
+            NpcReplyPolicy.ValidateEvent(context, generated, out reason);
+        SetPendingEvent(candidate, validAi ? generated : BuildOfflineTopic(candidate), validAi);
+    }
+
+    private void CancelGeneration()
+    {
+        generationVersion++;
+        generationInProgress = false;
+        generatingEvent = null;
+        var previous = generationOperation;
+        generationOperation = null;
+        previous?.Cancel();
+    }
+
+    private void OnDisable()
+    {
+        CancelGeneration();
+        ClearPendingEvent();
+    }
+
+    private void OnDestroy() { CancelGeneration(); }
+
+    public static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate)
+    {
+        if (candidate == null || candidate.dialogue == null) return null;
+        DialogueData source = candidate.dialogue;
+        if (candidate.offlineVariants != null && candidate.offlineVariants.Count > 0)
+            source = candidate.offlineVariants[Random.Range(0, candidate.offlineVariants.Count)] ?? source;
+        if (source.choices.Count != candidate.dialogue.choices.Count) source = candidate.dialogue;
+        var choices = new List<GeneratedDialogueChoice>();
+        foreach (var choice in source.choices)
+            choices.Add(new GeneratedDialogueChoice { optionText = choice.optionText, responseText = choice.responseText });
+        return new GeneratedDialogueContent { lines = source.lines.ToArray(), choices = choices.ToArray(),
+            referencedFactIds = System.Array.Empty<string>() };
     }
 
     private void SetPendingEvent(
         MiniEventData candidate,
-        GeneratedDialogueContent generated)
+        GeneratedDialogueContent generated,
+        bool fromAi = false)
     {
         pendingEvent = candidate;
         pendingDialogue = generated;
+        pendingIsAi = fromAi;
         pendingUntil = Time.time + candidate.expiresSeconds;
         indicatorText.gameObject.SetActive(true);
         // The chime calls the player over; an event that starts by itself
@@ -305,6 +396,7 @@ public class NpcEventController : MonoBehaviour
     {
         pendingEvent = null;
         pendingDialogue = null;
+        pendingIsAi = false;
         pendingUntil = 0f;
 
         if (indicatorText != null)

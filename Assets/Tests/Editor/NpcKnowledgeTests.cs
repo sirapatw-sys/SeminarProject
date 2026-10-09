@@ -59,9 +59,13 @@ namespace MysteryGame.Tests
         }
 
         [Test]
-        public void AfterInspectingThePaintingAliceMayMentionTheArrowOnly()
+        public void AfterInspectingAndSharingThePaintingAliceMayMentionTheArrowOnly()
         {
             GameState.Instance.SetFlag("inspected_painting");
+            Assert.That(Build("Alice", "Room01").CanReference("painting_arrow"), Is.False,
+                "Discovering evidence does not automatically tell Alice.");
+            EvidenceShareResult shared;
+            Assert.That(EvidenceSharing.TryShare(State, "Alice", "painting_arrow", out shared), Is.True);
             NpcKnowledgeContext ctx = Build("Alice", "Room01");
 
             Assert.That(ctx.CanReference("painting_arrow"), Is.True);
@@ -80,7 +84,8 @@ namespace MysteryGame.Tests
             GameState.Instance.SetFlag("found_note");
             NpcKnowledgeContext ctx = Build("Alice", "Room01");
 
-            Assert.That(ctx.CanReference("drawer_code"), Is.True);
+            Assert.That(ctx.CanReference("drawer_code"), Is.False,
+                "Puzzle answers are rendered only through the authored hint policy, not model facts.");
             Assert.That(ctx.CurrentStep.stepId, Is.EqualTo("open_drawer"));
             Assert.That(ctx.DeterministicHint, Is.Not.Empty);
         }
@@ -182,6 +187,7 @@ namespace MysteryGame.Tests
         [Test]
         public void SenaMayNotRevealWhereTheTomeIsShelved()
         {
+            GameState.Instance.SetFlag("sena_wants_tome");
             GameState.Instance.SetFlag("read_ledger");
             NpcKnowledgeContext ctx = Build("Sena", "Room02");
 
@@ -264,6 +270,7 @@ namespace MysteryGame.Tests
 
             state.RemoveItem("winding_key");
             state.SetFlag("ghost_lullaby_played");
+            state.SetFlag("room03_door_unlocked"); // MusicBoxWind_R3_Data sets both flags.
             Assert.That(Build("Rina", "Room03").CurrentStep.stepId,
                         Is.EqualTo("open_exit"));
 

@@ -9,7 +9,8 @@ using MysteryGame.Core;
 /// </summary>
 public class TitleMenu : MonoBehaviour
 {
-    private const string FirstScene = "Room01";
+    private static string FirstScene { get { return GameDefinition.Current != null
+        ? GameDefinition.Current.firstScene : "Room01"; } }
 
     public static bool IsOpen { get; private set; }
 
@@ -122,7 +123,7 @@ public class TitleMenu : MonoBehaviour
             return;
         }
 
-        if (IntroSequence.IsPlaying || RoomTransitionManager.IsBusy)
+        if (IntroSequence.IsPlaying || RoomTransitionManager.IsBusy || AiSettingsPanel.HoldsKeyboard)
         {
             return;
         }
@@ -137,7 +138,7 @@ public class TitleMenu : MonoBehaviour
         {
             if (!SaveSystem.Load())
             {
-                ShowToast("ยังไม่มีเกมที่บันทึกไว้");
+                ShowToast(SaveSystem.LastError ?? "ยังไม่มีเกมที่บันทึกไว้");
             }
         }
     }
@@ -150,6 +151,7 @@ public class TitleMenu : MonoBehaviour
 
     private void StartNewGame()
     {
+        RoomTransitionManager.CloseRoomOverlays();
         SfxPlayer.Play(SfxPlayer.Cue.Interact);
         IsOpen = false;
 
@@ -233,7 +235,7 @@ public class TitleMenu : MonoBehaviour
         float y = UiScale.Height * 0.2f;
         GUI.Label(new Rect(x, y, width, 90f), "ห้องที่จำใบหน้าเราได้", titleStyle);
         GUI.Label(new Rect(x, y + 88f, width, 40f),
-                  "AI Mystery Escape Room · บทที่ 1", subtitleStyle);
+                  GameDefinition.Current != null ? GameDefinition.Current.title : "AI Mystery Escape Room", subtitleStyle);
 
         float buttonWidth = 380f;
         float bx = (UiScale.Width - buttonWidth) * 0.5f;
@@ -253,11 +255,8 @@ public class TitleMenu : MonoBehaviour
         if (IsButtonClicked(continueRect, continueLabel, buttonStyle, SaveSystem.HasSave))
         {
             SfxPlayer.Play(SfxPlayer.Cue.Interact);
-            IsOpen = false;
-            if (!SaveSystem.Load())
-            {
-                StartNewGame();
-            }
+            if (SaveSystem.Load()) IsOpen = false;
+            else ShowToast(SaveSystem.LastError ?? "โหลดเซฟไม่สำเร็จ");
         }
         by += 76f;
 
@@ -280,6 +279,8 @@ public class TitleMenu : MonoBehaviour
 #endif
         }
 
+        if (!string.IsNullOrEmpty(toast) && Time.unscaledTime < toastUntil)
+            GUI.Label(new Rect(x, UiScale.Height - 112f, width, 36f), toast, noteStyle);
         GUI.Label(new Rect(x, UiScale.Height - 70f, width, 30f),
                   "ระหว่างเล่น: F5 บันทึก · F9 โหลด · F10 ตั้งค่า AI · กด Space หรือ Enter เพื่อเริ่ม",
                   noteStyle);

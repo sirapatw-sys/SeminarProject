@@ -31,3 +31,6 @@ MonoBehaviour:
   tonePrompt: "ตามนิสัยและสำนวนของตัวละคร"
   dialogue: {fileID: 11400000, guid: 462c707d959446b1bba728b761413abf, type: 2}
   conditions: []
+  offlineVariants:
+  - {fileID: 11400000, guid: bb245e78edc177c48af8484e83ed0821, type: 2}
+  - {fileID: 11400000, guid: 1d9ee056cfd6090429c377e09a6b2b31, type: 2}

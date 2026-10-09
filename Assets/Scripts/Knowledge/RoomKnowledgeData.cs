@@ -42,6 +42,19 @@ namespace MysteryGame.Knowledge
 
         [Tooltip("Marks the fact that literally answers the room's puzzle.")]
         public bool isPuzzleAnswer;
+        [Tooltip("Solution directions are hint-only, even when known. Author their wording in PuzzleStep hints, not generated chat/events or evidence.")]
+        public bool isPuzzleGuidance;
+        [Tooltip("Answer tokens blocked from model output while this fact is withheld.")]
+        public List<string> protectedTerms = new List<string>();
+
+        [Tooltip("Offer this discovered fact in the dialogue evidence picker. Puzzle answers cannot be shared.")]
+        public bool canShareAsEvidence;
+        public string evidenceTitle;
+
+        public string EvidenceTitle
+        {
+            get { return string.IsNullOrWhiteSpace(evidenceTitle) ? factId : evidenceTitle; }
+        }
 
         public bool IsRevealed(GameState state)
         {
@@ -105,9 +118,9 @@ namespace MysteryGame.Knowledge
                 case HintLevel.Explicit:
                     return Pick(explicitHint, normalHint, vagueHint);
                 case HintLevel.Normal:
-                    return Pick(normalHint, vagueHint, explicitHint);
+                    return Pick(normalHint, vagueHint);
                 case HintLevel.Vague:
-                    return Pick(vagueHint, normalHint, explicitHint);
+                    return Pick(vagueHint);
                 default:
                     return string.Empty;
             }
@@ -160,11 +173,18 @@ namespace MysteryGame.Knowledge
     {
         [Tooltip("Must match the scene name, e.g. Room01.")]
         public string roomId;
+        public string enteredFlag;
 
         public string roomName;
 
         [TextArea(2, 5)]
         public string roomDescription;
+
+        [Tooltip("Room-specific objects/mechanics used to detect generated gameplay claims. Social mentions alone are allowed.")]
+        public List<string> gameplayTerms = new List<string>();
+
+        [Tooltip("A subset of gameplayTerms for visibly present scenery. Allows social existence/reflection mentions only, not locations, mechanics, instructions or extra hint details. Never put hidden items or answers here.")]
+        public List<string> visibleAmbientTerms = new List<string>();
 
         [Tooltip(
             "The illustrated background for this room. Lives here so one room " +

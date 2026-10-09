@@ -174,7 +174,7 @@ namespace MysteryGame.Tests
         [TestCase("the next day")]
         public void SenaAcceptsEveryWayOfSayingTomorrow(string answer)
         {
-            Assert.That(SenaInteraction.IsCorrectRiddleAnswer(answer), Is.True, answer);
+            Assert.That(UnityEditor.AssetDatabase.LoadAssetAtPath<InputPuzzleData>("Assets/Data/Puzzles/Sena_Riddle.asset").Accepts(answer), Is.True, answer);
 
             // and what she says offline agrees with what the gate does
             State.SetFlag("sena_offering_given");
@@ -185,8 +185,8 @@ namespace MysteryGame.Tests
         [Test]
         public void SpacesInsideTheAnswerDoNotMatter()
         {
-            Assert.That(SenaInteraction.IsCorrectRiddleAnswer("วัน ถัด ไป"), Is.True);
-            Assert.That(SenaInteraction.IsCorrectRiddleAnswer("พรุ่ง นี้"), Is.True);
+            Assert.That(UnityEditor.AssetDatabase.LoadAssetAtPath<InputPuzzleData>("Assets/Data/Puzzles/Sena_Riddle.asset").Accepts("วัน ถัด ไป"), Is.True);
+            Assert.That(UnityEditor.AssetDatabase.LoadAssetAtPath<InputPuzzleData>("Assets/Data/Puzzles/Sena_Riddle.asset").Accepts("พรุ่ง นี้"), Is.True);
         }
 
         [TestCase("หนังสือ")]
@@ -194,17 +194,18 @@ namespace MysteryGame.Tests
         [TestCase("")]
         public void SenaRejectsWrongAnswers(string answer)
         {
-            Assert.That(SenaInteraction.IsCorrectRiddleAnswer(answer), Is.False, answer);
+            Assert.That(UnityEditor.AssetDatabase.LoadAssetAtPath<InputPuzzleData>("Assets/Data/Puzzles/Sena_Riddle.asset").Accepts(answer), Is.False, answer);
         }
 
         [Test]
-        public void SenasPromptListsExactlyTheAnswersTheGateAccepts()
+        public void SenaUsesPuzzleDataInsteadOfSendingTheAnswerListToTheModel()
         {
-            string notes = string.Join("\n", KnowledgeLibrary.GetNpc("Sena").situationalNotes.ConvertAll(n => n.note));
-            foreach (string answer in new[] { "พรุ่งนี้", "วันถัดไป", "วันต่อไป", "วันรุ่งขึ้น", "อนาคต", "Tomorrow" })
-            {
-                Assert.That(notes, Does.Contain(answer));
-            }
+            var npc = KnowledgeLibrary.GetNpc("Sena");
+            var rule = npc.fallbackReplies.Find(r => r.ruleId == "answered");
+            Assert.That(rule.answerPuzzle, Is.Not.Null);
+            Assert.That(rule.answerPuzzle.Accepts("Tomorrow"), Is.True);
+            State.SetFlag("sena_offering_given");
+            Assert.That(Build("Sena", "Room02", false).ToCharacterSection(), Does.Not.Contain("Tomorrow"));
         }
 
         [Test]
@@ -449,7 +450,7 @@ namespace MysteryGame.Tests
                     if (line.Contains("วิ่งนำหน้า"))
                     {
                         restated++;
-                        Assert.That(line, Does.Contain(SenaInteraction.RiddleEnglish), name);
+                        Assert.That(line, Does.Contain(UnityEditor.AssetDatabase.LoadAssetAtPath<InputPuzzleData>("Assets/Data/Puzzles/Sena_Riddle.asset").translation), name);
                     }
                 }
 

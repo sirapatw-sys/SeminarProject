@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 13d574be4884b6c4b97f4bc64076dc31, type: 3}
+  m_Name: Sena_Puzzle
+  m_EditorClassIdentifier: 
+  npcId: Sena
+  requiredItemId: tome
+  offeringGivenFlag: sena_offering_given
+  demandDialogue: {fileID: 11400000, guid: 7a421c3d9c82490bac96ec0629df4e9d, type: 2}
+  questionDialogue: {fileID: 11400000, guid: f383aba9e04643d981ef304859d950bc, type: 2}
+  solvedDialogue: {fileID: 11400000, guid: 26163eade3ef709499ad7872000e6276, type: 2}
+  puzzle: {fileID: 11400000, guid: 94c32844c054951429189b5d59e801e3, type: 2}
+  meetingActions:
+  - type: 0
+    targetId: sena_met
+    secondaryId: 
+    amount: 0
+    text: 
+  - type: 0
+    targetId: sena_wants_tome
+    secondaryId: 
+    amount: 0
+    text: 
+  offeringActions:
+  - type: 4
+    targetId: Sena
+    secondaryId: 
+    amount: 3
+    text: 
+  - type: 5
+    targetId: 
+    secondaryId: 
+    amount: 0
+    text: Gave the gatekeeper an offering
+  hideOnSolved: 1
+  readReplyDelay: 2.4
+  fadeDuration: 2

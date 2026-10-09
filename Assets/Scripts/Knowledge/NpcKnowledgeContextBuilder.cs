@@ -146,7 +146,7 @@ namespace MysteryGame.Knowledge
                 bool forbidden = context.Npc != null &&
                                  context.Npc.IsForbidden(fact.factId);
 
-                if (revealed && npcKnows && !forbidden)
+                if (revealed && npcKnows && !forbidden && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance)
                 {
                     context.KnownFacts.Add(fact);
                 }
@@ -173,11 +173,12 @@ namespace MysteryGame.Knowledge
             }
 
             HintLevel level = HintLevel.Vague;
-            if (relationship >= ExplicitHintRelationship)
+            GameDefinition game = GameDefinition.Current;
+            if (relationship >= (game != null ? game.explicitHintRelationship : ExplicitHintRelationship))
             {
                 level = HintLevel.Explicit;
             }
-            else if (relationship >= NormalHintRelationship)
+            else if (relationship >= (game != null ? game.normalHintRelationship : NormalHintRelationship))
             {
                 level = HintLevel.Normal;
             }

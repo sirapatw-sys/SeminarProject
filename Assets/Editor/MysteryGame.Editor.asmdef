@@ -1,0 +1,6 @@
+{
+  "name": "MysteryGame.Editor",
+  "references": ["MysteryGame.Runtime"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}
