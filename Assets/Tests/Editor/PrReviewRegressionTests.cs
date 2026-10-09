@@ -80,6 +80,12 @@ namespace MysteryGame.Tests
         [TestCase("There is a mirror here. It makes me nervous.")]
         [TestCase("There is a music box here and I feel uneasy.")]
         [TestCase("I look at the mirror and see only my own face.")]
+        [TestCase("มองกระจกแล้วขนลุก")]
+        [TestCase("ทุกครั้งที่มองกระจก สเตลกลัวมากเลยค่ะ")]
+        [TestCase("สเตลไม่กล้า มองกระจก เลยค่ะ")]
+        [TestCase("ฉันไม่อยาก เปิดกล่องดนตรี นั่นอีกแล้ว")]
+        [TestCase("กระจกในห้องนี้น่ากลัวจัง")]
+        [TestCase("ได้ยินเสียงกล่องดนตรีในห้องนี้อีกแล้ว")]
         public void VisibleRoomAtmosphereIsAllowedInChatAndEvents(string text)
         { AssertChatAndEvent(Build("Stelle", "Room03", false), text, true); }
 
@@ -100,6 +106,11 @@ namespace MysteryGame.Tests
         [TestCase("Rina", "Room03", "Look at the mirror and see my face.")]
         [TestCase("Sena", "Room02", "ผู้ที่มิมีของถวาย จงเสาะหาจารึกที่ยังเขียนมิจบ")]
         [TestCase("Alice", "Room01", "มีนางฟ้ายืนขวางประตู")]
+        [TestCase("Rina", "Room03", "มองกระจกดูสิ")]
+        [TestCase("Rina", "Room03", "เปิดกล่องดนตรีเลย")]
+        [TestCase("Rina", "Room03", "นายควรมองกระจกนะ")]
+        [TestCase("Rina", "Room03", "กระจกในตู้ใบนั้นแหละ")]
+        [TestCase("Rina", "Room03", "มีอะไรซ่อนอยู่ในเตาผิงแน่ๆ")]
         public void AmbientMentionsDoNotAuthorizeLocationsInstructionsOrPuzzleClaims(string npc, string room, string text)
         { AssertChatAndEvent(Build(npc, room, false), text, false); }
 
@@ -144,6 +155,8 @@ namespace MysteryGame.Tests
         [TestCase("Sena", "Room02", "ลองใช้เหตุผลและไตร่ตรองดู {hint}")]
         [TestCase("Alice", "Room01", "ค่อน\u200bข้างยากหน่อย {hint}")]
         [TestCase("Sena", "Room02", "จงใช้ ปัญญาของเจ้าเถิด {hint}")]
+        [TestCase("Alice", "Room01", "ลองนึกดูสิ {hint}")]
+        [TestCase("Sena", "Room02", "ลองตรองดูเถิด {hint}")]
         public void NeutralThinkingFramesKeepPersonalityAndTheLockedHintAtEveryTier(string npc, string room, string text)
         {
             foreach (int relationship in new[] { 10, 45, 70 })
@@ -231,6 +244,27 @@ namespace MysteryGame.Tests
         [TestCase(true)]
         public void EventPromptsKeepAuthoredChoiceTextAndLimitAiToOpeningLines(bool freeTopic)
         {
+            // Story events keep their authored choices. A free-topic chat's
+            // choices are stances, so it is asked to reword them in order.
+            string prompt = BuildEventPrompt(freeTopic);
+            Assert.That(prompt, Does.Contain("ฉันฟังอยู่"));
+            Assert.That(prompt, Does.Contain("ขอบคุณที่รับฟัง"));
+            if (freeTopic)
+            {
+                Assert.That(prompt, Does.Contain("คงท่าทีของแต่ละข้อตามลำดับ"));
+                Assert.That(prompt, Does.Contain("ทุกครั้งที่ชวนคุยต้องไม่ซ้ำ"));
+                Assert.That(prompt, Does.Not.Contain("คัดลอก optionText และ responseText ต้นฉบับ"));
+            }
+            else
+            {
+                Assert.That(prompt, Does.Contain("คัดลอก optionText และ responseText ต้นฉบับ"));
+                Assert.That(prompt, Does.Contain("แต่งเฉพาะ lines"));
+                Assert.That(prompt, Does.Not.Contain("ตัวอย่างด้านล่างเป็นแค่แนว"));
+            }
+        }
+
+        private static string BuildEventPrompt(bool freeTopic)
+        {
             var host = new GameObject("ChoicePromptTest"); host.SetActive(false);
             var generator = host.AddComponent<AiDialogueGenerator>();
             var ev = ScriptableObject.CreateInstance<MiniEventData>();
@@ -241,14 +275,9 @@ namespace MysteryGame.Tests
                 dialogue.speakerName = "Alice"; dialogue.lines.Add("คุยเป็นเพื่อนกันนะ");
                 dialogue.choices.Add(new DialogueChoiceData
                 { optionText = "ฉันฟังอยู่", responseText = "ขอบคุณที่รับฟัง" });
-                string prompt = (string)typeof(AiDialogueGenerator)
+                return (string)typeof(AiDialogueGenerator)
                     .GetMethod("BuildPrompt", BindingFlags.Instance | BindingFlags.NonPublic)
                     .Invoke(generator, new object[] { ev });
-                Assert.That(prompt, Does.Contain("คัดลอก optionText และ responseText ต้นฉบับ"));
-                Assert.That(prompt, Does.Contain("แต่งเฉพาะ lines"));
-                Assert.That(prompt, Does.Contain("ฉันฟังอยู่"));
-                Assert.That(prompt, Does.Contain("ขอบคุณที่รับฟัง"));
-                Assert.That(prompt, Does.Not.Contain("ตัวอย่างด้านล่างเป็นแค่แนว"));
             }
             finally
             { UnityEngine.Object.DestroyImmediate(host); UnityEngine.Object.DestroyImmediate(ev); UnityEngine.Object.DestroyImmediate(dialogue); }

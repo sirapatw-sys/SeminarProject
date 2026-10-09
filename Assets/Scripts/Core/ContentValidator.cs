@@ -56,6 +56,9 @@ namespace MysteryGame.Core
                         errors.Add(room.roomId + "/" + step.stepId + ": no completion conditions.");
                     if (string.IsNullOrWhiteSpace(step.vagueHint))
                         errors.Add(room.roomId + "/" + step.stepId + ": missing vague hint (cannot escalate to explicit).");
+                    foreach (string hint in new[] { step.vagueHint, step.normalHint, step.explicitHint })
+                        if (NpcReplyPolicy.MentionsGameControls(hint))
+                            errors.Add(room.roomId + "/" + step.stepId + ": hint talks about game controls (keys, buttons, chat box); say it in character.");
                     Rules(step.availableWhen, itemIds, npcIds, errors, roomIds);
                     Rules(step.completedWhen, itemIds, npcIds, errors, roomIds);
                 }

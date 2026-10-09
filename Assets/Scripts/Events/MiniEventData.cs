@@ -42,8 +42,10 @@ public class MiniEventData : ScriptableObject
     [Tooltip(
         "The NPC starts a conversation about something it picks itself: the AI " +
         "chooses a topic from what this NPC knows, what has happened and what " +
-        "it remembers. AI varies opening lines only; choice labels, responses " +
-        "and effects stay authored. Without AI, offlineVariants vary the opening lines."
+        "it remembers, and words the choices and replies to fit, keeping their " +
+        "order; each position keeps its authored effect, so choices must be stances. " +
+        "Without AI, one of offlineVariants (lines and stance choices) is used, never " +
+        "the same one twice in a row."
     )]
     public bool freeTopic;
 

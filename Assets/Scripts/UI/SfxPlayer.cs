@@ -19,6 +19,10 @@ using UnityEngine.SceneManagement;
 /// Recordings: Resources/Audio/Door plays on every door the player walks
 /// through, and every clip in Resources/Audio/Noises is a candidate for the
 /// haunted room's random noises (knocks, groans, things moving).
+///
+/// The player's volume settings (<see cref="AudioPrefs"/>) apply on top:
+/// Music to the room loops and one-off pieces, Effects to everything else.
+/// The master volume is applied to the final mix by AudioOutputRouter.
 /// </summary>
 public class SfxPlayer : MonoBehaviour
 {
@@ -77,6 +81,7 @@ public class SfxPlayer : MonoBehaviour
     private float lastTalkTime;
     private float roomMix;
     private float featureDuck = 1f;
+    private float featureVolume = 1f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
@@ -114,7 +119,8 @@ public class SfxPlayer : MonoBehaviour
 
         instance.feature.Stop();
         instance.feature.clip = clip;
-        instance.feature.volume = volume;
+        instance.featureVolume = volume;
+        instance.feature.volume = volume * AudioPrefs.Music;
         instance.feature.Play();
     }
 
@@ -127,7 +133,7 @@ public class SfxPlayer : MonoBehaviour
         }
 
         instance.effects.pitch = 1f;
-        instance.effects.PlayOneShot(instance.doorClip, instance.doorVolume);
+        instance.effects.PlayOneShot(instance.doorClip, instance.doorVolume * AudioPrefs.Effects);
     }
 
     /// <summary>
@@ -143,7 +149,7 @@ public class SfxPlayer : MonoBehaviour
         }
 
         instance.eerieSource.panStereo = Random.value < 0.5f ? -0.45f : 0.45f;
-        instance.eerieSource.PlayOneShot(clip, volume);
+        instance.eerieSource.PlayOneShot(clip, volume * AudioPrefs.Effects);
         instance.nextNoiseTime = Mathf.Max(instance.nextNoiseTime, Time.unscaledTime + clip.length + 8f);
     }
 
@@ -303,6 +309,7 @@ public class SfxPlayer : MonoBehaviour
         // spring that is running down.
         if (feature.isPlaying)
         {
+            feature.volume = featureVolume * AudioPrefs.Music;
             float t = Time.unscaledTime;
             feature.pitch = FeaturePitch +
                             0.012f * Mathf.Sin(t * 2f * Mathf.PI * 0.21f) +
@@ -317,7 +324,7 @@ public class SfxPlayer : MonoBehaviour
             float target = layer.leaving ? 0f : layer.volume;
             float blend = 1f - Mathf.Exp(-Time.unscaledDeltaTime * 3f / CrossfadeSeconds);
             layer.level = Mathf.Lerp(layer.level, target, blend);
-            layer.source.volume = layer.level * roomMix * featureDuck;
+            layer.source.volume = layer.level * roomMix * featureDuck * AudioPrefs.Music;
 
             if (layer.leaving && layer.level < 0.002f)
             {
@@ -351,7 +358,7 @@ public class SfxPlayer : MonoBehaviour
         noiseSource.clip = next;
         noiseSource.panStereo = Random.Range(-0.7f, 0.7f);
         noiseSource.pitch = Random.Range(0.94f, 1.04f);
-        noiseSource.volume = roomNoiseVolume * Random.Range(0.6f, 1f) * roomMix;
+        noiseSource.volume = roomNoiseVolume * Random.Range(0.6f, 1f) * roomMix * AudioPrefs.Effects;
         noiseSource.Play();
 
         if (RoomNoisePlayed != null)
@@ -376,7 +383,7 @@ public class SfxPlayer : MonoBehaviour
         if (clips.TryGetValue(cue, out clip) && clip != null)
         {
             effects.pitch = cue == Cue.Talk ? Random.Range(0.94f, 1.08f) : 1f;
-            effects.PlayOneShot(clip, effectsVolume);
+            effects.PlayOneShot(clip, effectsVolume * AudioPrefs.Effects);
         }
     }
 

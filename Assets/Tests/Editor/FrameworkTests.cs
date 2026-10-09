@@ -158,7 +158,9 @@ namespace MysteryGame.Tests
             Assert.That(low.reply, Does.Not.Contain("4592"));
             State.ChangeRelationship("Alice", 100);
             var high = NpcReplyPolicy.HintReply(Build("Alice", "Room01"));
-            Assert.That(high.reply, Does.Contain("4592"));
+            // The strongest hint points at the drawer; the code stays the player's to read.
+            Assert.That(high.reply, Is.Not.EqualTo(low.reply));
+            Assert.That(high.reply, Does.Not.Contain("4592"));
             Assert.That(high.hintId, Does.Contain("open_drawer"));
             Assert.That(NpcReplyPolicy.HintReply(Build("Alice", "Room01", false)), Is.Null);
         }

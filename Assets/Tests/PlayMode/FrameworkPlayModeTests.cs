@@ -307,7 +307,8 @@ public class FrameworkPlayModeTests
                 if (action.type == ActionType.ChangeNpcNeed && action.secondaryId == "homesickness") needDelta += action.amount;
             }
             DialogueManager.Instance.SelectChoice(selectedIndex);
-            Assert.That(text.text, Is.EqualTo(source.choices[selectedIndex].responseText));
+            // The authored reply, followed by the optional line of numbers.
+            Assert.That(text.text, Does.StartWith(source.choices[selectedIndex].responseText));
             Assert.That(state.GetRelationship("Alice"), Is.EqualTo(30 + delta));
             Assert.That(state.GetNpcNeed("Alice", "homesickness"), Is.EqualTo(50f + needDelta).Within(0.5f));
             Assert.That(state.HasFlag(ev.CompletedFlag), Is.True);

@@ -27,6 +27,12 @@ namespace MysteryGame.Knowledge
         public readonly List<PersonalFact> LockedSecrets = new List<PersonalFact>();
         public readonly List<string> ActiveNotes = new List<string>();
         public readonly List<string> BondLines = new List<string>();
+
+        /// <summary>
+        /// The other characters in this NPC's room right now ("name: what they
+        /// look like"). Null when presence is unknown (edit mode, tests).
+        /// </summary>
+        public List<string> PresentLines;
         public readonly List<ConversationTurn> History = new List<ConversationTurn>();
         public readonly List<string> RecentMemories = new List<string>();
 
@@ -191,6 +197,20 @@ namespace MysteryGame.Knowledge
                 sb.AppendLine("--- ความลับที่ยังห้ามเล่า ---");
                 sb.AppendLine("ตัวละครนี้มีเรื่องที่ยังไม่พร้อมเล่าอีก " + LockedSecrets.Count +
                               " เรื่อง ถ้าผู้เล่นถามจี้ ให้เลี่ยงหรือเปลี่ยนเรื่องตามนิสัย ห้ามแต่งความลับขึ้นมาเอง");
+                sb.AppendLine();
+            }
+
+            if (PresentLines != null)
+            {
+                sb.AppendLine("--- ใครอยู่ในห้องนี้ตอนนี้ (ตัวละครเห็นเองกับตา) ---");
+                sb.AppendLine("- ผู้เล่น (คนที่กำลังคุยด้วย)");
+                foreach (string line in PresentLines)
+                {
+                    sb.AppendLine("- " + line);
+                }
+                sb.AppendLine(PresentLines.Count == 0
+                    ? "นอกจากผู้เล่นแล้วไม่มีใครอื่นในห้องนี้ ถ้าถูกถามว่ามีใครอยู่บ้างให้ตอบตามนี้"
+                    : "ถ้าผู้เล่นถามว่าในห้องมีใคร ให้ตอบจากรายการนี้ได้เลย ห้ามบอกว่าไม่รู้หรือไม่เห็น และห้ามพูดถึงคนที่ไม่อยู่ในรายการว่าอยู่ในห้องนี้");
                 sb.AppendLine();
             }
 

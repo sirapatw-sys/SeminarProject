@@ -13,6 +13,12 @@ public class NpcEventController : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float triggerChancePerCheck = 0.5f;
     [SerializeField] private Vector3 indicatorOffset = new Vector3(0f, 1.2f, 0f);
     [SerializeField, Min(0.5f)] private float generationTimeoutSeconds = 25f;
+    [Tooltip("After one of this NPC's ordinary \"!\" ends (talked to or ignored) it waits at least this long " +
+             "before raising another. Story beats are never held back.")]
+    [SerializeField, Min(0f)] private float ambientGapSeconds = 100f;
+    [Tooltip("After any NPC's ordinary \"!\" ends, no NPC raises another for at least this long, " +
+             "so two NPCs in the same room do not take turns.")]
+    [SerializeField, Min(0f)] private float sharedAmbientGapSeconds = 40f;
 
     private readonly Dictionary<string, float> cooldownUntil =
         new Dictionary<string, float>();
@@ -29,6 +35,9 @@ public class NpcEventController : MonoBehaviour
     private AiRequestOperation generationOperation;
     private int generationVersion;
     private float generationDeadline;
+    private float nextAmbientTime;
+    private string lastAmbientEventId;
+    private static float nextSharedAmbientTime;
 
     private void Awake()
     {
@@ -89,6 +98,7 @@ public class NpcEventController : MonoBehaviour
                 MiniEventData beat = FindDueStoryBeat();
                 if (beat != null)
                 {
+                    EndAmbient(pendingEvent);
                     ClearPendingEvent();
                     QueueEvent(beat);
                     return;
@@ -98,6 +108,7 @@ public class NpcEventController : MonoBehaviour
             if (stale || Time.time >= pendingUntil)
             {
                 cooldownUntil[pendingEvent.eventId] = Time.time + pendingEvent.cooldownSeconds;
+                EndAmbient(pendingEvent);
                 ClearPendingEvent();
             }
             else if (pendingEvent.autoStart && !InputGate.IsBlocked &&
@@ -146,12 +157,29 @@ public class NpcEventController : MonoBehaviour
 
         nextCheckTime = Time.time + checkInterval;
 
-        if (Random.value > triggerChancePerCheck)
+        if (Time.time < nextAmbientTime || Time.time < nextSharedAmbientTime ||
+            Random.value > triggerChancePerCheck)
         {
             return;
         }
 
         TryQueueRandomEvent();
+    }
+
+    /// <summary>
+    /// An ordinary "!" ended (talked to, ignored or pushed aside by the
+    /// story): this NPC and then everyone else keep quiet for a while.
+    /// </summary>
+    private void EndAmbient(MiniEventData ended)
+    {
+        if (ended == null || ended.storyBeat)
+        {
+            return;
+        }
+
+        nextAmbientTime = Time.time + ambientGapSeconds;
+        nextSharedAmbientTime = Time.time + sharedAmbientGapSeconds;
+        lastAmbientEventId = ended.eventId;
     }
 
     public bool HasPendingEvent
@@ -188,17 +216,22 @@ public class NpcEventController : MonoBehaviour
 
         cooldownUntil[selectedEvent.eventId] =
             Time.time + selectedEvent.cooldownSeconds;
+        EndAmbient(selectedEvent);
 
         if (!selectedEvent.repeatable && !selectedEvent.completeOnChoice && GameState.Instance != null)
         {
             GameState.Instance.SetFlag(selectedEvent.CompletedFlag);
         }
 
+        // A free-topic chat's choices are stances, so its wording may vary
+        // with each topic (AI-written or one of the authored variants); the
+        // effects stay with each position. Story events keep authored text.
         DialogueManager.Instance.StartDialogue(
             selectedEvent.dialogue,
             selectedDialogue,
             isEvent: true,
-            completeOnChoiceFlag: selectedEvent.completeOnChoice ? selectedEvent.CompletedFlag : null
+            completeOnChoiceFlag: selectedEvent.completeOnChoice ? selectedEvent.CompletedFlag : null,
+            useGeneratedChoices: selectedEvent.freeTopic && selectedDialogue != null
         );
         return true;
     }
@@ -263,18 +296,35 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
+        // Never the same request twice in a row (Alice asking for water
+        // again) while something else is possible.
+        if (eligible.Count > 1)
+        {
+            MiniEventData repeat = eligible.Find(e => e.eventId == lastAmbientEventId);
+            if (repeat != null)
+            {
+                eligible.Remove(repeat);
+                totalWeight -= repeat.weight;
+            }
+        }
+
+        MiniEventData chosen = eligible[eligible.Count - 1];
         float roll = Random.value * totalWeight;
         foreach (MiniEventData candidate in eligible)
         {
             roll -= candidate.weight;
             if (roll <= 0f)
             {
-                QueueEvent(candidate);
-                return;
+                chosen = candidate;
+                break;
             }
         }
 
-        QueueEvent(eligible[eligible.Count - 1]);
+        // Hold the other NPCs back while this "!" is up (plus the time an AI
+        // topic may take); EndAmbient sets the real gap once it is over.
+        nextSharedAmbientTime = Mathf.Max(nextSharedAmbientTime,
+            Time.time + generationTimeoutSeconds + chosen.expiresSeconds + sharedAmbientGapSeconds);
+        QueueEvent(chosen);
     }
 
     private bool IsOnCooldown(MiniEventData candidate)
@@ -360,12 +410,27 @@ public class NpcEventController : MonoBehaviour
 
     private void OnDestroy() { CancelGeneration(); }
 
+    // The offline topic each event used last, so the same one never plays twice in a row.
+    private static readonly Dictionary<string, int> lastOfflineTopic = new Dictionary<string, int>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetOfflineTopics() { lastOfflineTopic.Clear(); nextSharedAmbientTime = 0f; }
+
     public static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate)
     {
         if (candidate == null || candidate.dialogue == null) return null;
         DialogueData source = candidate.dialogue;
-        if (candidate.offlineVariants != null && candidate.offlineVariants.Count > 0)
-            source = candidate.offlineVariants[Random.Range(0, candidate.offlineVariants.Count)] ?? source;
+        int count = candidate.offlineVariants != null ? candidate.offlineVariants.Count : 0;
+        if (count > 0)
+        {
+            string key = candidate.eventId ?? string.Empty;
+            int last;
+            int pick = Random.Range(0, count);
+            if (count > 1 && lastOfflineTopic.TryGetValue(key, out last) && pick == last)
+                pick = (pick + 1 + Random.Range(0, count - 1)) % count;
+            lastOfflineTopic[key] = pick;
+            source = candidate.offlineVariants[pick] ?? source;
+        }
         if (source.choices.Count != candidate.dialogue.choices.Count) source = candidate.dialogue;
         var choices = new List<GeneratedDialogueChoice>();
         foreach (var choice in source.choices)

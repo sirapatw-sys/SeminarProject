@@ -50,6 +50,18 @@ public static class PlayerIntentClassifier
     };
     private static readonly Regex GenericHelpRequest = R(string.Join("|", Array.ConvertAll(GenericHelpWords, Regex.Escape)));
 
+    // Saying you are stuck is asking for help, however it is worded:
+    // "ไม่รู้จะทำยังไงต่อดี", "ตันแล้ว", "ไปต่อไม่ถูก", "what now?".
+    // Treated like the generic requests above (feelings elsewhere in the
+    // message still win, "no hints" still holds).
+    private static readonly Regex StuckRequest = R(
+        @"ไม่รู้(?:ว่า)?\s*(?:จะ|ต้อง|ควร)\s*(?:ทำ(?!ตัว|ใจ)|ไป|เริ่ม|หา|ดู|เล่น)|" +
+        @"(?:ทำ|ไป|เล่น|เริ่ม)\s*(?:ยังไง|ไง|อย่างไร|อะไร|ไหน|ตรงไหน|ทางไหน)\s*ต่อ|" +
+        @"ต่อ\s*(?:จากนี้|ไป)?\s*(?:ต้อง|ควร|จะ)?\s*(?:ทำ|ไป)\s*(?:อะไร|ยังไง|อย่างไร|ไหน)|" +
+        @"(?:ทาง)?ตัน(?:เลย|อยู่|จริง|\s*$)|(?:คิด|นึก)ไม่ออก(?!ว่าจะ(?:คุย|พูด|ตอบ))|ไปต่อไม่(?:ได้|ถูก|เป็น)|" +
+        @"ไม่มี(?:ไอเดีย|ทางไป)|งงไปหมด|ติดอยู่ตรงนี้|ขั้น(?:ต่อไป|ถัดไป)|" +
+        @"\b(?:stuck|no\s+idea\s+what|what\s+now|what\s+next|i'?m\s+lost|(?:don'?t|do\s+not)\s+know\s+what\s+to\s+do|not\s+sure\s+what\s+to\s+do)\b");
+
     // Help with feelings is not puzzle help. A real object/action question or
     // explicit hint request still wins in a message that also mentions feelings.
     private const string SocialTopics =
@@ -216,7 +228,7 @@ public static class PlayerIntentClassifier
             // Bare/general help may refer to another clause's loneliness or
             // anxiety. Specific puzzle requests above are not suppressed.
             if (!social &&
-                (GenericHelpRequest.IsMatch(clause) || BareHelpQuestion.IsMatch(clause)))
+                (GenericHelpRequest.IsMatch(clause) || BareHelpQuestion.IsMatch(clause) || StuckRequest.IsMatch(clause)))
                 asking = true;
         }
         return asking;

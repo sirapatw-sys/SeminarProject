@@ -165,7 +165,22 @@ namespace MysteryGame.Knowledge
 
         public string displayName;
 
+        [Tooltip("What anyone in the same room sees at a glance. Other NPCs are told this when this NPC is in their room.")]
+        [TextArea(2, 3)] public string appearance;
+
         [TextArea(3, 8)] public string persona;
+
+        /// <summary>The authored appearance, or the first line of the persona.</summary>
+        public string Appearance
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(appearance)) return appearance.Trim();
+                if (string.IsNullOrWhiteSpace(persona)) return string.Empty;
+                string first = persona.Split('\n')[0].Trim();
+                return first.Length > 160 ? first.Substring(0, 160) + "..." : first;
+            }
+        }
         [TextArea(2, 5)] public string speechStyle;
         [TextArea(2, 4)] public string personalGoal;
 

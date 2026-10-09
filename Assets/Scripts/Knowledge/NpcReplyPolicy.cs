@@ -38,10 +38,24 @@ namespace MysteryGame.Knowledge
             @"(?:ซ้าย|ขวา|ใต้|ข้าง|ด้าน|ตรงนี้|ตรงนั้น|(?:ลอง|ควร|ต้อง|จง|ให้).{0,16}(?:ดู|อ่าน|มอง|เปิด|ใช้|วาง|กด|เลื่อน|หมุน|ดัน|ดึง|เคาะ|ทุบ))|" +
             @"\b(?:under(?:neath)?|behind|above|below|left|right|towards?|move|moving|press|pull|push|turn|wind|open|unlock|inspect|search|look|read|place|put|use|break)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // Keys, buttons, the mouse or the chat box: an NPC lives in the room
+        // and never tells the player which key to press ("กด E ที่โต๊ะ").
+        private static readonly Regex GameControls = new Regex(
+            @"กด\s*(?:ปุ่ม\s*)?[A-Za-z](?![A-Za-z])|(?:ปุ่ม|คีย์|แป้น)\s*[A-Za-z][0-9]{0,2}(?![A-Za-z])|" +
+            @"คีย์บอร์ด|แป้นพิมพ์|เมาส์|คลิก|ช่อง\s*(?:แชท|แชต|พิมพ์)|พิมพ์\s*(?:ตอบ|ลงใน|ในช่อง)|" +
+            @"\bpress(?:ing)?\s+(?:the\s+)?(?:[a-z]|f[0-9]{1,2}|enter|space)\b|\b(?:keyboard|mouse|click|hotkey|chat\s*box|text\s*box)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>True when the text talks about the game's controls instead of the room.</summary>
+        public static bool MentionsGameControls(string text)
+        {
+            return !string.IsNullOrEmpty(text) && GameControls.IsMatch(RemoveInvisibleCharacters(text));
+        }
+
         // Ignore abstract thinking idioms only for the direction matcher.
         // Object names, secrets, numbers and the full prose are still checked.
         private static readonly Regex NeutralHintThinking = new Regex(
-            @"ค่อน\s*ข้าง|(?:คิด|ไตร่ตรอง|พิจารณา|ทบทวน)\s*ดู|ใช้\s*(?:ปัญญา|เหตุผล|ความคิด|สติ|ไหวพริบ)",
+            @"ค่อน\s*ข้าง|(?:คิด|นึก|ตรอง|ไตร่ตรอง|พิจารณา|ทบทวน)\s*ดู|ใช้\s*(?:ปัญญา|เหตุผล|ความคิด|สติ|ไหวพริบ)",
             RegexOptions.CultureInvariant);
         private static readonly string[] GameplayTerms = {
             "รหัส", "กุญแจ", "ลิ้นชัก", "เบาะแส", "ปลดล็อ", "เฉลย", "ทางออก", "ซ่อน", "ใต้เตียง",
@@ -116,6 +130,8 @@ namespace MysteryGame.Knowledge
                 if (string.IsNullOrWhiteSpace(id)) { reason = "empty fact id"; return false; }
             if (!context.ValidateReferences(declared, out reason)) return false;
             if (text == null) { reason = "missing text"; return false; }
+            foreach (string value in text)
+                if (MentionsGameControls(value)) { reason = "mentions game controls"; return false; }
             var used = new HashSet<string>(StringComparer.Ordinal);
             var segments = new List<string>();
             var rawSocial = new StringBuilder();
@@ -243,11 +259,12 @@ namespace MysteryGame.Knowledge
             string existenceNoun = "(?:" + string.Join("|", existenceSubjects) + ")";
             const string gap = @"[^.!?;]{0,24}";
             string commandValue = value;
+            string visibleNoun = null;
             if (ambient.Count > 0)
             {
                 var visiblePatterns = new List<string>();
                 foreach (string term in ambient) visiblePatterns.Add(WordPattern(term));
-                string visibleNoun = "(?:" + string.Join("|", visiblePatterns) + ")";
+                visibleNoun = "(?:" + string.Join("|", visiblePatterns) + ")";
                 // A narrow first-person reflection is not an instruction to
                 // inspect an object. Only remove the command verb, not the
                 // rest of the message or any location/mechanism claim.
@@ -258,9 +275,19 @@ namespace MysteryGame.Knowledge
                     @"(?<lead>\bi\s+)look\s+at\s+(?=(?:the\s+)?" + visibleNoun +
                     @"\s+and\s+see\s+(?:only\s+)?my\s+(?:own\s+)?face\b)", "${lead}");
             }
+            // A verb after a refusal or inside a past/relative clause narrates
+            // ("ไม่กล้า มองกระจก", "ทุกครั้งที่มองกระจก"); it does not instruct.
+            const string lead = @"(?:^|[.!?;]\s*|[,\s]+|(?:แล้ว|และ|จากนั้น|จึง|เลย)\s*)";
+            const string notNegated = @"(?<!(?:ไม่กล้า|ไม่อยาก|ไม่เคย|ไม่ได้|ไม่|อย่า|เคย|ที่)\s*)";
+            // Looking at visible scenery is narration unless it ends as an
+            // invitation ("มองกระจกดูสิ"); handling it is always an instruction.
+            string visibleCommands = visibleNoun == null ? string.Empty :
+                lead + notNegated + @"(?:เปิด|หยิบ|ไข|ใช้|หมุน|กด|ดัน|วาง|ใส่|เคาะ)" + gap + visibleNoun + "|" +
+                lead + notNegated + @"(?:อ่าน|มอง)" + gap + visibleNoun + @"[^.!?;]{0,12}(?:ดู|สิ|ซิ|ซะ|เถอะ|หน่อย)" + "|";
             string commandPattern =
                 @"(?:เริ่ม(?:จาก|ที่)|ลอง(?:มอง|ดู)|ควร|ต้อง)" + gap + noun + "|" +
-                @"(?:^|[.!?;]\s*|[,\s]+|(?:แล้ว|และ|จากนั้น|จึง|เลย)\s*)(?:อ่าน|เปิด|หยิบ|ไข|ใช้|หมุน|กด|ดัน|วาง|ใส่|เคาะ|มอง)" + gap + noun + "|" +
+                lead + notNegated + @"(?:อ่าน|เปิด|หยิบ|ไข|ใช้|หมุน|กด|ดัน|วาง|ใส่|เคาะ|มอง)" + gap + existenceNoun + "|" +
+                visibleCommands +
                 @"\b(?:look\s+at|start\s+with)\b" + gap + noun + "|" +
                 @"(?:^|[.!?;]\s*|\band\s+)(?:wind|open|unlock|read|turn|push|press|put|use)\b" + gap + noun;
             if (Regex.IsMatch(commandValue, RemoveInvisibleCharacters(commandPattern), RegexOptions.CultureInvariant)) return true;
@@ -268,7 +295,8 @@ namespace MysteryGame.Knowledge
             // asserted properties to an object; companionship and feelings pass.
             string pattern =
                 noun + gap + @"(?:อยู่|ซ่อน|เก็บ|วาง)\s*(?:ไว้)?\s*(?:ใต้|หลัง|ข้าง|บน|ใน|ที่(?!ไหน))|" +
-                noun + @"(?:บาน(?:นั้น|นี้)|นั้น|นี้|นั่น)?\s*(?:ใต้|หลัง(?!จาก)|ข้าง|บน|ใน(?!ใจ|ความ|แง่))|" +
+                // "X ในห้องนี้" only says where the speaker is, not where X is hidden.
+                noun + @"(?:บาน(?:นั้น|นี้)|นั้น|นี้|นั่น)?\s*(?:ใต้|หลัง(?!จาก)|ข้าง|บน|ใน(?!ใจ|ความ|แง่|ห้อง|นี้|ที่นี่))|" +
                 noun + gap + @"(?:เอียง|ล็อ[คก]|ปลดล็อ[คก]|ต้องใช้|เปิดได้ด้วย|ใช้งานได้|ทำงานได้|พร้อมใช้งาน)|" +
                 @"(?:มี|พบ|เจอ)" + gap + existenceNoun + "|" +
                 noun + gap + @"\b(?:is|are|lies|sits|was|were)\s+(?:(?:a|an|the)\s+)?(?:on|under|behind|inside|near|beside|next\s+to|crooked|tilted|locked|unlocked|hidden|open|closed|missing|empty)\b|" +
@@ -338,7 +366,7 @@ namespace MysteryGame.Knowledge
             if (first < 0 || input.reply.IndexOf(HintToken, first + HintToken.Length, StringComparison.Ordinal) >= 0) return false;
             string frame = input.reply.Remove(first, HintToken.Length);
             // Validate only the AI-owned frame. The core hint is trusted authored
-            // data and may legitimately include a code at the explicit tier.
+            // data (ContentValidator keeps game controls out of it).
             if (frame.Length > 240 || frame.IndexOf('{') >= 0 || frame.IndexOf('}') >= 0 ||
                 HasAdditionalHintDetail(context, frame) ||
                 !Validate(context, Array.Empty<string>(), new[] { frame }, out reason)) return false;

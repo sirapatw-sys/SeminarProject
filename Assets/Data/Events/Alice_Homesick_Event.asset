@@ -20,7 +20,7 @@ MonoBehaviour:
   threshold: 70
   minimumRoomTimeSeconds: 45
   weight: 0.8
-  cooldownSeconds: 150
+  cooldownSeconds: 480
   expiresSeconds: 60
   repeatable: 1
   useAiDialogue: 1

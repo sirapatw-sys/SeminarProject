@@ -1,0 +1,55 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b75aa9e7779470c889557275485c8a2, type: 3}
+  m_Name: Rina_OfflineTopic3
+  m_EditorClassIdentifier: 
+  dialogueId: rina_offline_3
+  speakerId: Rina
+  speakerName: "รินะ (Rina)"
+  speakerPortrait: {fileID: 21300000, guid: 077f8282b9ce40a0b6b8fbec133e9c20, type: 3}
+  personalityPrompt: 
+  lines:
+  - "นายคิดว่าผีในห้องนี้อยากทำร้ายเราไหม"
+  - "ฉันว่าไม่หรอก ผีก็คงมีเหตุผลของมัน เหมือนคนนั่นแหละ"
+  overrideReturnLines: 0
+  returnLines: []
+  choices:
+  - optionText: "ฉันก็คิดแบบนั้นเหมือนกัน"
+    responseText: "ดี อย่างน้อยห้องนี้ก็มีคนใจเย็นสองคน"
+    actions:
+    - type: 4
+      targetId: Rina
+      secondaryId: 
+      amount: 3
+      text: 
+    - type: 7
+      targetId: Rina
+      secondaryId: 
+      amount: 0
+      text: "ผู้เล่นเห็นด้วยกับรินะว่าผีในห้องนี้อาจไม่ได้อยากทำร้ายใคร"
+  - optionText: "ทำไมเธอถึงดูไม่ตื่นเต้นเลยล่ะ"
+    responseText: "ตื่นไปก็ไม่ช่วยอะไร นั่งตัวสั่นไปก็ไม่ได้ออกไปไหน"
+    actions:
+    - type: 4
+      targetId: Rina
+      secondaryId: 
+      amount: 1
+      text: 
+  - optionText: "ไม่อยากคิดเรื่องผีตอนนี้"
+    responseText: "ก็ได้ ทำเป็นลืมไปก่อนก็แล้วกัน"
+    actions:
+    - type: 4
+      targetId: Rina
+      secondaryId: 
+      amount: -2
+      text: 
+  firstMeetingChoicesOnly: 0

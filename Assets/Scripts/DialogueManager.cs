@@ -116,6 +116,7 @@ public class DialogueManager : MonoBehaviour
     public bool TryShareEvidence(string factId)
     {
         if (!CanShareEvidence) return false;
+        int closenessBefore = GameState.Instance.GetRelationship(activeNpcId);
         EvidenceShareResult result;
         if (!EvidenceSharing.TryShare(GameState.Instance, activeNpcId, factId, out result)) return false;
         if (evidencePicker != null) evidencePicker.Close();
@@ -128,7 +129,7 @@ public class DialogueManager : MonoBehaviour
         dialogueLines = new[] { result.Reply };
         currentLine = 0;
         activeDialogueContext = result.Reply;
-        dialogueText.text = EscapeRichText(result.Reply);
+        dialogueText.text = EscapeRichText(result.Reply) + InsightFor(0, closenessBefore);
         AnimateSpeakerForText(result.Reply);
         continueButton.gameObject.SetActive(activeChoices != null && activeChoices.Count > 0);
         SfxPlayer.Play(SfxPlayer.Cue.Talk);
@@ -285,7 +286,8 @@ public class DialogueManager : MonoBehaviour
         DialogueData data,
         GeneratedDialogueContent generated,
         bool isEvent = false,
-        string completeOnChoiceFlag = null)
+        string completeOnChoiceFlag = null,
+        bool useGeneratedChoices = false)
     {
         if (data == null)
         {
@@ -298,6 +300,22 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        OpenDialogue(data, generated, isEvent, completeOnChoiceFlag, useGeneratedChoices);
+    }
+
+    /// <param name="useGeneratedChoices">
+    /// Only for free-topic chats, whose choices are stances (listen / ask back
+    /// / brush off) rather than story decisions: the topic's wording (AI or an
+    /// authored variant) replaces the labels and replies, and each keeps the
+    /// authored effect of its position.
+    /// </param>
+    private void OpenDialogue(
+        DialogueData data,
+        GeneratedDialogueContent generated,
+        bool isEvent,
+        string completeOnChoiceFlag,
+        bool useGeneratedChoices)
+    {
         ConversationVersion++;
         dialoguePanel.SetActive(true);
         choicePanel.SetActive(false);
@@ -305,10 +323,9 @@ public class DialogueManager : MonoBehaviour
 
         showingChoiceResponse = false;
         choiceCompletionFlag = completeOnChoiceFlag;
-        // Generated opening lines are presentation only. Choice labels and
-        // responses must stay with their authored effects, including the
-        // completion flag that can exist even when a choice has no actions.
-        activeChoices = data.choices;
+        // Story events keep their authored labels and responses, which stay
+        // paired with their effects (and any completion flag).
+        activeChoices = useGeneratedChoices ? BuildRuntimeChoices(data, generated) : data.choices;
         // Per dialogue, not per speaker: Alice's Room02 choices must still
         // appear the first time even though she was met in Room01.
         string metFlag = "dialogue." + data.dialogueId + ".met";
@@ -364,6 +381,42 @@ public class DialogueManager : MonoBehaviour
                 "Started dialogue: " + data.dialogueId
             );
         }
+    }
+
+    private List<DialogueChoiceData> BuildRuntimeChoices(
+        DialogueData data,
+        GeneratedDialogueContent generated)
+    {
+        if (generated == null || !generated.IsValid(data.choices.Count))
+        {
+            return data.choices;
+        }
+
+        var runtimeChoices = new List<DialogueChoiceData>();
+        for (int index = 0; index < data.choices.Count; index++)
+        {
+            runtimeChoices.Add(new DialogueChoiceData
+            {
+                optionText = generated.choices[index].optionText,
+                responseText = generated.choices[index].responseText,
+                actions = data.choices[index].actions
+            });
+        }
+
+        return runtimeChoices;
+    }
+
+    /// <summary>The numbers line for a reply to a choice or shared evidence.</summary>
+    private string InsightFor(int hintPercent, int closenessBefore)
+    {
+        GameState state = GameState.Instance;
+        if (!ResponseInsights.Enabled || state == null || KnowledgeLibrary.GetNpc(activeNpcId) == null)
+        {
+            return string.Empty;
+        }
+
+        int closeness = state.GetRelationship(activeNpcId);
+        return ResponseInsights.Format(hintPercent, ResponseInsights.KindPercent(closeness - closenessBefore), closeness);
     }
 
     private void BuildVisualNovelLayout()
@@ -793,7 +846,7 @@ public class DialogueManager : MonoBehaviour
         inputRect.anchorMin = Vector2.zero;
         inputRect.anchorMax = Vector2.one;
         inputRect.offsetMin = new Vector2(18f, 6f);
-        inputRect.offsetMax = new Vector2(-280f, -6f);
+        inputRect.offsetMax = new Vector2(-344f, -6f); // room for the mic, หลักฐาน and ส่ง
 
         TMP_Text inputText = CreateInputText(
             inputObject.transform,
@@ -837,6 +890,7 @@ public class DialogueManager : MonoBehaviour
         sendButton.onClick.AddListener(SendTypedMessage);
         evidencePicker = composer.AddComponent<EvidencePickerUI>();
         evidencePicker.Configure(this, composer.transform, dialoguePanel.transform, nameText.font);
+        composer.AddComponent<VoiceInputButton>().Configure(this, composer.transform, chatInput, nameText.font);
     }
 
     private TMP_Text CreateInputText(
@@ -1233,6 +1287,7 @@ public class DialogueManager : MonoBehaviour
         }
         else
         {
+            int closenessBefore = GameState.Instance.GetRelationship(activeNpcId);
             foreach (ActionCommand action in selectedChoice.actions)
             {
                 if (action != null)
@@ -1247,6 +1302,7 @@ public class DialogueManager : MonoBehaviour
             );
             if (!string.IsNullOrWhiteSpace(choiceCompletionFlag))
                 GameState.Instance.SetFlag(choiceCompletionFlag);
+            dialogueText.text += InsightFor(0, closenessBefore);
         }
         choiceCompletionFlag = null;
         if (evidencePicker != null) evidencePicker.RefreshAvailability();
@@ -1372,6 +1428,8 @@ public class DialogueManager : MonoBehaviour
                 : reply.relationshipDelta,
             usedFallback ? null : reply.playerTone,
             PlayerToneClassifier.Read(playerMessage));
+        // How the message read, before the hint and repeat rules hold gains back.
+        int judgedDelta = relationshipDelta;
 
         GameState state = GameState.Instance;
         if (state != null && !string.IsNullOrWhiteSpace(activeNpcId))
@@ -1410,13 +1468,19 @@ public class DialogueManager : MonoBehaviour
                 " — จึงใช้คำตอบสำรอง</size></color>";
         }
 
+        string insight = ResponseInsights.Enabled && state != null && !string.IsNullOrWhiteSpace(activeNpcId)
+            ? ResponseInsights.Format(
+                string.IsNullOrWhiteSpace(reply.hintId) ? 0 : ResponseInsights.HintPercent(knowledge.AllowedHintLevel),
+                ResponseInsights.KindPercent(judgedDelta),
+                state.GetRelationship(activeNpcId))
+            : string.Empty;
         dialogueText.text =
             "<color=#69D0D8><b>คุณ:</b></color> " +
             EscapeRichText(playerMessage) +
             "\n\n<color=#E8B950><b>" +
             EscapeRichText(activeSpeakerName) +
             ":</b></color> " + EscapeRichText(reply.reply) +
-            serviceNotice;
+            insight + serviceNotice;
         AnimateSpeakerForText(reply.reply);
         if (string.IsNullOrWhiteSpace(reply.emotion))
         {

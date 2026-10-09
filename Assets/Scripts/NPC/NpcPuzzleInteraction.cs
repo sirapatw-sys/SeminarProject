@@ -33,10 +33,15 @@ public class NpcPuzzleInteraction : MonoBehaviour, IFocusable
         colors = new Color[renderers.Length];
         for (int i = 0; i < renderers.Length; i++) colors[i] = renderers[i].color;
     }
-    private void OnEnable() { DialogueSignals.TypedReplyCompleted += OnReply; }
+    private void OnEnable()
+    {
+        DialogueSignals.TypedReplyCompleted += OnReply;
+        if (definition != null) RoomPresence.Enter(definition.npcId, gameObject.scene.name);
+    }
     private void OnDisable()
     {
         DialogueSignals.TypedReplyCompleted -= OnReply;
+        if (definition != null) RoomPresence.Leave(definition.npcId, gameObject.scene.name);
         InteractionFocus.Exit(this);
     }
     private void Start()

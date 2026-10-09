@@ -82,8 +82,14 @@ public class NPCInteraction : MonoBehaviour, IFocusable
         }
     }
 
+    private void OnEnable()
+    {
+        if (dialogueData != null) MysteryGame.Knowledge.RoomPresence.Enter(dialogueData.speakerId, gameObject.scene.name);
+    }
+
     private void OnDisable()
     {
+        if (dialogueData != null) MysteryGame.Knowledge.RoomPresence.Leave(dialogueData.speakerId, gameObject.scene.name);
         InteractionFocus.Exit(this);
     }
 }

@@ -83,11 +83,21 @@ namespace MysteryGame.Knowledge
                     }
                 }
 
+                FillPresence(context, state);
+
                 if (npc.bonds != null)
                 {
                     foreach (NpcBond bond in npc.bonds)
                     {
                         if (bond == null || string.IsNullOrWhiteSpace(bond.otherNpcId))
+                        {
+                            continue;
+                        }
+
+                        // Someone the player has not met yet (Rina while still
+                        // in Room01) is not brought up before their room.
+                        if (context.PresentLines != null && !RoomPresence.IsIn(context.Room != null ? context.Room.roomId : null, bond.otherNpcId) &&
+                            (state == null || state.GetConversationCount(bond.otherNpcId) == 0))
                         {
                             continue;
                         }
@@ -124,6 +134,30 @@ namespace MysteryGame.Knowledge
                 {
                     context.RecentMemories.Insert(0, memory);
                 }
+            }
+        }
+
+        /// <summary>The other characters standing in the NPC's room, from the live scene.</summary>
+        private static void FillPresence(NpcKnowledgeContext context, GameState state)
+        {
+            string roomId = context.Room != null ? context.Room.roomId : null;
+            if (!RoomPresence.HasRoom(roomId))
+            {
+                return;
+            }
+
+            context.PresentLines = new List<string>();
+            foreach (string otherId in RoomPresence.In(roomId))
+            {
+                if (string.Equals(otherId, context.NpcId, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                NpcProfileData other = KnowledgeLibrary.GetNpc(otherId);
+                string name = other != null && !string.IsNullOrWhiteSpace(other.displayName) ? other.displayName : otherId;
+                string looks = other != null ? other.Appearance : string.Empty;
+                context.PresentLines.Add(string.IsNullOrWhiteSpace(looks) ? name : name + ": " + looks);
             }
         }
 
