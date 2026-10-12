@@ -35,6 +35,7 @@ public class KeypadLockUI : MonoBehaviour
     private string statusMessage = "";
     private Color statusColor = Color.white;
     private Action onUnlockSuccess;
+    private Action<string> onUnlockFailure;
 
     private Texture2D dimTexture;
     private Texture2D panelTexture;
@@ -71,7 +72,8 @@ public class KeypadLockUI : MonoBehaviour
         string targetCode,
         string title = null,
         string hint = null,
-        Action onSuccess = null)
+        Action onSuccess = null,
+        Action<string> onFailure = null)
     {
         if (string.IsNullOrEmpty(targetCode) || targetCode.Length > 8 ||
             !System.Text.RegularExpressions.Regex.IsMatch(targetCode, @"^\d+$"))
@@ -84,6 +86,7 @@ public class KeypadLockUI : MonoBehaviour
         if (!string.IsNullOrWhiteSpace(title)) ui.lockTitle = title;
         if (!string.IsNullOrWhiteSpace(hint)) ui.lockHint = hint;
         ui.onUnlockSuccess = onSuccess;
+        ui.onUnlockFailure = onFailure;
         ui.currentInput = "";
         ui.statusMessage = "";
         ui.openTime = Time.unscaledTime;
@@ -98,6 +101,7 @@ public class KeypadLockUI : MonoBehaviour
             _instance.currentInput = "";
             _instance.statusMessage = "";
             _instance.onUnlockSuccess = null;
+            _instance.onUnlockFailure = null;
         }
         IsOpen = false;
     }
@@ -184,6 +188,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void TrySubmit()
     {
+        if (!IsOpen) return;
         if (currentInput.Length < targetCode.Length)
         {
             statusMessage = "กรุณาใส่รหัสให้ครบ " + targetCode.Length + " หลัก";
@@ -199,6 +204,7 @@ public class KeypadLockUI : MonoBehaviour
             IsOpen = false;
             Action callback = onUnlockSuccess;
             onUnlockSuccess = null;
+            onUnlockFailure = null;
             callback?.Invoke();
         }
         else
@@ -206,7 +212,11 @@ public class KeypadLockUI : MonoBehaviour
             statusMessage = "รหัสไม่ถูกต้อง! สลักยังคงล็อคอยู่";
             statusColor = new Color(0.95f, 0.3f, 0.3f);
             shakeTimer = 0.4f;
+            string rejectedAnswer = currentInput;
             currentInput = "";
+            // Only a complete, incorrect submission is an attempted unlock.
+            // Keep the keypad open; cancel/incomplete input has no gameplay effect.
+            onUnlockFailure?.Invoke(rejectedAnswer);
         }
     }
 

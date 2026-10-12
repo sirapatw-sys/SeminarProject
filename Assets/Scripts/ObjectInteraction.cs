@@ -105,7 +105,15 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         {
             var puzzle = data.inputPuzzle;
             KeypadLockUI.Show(puzzle.acceptedAnswers[0], puzzle.title, puzzle.question,
-                () => ExecuteInteraction(data, puzzle.acceptedAnswers[0]));
+                () => ExecuteInteraction(data, puzzle.acceptedAnswers[0]),
+                answer =>
+                {
+                    if (this == null || InteractionSystem.Instance == null) return;
+                    // Reuse the puzzle's authoritative validation/signals without
+                    // starting dialogue over the still-open keypad.
+                    string ignored;
+                    InteractionSystem.Instance.TryExecute(data, out ignored, answer);
+                });
             return;
         }
         ExecuteInteraction(data);

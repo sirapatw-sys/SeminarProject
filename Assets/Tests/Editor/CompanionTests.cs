@@ -10,6 +10,124 @@ namespace MysteryGame.Tests
 {
     public class CompanionTests : GameStateFixture
     {
+        private const string BoxFact = "companion.room01_alice.two_hands_box.";
+
+        private bool Ground(string text, out GeneratedChatReply grounded, params string[] references)
+        {
+            string reason;
+            return NpcReplyPolicy.TryGroundReply(Build("Alice", "Room01", false),
+                new GeneratedChatReply { reply = text, referencedFactIds = references }, out grounded, out reason);
+        }
+
+        [TestCase("เธอทำให้ฉันรู้สึกดีขึ้นแล้ว")]
+        [TestCase("ฉันทำใจได้แล้ว ขอบใจที่อยู่ด้วยกัน")]
+        [TestCase("ฉันช่วยคิดแล้วรู้สึกสบายใจขึ้น")]
+        [TestCase("เราช่วยกันคิดแล้วรู้สึกไม่โดดเดี่ยว")]
+        [TestCase("ฉันจับใจความเธอได้แล้ว")]
+        [TestCase("ยืนยันได้แล้วว่าเธอใจดี")]
+        public void OrdinaryEmotionalAndThinkingIdiomsAreNotActivityClaims(string text)
+        {
+            GeneratedChatReply grounded;
+            Assert.That(Ground(text, out grounded), Is.True, text);
+        }
+
+        [TestCase("ฉันเปิดกล่องสองมือให้แล้ว เราทำสำเร็จด้วยกัน")]
+        [TestCase("กล่องเปิดแล้ว")]
+        [TestCase("ฉันเปิดให้แล้ว")]
+        [TestCase("เราทำสำเร็จด้วยกัน")]
+        [TestCase("I opened the box for you.")]
+        [TestCase("We have completed it.")]
+        [TestCase("กล่องสองมือ\nเปิดแล้ว")]
+        [TestCase("กล่องสองมืออยู่ใต้โต๊ะ")]
+        [TestCase("ฉันกำลังจับกลไกอยู่")]
+        public void CompanionClaimsCannotBeInventedInRawAiProse(string text)
+        {
+            GeneratedChatReply grounded;
+            Assert.That(Ground(text, out grounded), Is.False);
+            Assert.That(State.HasFlag(BoxFact + "completed"), Is.False);
+            Assert.That(State.HasItem("key"), Is.False);
+        }
+
+        [Test]
+        public void CompanionFactTokensMatchTheActualCompletionStateInBothDirections()
+        {
+            GeneratedChatReply grounded;
+            Assert.That(Ground("{fact:" + BoxFact + "pending}", out grounded, BoxFact + "pending"), Is.True);
+            Assert.That(grounded.reply, Does.Contain("ยังไม่สำเร็จ"));
+            Assert.That(Ground("{fact:" + BoxFact + "completed}", out grounded, BoxFact + "completed"), Is.False);
+            State.SetFlag(BoxFact + "completed");
+            Assert.That(Ground("{fact:" + BoxFact + "pending}", out grounded, BoxFact + "pending"), Is.False);
+            Assert.That(Ground("ดีใจที่ได้อยู่ด้วยกันนะ\n{fact:" + BoxFact + "completed}", out grounded, BoxFact + "completed"), Is.True);
+            Assert.That(grounded.reply, Does.Contain("ทำสำเร็จแล้ว"));
+            Assert.That(Ground("{fact:" + BoxFact + "completed} แต่ยังเปิดไม่ได้", out grounded, BoxFact + "completed"), Is.False);
+            Assert.That(Ground("{fact:" + BoxFact + "completed}\nในกล่องมีรหัส 1234", out grounded, BoxFact + "completed"), Is.False);
+        }
+
+        [Test]
+        public void CompanionValidationPreservesSocialTalkAndOriginalHintBoundaries()
+        {
+            GeneratedChatReply grounded; string reason;
+            Assert.That(Ground("ฉันดีใจที่ไม่ได้อยู่คนเดียว ขอบใจที่คอยอยู่ด้วยนะ", out grounded), Is.True);
+            var context = Build("Alice", "Room01", false);
+            Assert.That(context.ToPromptSection(), Does.Contain("[" + BoxFact + "pending]"));
+            Assert.That(context.ToPromptSection(), Does.Not.Contain("4592"));
+            State.SetRelationship("Alice", 10);
+            context = Build("Alice", "Room01", true);
+            Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
+                reply = "ลองคิดดูนะ {hint}", referencedFactIds = System.Array.Empty<string>()
+            }, out grounded, out reason), Is.True, reason);
+            Assert.That(grounded.reply, Does.Not.Contain("4592"));
+            Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
+                reply = "เปิดกล่องแล้ว {hint}", referencedFactIds = System.Array.Empty<string>()
+            }, out grounded, out reason), Is.False);
+            Assert.That(Build("Rina", "Room01", false).CompanionFacts, Is.Empty);
+            Assert.That(Build("Alice", "Room02", false).CompanionFacts, Is.Empty);
+        }
+
+        [Test]
+        public void MiniEventCannotInventCompanionCompletionEither()
+        {
+            string reason;
+            var context = Build("Alice", "Room01", false);
+            Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
+                lines = new[] { "เปิดกล่องสองมือได้แล้ว" }, referencedFactIds = System.Array.Empty<string>()
+            }, out reason), Is.False);
+            Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
+                lines = new[] { "{fact:" + BoxFact + "pending}" }, referencedFactIds = new[] { BoxFact + "pending" }
+            }, out reason), Is.True, reason);
+        }
+
+        [Test]
+        public void OnlyActualBlockedOrFailedInteractionsPublishAFailure()
+        {
+            var host = new GameObject("CompanionInteractionSignalTest");
+            var data = AssetDatabase.LoadAssetAtPath<InteractionData>("Assets/Data/Interactions/Drawer_Data.asset");
+            int successes = 0, failures = 0;
+            System.Action<InteractionData, bool> observer = (observed, success) => {
+                Assert.That(observed, Is.SameAs(data)); if (success) successes++; else failures++;
+            };
+            InteractionSignals.Completed += observer;
+            try
+            {
+                var interactions = host.AddComponent<InteractionSystem>(); string response;
+                Assert.That(InteractionSystem.CheckAvailability(null, State, out response), Is.EqualTo(InteractionAvailability.Unavailable));
+                Assert.That(interactions.TryExecute(null, out response), Is.False);
+                Assert.That(failures, Is.Zero);
+                Assert.That(InteractionSystem.CheckAvailability(data, State, out response), Is.EqualTo(InteractionAvailability.Blocked));
+                Assert.That(interactions.TryExecute(data, out response, "0000"), Is.False);
+                State.SetFlag("found_note");
+                Assert.That(interactions.TryExecute(data, out response, "0000"), Is.False);
+                Assert.That(failures, Is.EqualTo(2));
+                Assert.That(interactions.TryExecute(data, out response, "4592"), Is.True);
+                Assert.That(successes, Is.EqualTo(1));
+                Assert.That(InteractionSystem.CheckAvailability(data, State, out response), Is.EqualTo(InteractionAvailability.AlreadyCompleted));
+                Assert.That(interactions.TryExecute(data, out response, "0000"), Is.False);
+                Assert.That(response, Is.EqualTo(data.alreadyCompletedMessage));
+                Assert.That(failures, Is.EqualTo(2));
+            }
+            finally { InteractionSignals.Completed -= observer; Object.DestroyImmediate(host); }
+        }
+
         [Test]
         public void Room01ScenarioIsValidAndOtherRoomsStayOptIn()
         {

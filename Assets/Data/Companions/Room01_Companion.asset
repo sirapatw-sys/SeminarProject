@@ -39,6 +39,11 @@ MonoBehaviour:
   stations:
   - id: two_hands_box
     title: "กล่องสองมือ"
+    gameplayTerms:
+    - "กล่อง"
+    - "กลไก"
+    - "box"
+    - "mechanism"
     companionPoint: {x: -0.9, y: -2.65}
     playerPoint: {x: 0.9, y: -2.65}
     radius: 0.5

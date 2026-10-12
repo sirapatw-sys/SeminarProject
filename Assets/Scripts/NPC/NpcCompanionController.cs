@@ -98,8 +98,10 @@ namespace MysteryGame.Companions
         public bool RequestHelp(CompanionStationData station)
         {
             if (!CanHelp(station)) return false;
-            resumeFollowing = Mode == CompanionMode.Following;
+            if (ActiveStation == station) return true;
+            bool follow = Mode == CompanionMode.Following || (ActiveStation != null && resumeFollowing);
             CancelTask(); ActiveStation = station; Mode = CompanionMode.GoingToHelp;
+            resumeFollowing = follow;
             Say(station.requestLine); return true;
         }
         public bool RequestComfort()
@@ -222,7 +224,7 @@ namespace MysteryGame.Companions
                 "; การพูดในแชทไม่ใช่การสั่งทำงานหรือยืนยันว่างานสำเร็จ ห้ามแต่งผลการกระทำหรือเพิ่มข้อมูลคำใบ้";
         }
         private void Say(string text) { Bubble = text; bubbleSeconds = 5f; }
-        private void CancelTask() { ActiveStation = null; Progress = 0f; elapsedTask = 0f; path.Clear(); repath = 0f; }
+        private void CancelTask() { ActiveStation = null; Progress = 0f; elapsedTask = 0f; resumeFollowing = false; path.Clear(); repath = 0f; }
         private void ResetActivity() { CancelTask(); Mode = CompanionMode.Waiting; reactions.Clear(); Bubble = null; bubbleSeconds = 0f; }
         private void Unsubscribe()
         {

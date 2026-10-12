@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Linq;
+using System.Reflection;
 using MysteryGame.Companions;
 using MysteryGame.Core;
 using MysteryGame.Knowledge;
@@ -11,6 +12,7 @@ using UnityEngine.TestTools;
 
 public class Room01CompanionTests
 {
+    private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     private class OfflineProvider : IAiDialogueProvider
     {
         public bool CanGenerate { get { return false; } }
@@ -63,6 +65,136 @@ public class Room01CompanionTests
     {
         PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
         Assert.That(actor.RequestHelp(station), Is.True);
+    }
+    private ObjectInteraction Drawer()
+    {
+        return UnityEngine.Object.FindObjectsOfType<ObjectInteraction>().First(o =>
+            ((InteractionData)typeof(ObjectInteraction).GetField("interactionData", Private).GetValue(o)).interactionId == "open_drawer");
+    }
+    private void Submit(string code)
+    {
+        typeof(KeypadLockUI).GetField("currentInput", Private).SetValue(KeypadLockUI.Instance, code);
+        typeof(KeypadLockUI).GetMethod("TrySubmit", Private).Invoke(KeypadLockUI.Instance, null);
+    }
+    [UnityTest]
+    public IEnumerator WrongKeypadCodeIsObservedThroughTheRealObjectRouteWithoutClosingTheKeypad()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+        State.SetFlag("found_note"); Drawer().Interact(); Assert.That(KeypadLockUI.IsOpen, Is.True);
+        Submit("0000");
+        Assert.That(KeypadLockUI.IsOpen, Is.True); Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+        Assert.That(State.HasFlag("drawer_opened"), Is.False);
+        Assert.That(State.HasFlag(actor.Scenario.Flag("observed.drawer_failed")), Is.True);
+        int memories = State.GetNpcMemory("Alice").Count;
+        Submit("0000"); Assert.That(State.GetNpcMemory("Alice").Count, Is.EqualTo(memories));
+        Submit("4592"); Assert.That(KeypadLockUI.IsOpen, Is.False);
+        Assert.That(State.HasFlag("drawer_opened"), Is.True); Assert.That(State.HasItem("key"), Is.True);
+        yield return null;
+    }
+    [UnityTest]
+    public IEnumerator IncompleteInputCancelAndAlreadyOpenDrawerNeverInventAFailedAttempt()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+        State.SetFlag("found_note"); Drawer().Interact(); Submit("00"); KeypadLockUI.Close();
+        Assert.That(State.HasFlag(actor.Scenario.Flag("observed.drawer_failed")), Is.False);
+        Drawer().Interact(); Submit("4592");
+        Assert.That(State.HasFlag("drawer_opened"), Is.True);
+        DialogueManager.Instance.HideDialogue(); ItemPopupUI.CancelAll();
+        Drawer().Interact();
+        Assert.That(State.HasFlag(actor.Scenario.Flag("observed.drawer_failed")), Is.False);
+        Assert.That(State.GetNpcMemory("Alice"), Does.Not.Contain(actor.Scenario.observations.First(o => o.id == "drawer_failed").memory));
+        yield return null;
+    }
+    [UnityTest]
+    public IEnumerator KeypadCallbacksAreClearedOnCancelSuccessReplacementAndSceneChange()
+    {
+        int successes = 0, failures = 0;
+        Action show = () => KeypadLockUI.Show("1234", onSuccess: () => successes++, onFailure: answer => { Assert.That(answer, Is.EqualTo("0000")); failures++; });
+        show(); Submit("00"); Assert.That(failures, Is.Zero);
+        Submit("0000"); Assert.That(failures, Is.EqualTo(1));
+        KeypadLockUI.Close(); Submit("0000"); Assert.That(failures, Is.EqualTo(1));
+        show(); KeypadLockUI.Show("1234"); Submit("0000"); Assert.That(failures, Is.EqualTo(1));
+        show(); Submit("1234"); Assert.That(successes, Is.EqualTo(1)); Submit("0000");
+        Assert.That(typeof(KeypadLockUI).GetField("onUnlockFailure", Private).GetValue(KeypadLockUI.Instance), Is.Null);
+        show(); KeypadLockUI.Instance.enabled = false; Submit("0000");
+        Assert.That(KeypadLockUI.IsOpen, Is.False); Assert.That(failures, Is.EqualTo(1));
+        KeypadLockUI.Instance.enabled = true;
+        show(); yield return SceneManager.LoadSceneAsync("Room02"); yield return null;
+        Assert.That(KeypadLockUI.IsOpen, Is.False); Submit("0000");
+        Assert.That(failures, Is.EqualTo(1)); Assert.That(successes, Is.EqualTo(1));
+        Assert.That(typeof(KeypadLockUI).GetField("onUnlockFailure", Private).GetValue(KeypadLockUI.Instance), Is.Null);
+    }
+    [UnityTest]
+    public IEnumerator AiCannotClaimAnUnfinishedActivitySucceededAndGetsLiveCanonAfterCompletion()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+        var context = NpcKnowledgeContextBuilder.Build("Alice", "Room01", State, false);
+        GeneratedChatReply grounded; string reason;
+        Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
+            reply = "ฉันเปิดกล่องสองมือให้แล้ว เราทำสำเร็จด้วยกัน", referencedFactIds = Array.Empty<string>()
+        }, out grounded, out reason), Is.False);
+        string following = actor.Scenario.Flag("mode.Following");
+        Assert.That(context.CanReference(following), Is.False);
+        actor.RequestFollow(); actor.RequestHelp(station); Tick(3.2f);
+        context = NpcKnowledgeContextBuilder.Build("Alice", "Room01", State, false);
+        Assert.That(context.CanReference(following), Is.True);
+        string completed = actor.Scenario.CompletedFlag(station);
+        Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
+            reply = "{fact:" + completed + "}", referencedFactIds = new[] { completed }
+        }, out grounded, out reason), Is.True, reason);
+        Assert.That(grounded.reply, Does.Contain("ทำสำเร็จแล้ว")); yield return null;
+    }
+    [UnityTest]
+    public IEnumerator RepeatedHelpPreservesProgressTimerAndOriginalFollowIntent()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint); actor.RequestFollow();
+        Assert.That(actor.RequestHelp(station), Is.True); Assert.That(actor.RequestHelp(station), Is.True);
+        Tick(1f); float progress = actor.Progress; string bubble = actor.Bubble;
+        Assert.That(progress, Is.GreaterThan(0f));
+        Assert.That(actor.RequestHelp(station), Is.True);
+        Assert.That(actor.Progress, Is.EqualTo(progress)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Helping));
+        Assert.That(actor.Bubble, Is.EqualTo(bubble));
+        Tick(2.2f); Assert.That(actor.IsCompleted(station), Is.True);
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        State.ResetState(); BeginAtStation(); PlayerAt(station.playerPoint + Vector2.down);
+        for (int i = 0; i < 100 && actor.ActiveStation != null; i++)
+        { Assert.That(actor.RequestHelp(station), Is.True); Tick(0.5f); }
+        Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Assert.That(actor.IsCompleted(station), Is.False); yield return null;
+    }
+    [UnityTest]
+    public IEnumerator ExplicitWaitClearsThePreviousFollowIntent()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint); actor.RequestFollow();
+        actor.RequestHelp(station); Tick(0.5f); Assert.That(actor.RequestWait(), Is.True);
+        actor.RequestHelp(station); Tick(3.2f);
+        Assert.That(actor.IsCompleted(station), Is.True); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        yield return null;
+    }
+    [UnityTest]
+    public IEnumerator SwitchingToAnotherActivityPreservesTheOriginalFollowIntent()
+    {
+        var original = actor.Scenario;
+        var scenario = UnityEngine.Object.Instantiate(original);
+        var second = new CompanionStationData {
+            id = "second_station", title = "Second activity", radius = station.radius,
+            holdSeconds = station.holdSeconds, companionPoint = station.companionPoint + Vector2.up * 0.6f,
+            playerPoint = station.playerPoint + Vector2.up * 0.6f, memory = "Second activity completed", journalText = "Second activity completed"
+        };
+        scenario.stations.Add(second);
+        try
+        {
+            actor.Configure(scenario); station = scenario.stations[0];
+            PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+            Assert.That(actor.RequestFollow(), Is.True); Assert.That(actor.RequestHelp(station), Is.True); Tick(0.5f);
+            Assert.That(actor.RequestHelp(second), Is.True);
+            Assert.That(actor.Progress, Is.Zero); Assert.That(actor.ActiveStation, Is.SameAs(second));
+            ActorAt(second.companionPoint); PlayerAt(second.playerPoint); Tick(3.2f);
+            Assert.That(actor.IsCompleted(second), Is.True); Assert.That(actor.IsCompleted(station), Is.False);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        }
+        finally { actor.Configure(original); UnityEngine.Object.DestroyImmediate(scenario); }
+        yield return null;
     }
     [UnityTest]
     public IEnumerator FollowMovesWithoutTeleportingAndWaitWorksFromFarAway()

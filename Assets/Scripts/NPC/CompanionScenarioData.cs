@@ -21,6 +21,8 @@ namespace MysteryGame.Companions
     {
         public string id;
         public string title;
+        [Tooltip("Names/aliases that AI must only mention through verified companion fact tokens (Thai and English).")]
+        public List<string> gameplayTerms = new List<string>();
         public Vector2 companionPoint;
         public Vector2 playerPoint;
         [Min(0.2f)] public float radius = 0.5f;
@@ -82,6 +84,7 @@ namespace MysteryGame.Companions
             {
                 if (station == null || string.IsNullOrWhiteSpace(station.id) || !ids.Add(station.id))
                 { errors.Add("Companion station ID is empty/duplicate."); continue; }
+                if (string.IsNullOrWhiteSpace(station.title)) errors.Add("Companion station title is empty: " + station.id);
                 if (!Finite(station.radius) || !Finite(station.holdSeconds) ||
                     !Finite(station.companionPoint.x) || !Finite(station.companionPoint.y) ||
                     !Finite(station.playerPoint.x) || !Finite(station.playerPoint.y) ||
