@@ -177,6 +177,9 @@ namespace MysteryGame.Knowledge
 
         public string roomName;
 
+        [Tooltip("Optional, data-driven cooperative activity. Null keeps existing rooms unchanged.")]
+        public MysteryGame.Companions.CompanionScenarioData companionScenario;
+
         [TextArea(2, 5)]
         public string roomDescription;
 

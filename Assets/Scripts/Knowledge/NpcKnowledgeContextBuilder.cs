@@ -84,6 +84,9 @@ namespace MysteryGame.Knowledge
                 }
 
                 FillPresence(context, state);
+                var companion = MysteryGame.Companions.NpcCompanionController.Find(context.NpcId,
+                    context.Room != null ? context.Room.roomId : null);
+                if (companion != null && state == GameState.Instance) context.ActiveNotes.Add(companion.PromptState());
 
                 if (npc.bonds != null)
                 {

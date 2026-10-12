@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c011ab1e000000000000000000000001, type: 3}
+  m_Name: Room01_Companion
+  m_EditorClassIdentifier:
+  scenarioId: room01_alice
+  npcId: Alice
+  displayName: Alice
+  walkBounds:
+    serializedVersion: 2
+    x: -7.8
+    y: -4.3
+    width: 15.6
+    height: 6
+  cellSize: 0.4
+  clearance: 0.2
+  moveSpeed: 4.4
+  followDistance: 1.6
+  commandDistance: 4
+  witnessDistance: 5
+  taskTimeoutSeconds: 45
+  welcomeLine: "...จะลองไปดูด้วยกันไหม? ฉันไม่อยากยืนเฉย ๆ แล้ว"
+  followLine: "...ก็ได้ ฉันเดินไปด้วย อย่าวิ่งทิ้งกันก็แล้วกัน"
+  waitLine: "อืม ฉันรอตรงนี้ ถ้าต้องการให้ช่วยก็เรียกนะ"
+  blockedLine: "ฉันไปไม่ถึงตรงนั้น... ขยับมาหากันแล้วลองใหม่ได้ไหม?"
+  comfortLine: "...ขอบใจ ฉันไม่ได้กลัวหรอก แค่โล่งใจที่ไม่ได้อยู่คนเดียว"
+  comfortRepeatLine: "อืม ฉันรู้ว่าเธอยังอยู่ตรงนี้ ไปต่อกันเถอะ"
+  comfortMemory: "ผู้เล่นบอกว่าจะอยู่ด้วยกันและให้กำลังใจระหว่างสำรวจห้องแรก"
+  comfortEmotion: homesickness
+  stations:
+  - id: two_hands_box
+    title: "กล่องสองมือ"
+    companionPoint: {x: -0.9, y: -2.65}
+    playerPoint: {x: 0.9, y: -2.65}
+    radius: 0.5
+    holdSeconds: 3
+    conditions: []
+    requestLine: "ฉันจับด้านนี้ให้ เธอไปยืนอีกฝั่งนะ... นับพร้อมกัน"
+    holdingLine: "จับไว้แล้ว! อีกด้านเป็นของเธอ... หนึ่ง สอง..."
+    completedLine: "เปิดแล้ว! ...เห็นไหม คราวนี้ฉันก็ช่วย ไม่ได้แค่ยืนมองเธอทำ"
+    memory: "ผู้เล่นกับ Alice แบ่งหน้าที่จับกลไกคนละด้านจนเปิดกล่องสองมือได้ด้วยกัน"
+    journalText: "เรากับ Alice เปิดกล่องสองมือด้วยการยืนประจำกลไกคนละด้านพร้อมกัน ด้านในมีแผ่นข้อความว่า 'ไม่มีใครต้องผ่านความมืดตามลำพัง' นี่เป็นความทรงจำร่วมกัน ไม่ใช่รหัสหรือเงื่อนไขผ่านห้อง"
+    relationshipReward: 3
+  observations:
+  - id: painting_seen
+    interactionId: inspect_painting
+    success: 1
+    line: "เจออะไรแล้วเหรอ? ...ถ้าอยากคิดด้วยกันก็เอามาให้ดูได้นะ"
+    memory: "Alice อยู่ใกล้และเห็นผู้เล่นสำรวจภาพวาดในห้องแรก"
+    conditions: []
+  - id: desk_seen
+    interactionId: inspect_desk
+    success: 1
+    line: "ดีแล้วที่เราไม่เดินผ่านมันไป... ค่อย ๆ ดูไปด้วยกัน"
+    memory: "Alice อยู่ใกล้ขณะผู้เล่นสำรวจโต๊ะสำเร็จและชวนกันทบทวนสิ่งที่พบ"
+    conditions: []
+  - id: drawer_failed
+    interactionId: open_drawer
+    success: 0
+    line: "ยังไม่ได้ก็ไม่เป็นไร... พักหายใจนิดหนึ่ง ฉันยังอยู่ตรงนี้"
+    memory: "Alice เห็นผู้เล่นลองเปิดลิ้นชักไม่สำเร็จและให้กำลังใจโดยไม่บอกเฉลย"
+    conditions: []
+  - id: drawer_seen
+    interactionId: open_drawer
+    success: 1
+    line: "ทำได้แล้วนี่! ...อย่ามองฉันแบบนั้น ฉันก็ลุ้นอยู่เหมือนกัน"
+    memory: "Alice เห็นผู้เล่นเปิดลิ้นชักสำเร็จและดีใจไปด้วยกัน"
+    conditions: []

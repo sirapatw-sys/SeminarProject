@@ -372,6 +372,24 @@ MonoBehaviour:
   - "เรื่องนั้นน่าสนใจนะ ฉันจะจำไว้ตอนที่เราตรวจห้องต่อ"
   - "เข้าใจแล้ว เราค่อย ๆ แยกสิ่งที่รู้จริงออกจากสิ่งที่เราคาดเดากันเถอะ"
   returnGreetings:
+  - ruleId: "companion_shared_success"
+    intent: 0
+    keywords: []
+    when:
+    - type: 9
+      targetId: "Room01"
+      amount: 0
+    - type: 0
+      targetId: "companion.room01_alice.two_hands_box.completed"
+      amount: 0
+    - type: 4
+      targetId: "Alice"
+      amount: 36
+    replies:
+    - "...นึกถึงตอนที่เราเปิดกล่องด้วยกันแล้วก็ดีเหมือนกันนะ คราวนี้ไม่ต้องเก่งอยู่คนเดียวหรอก"
+    - "ถ้ามีอะไรต้องช่วยอีกก็บอก... เราเคยทำด้วยกันได้แล้วนี่"
+    relationshipDelta: 0
+    emotion: ""
   - ruleId: "changed_hurt"
     intent: 0
     keywords: []

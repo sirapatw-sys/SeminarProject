@@ -465,7 +465,7 @@ namespace MysteryGame.Tests
         }
 
         [Test]
-        public void ExplicitHintMayContainItsAuthorizedCodeButVagueCoreNeverDoes()
+        public void Room01SoftenedHintsKeepTheirAuthoredCoreWithoutGivingTheCode()
         {
             State.SetFlag("inspected_painting"); State.SetFlag("found_note");
             foreach (int relationship in new[] { 10, 70 })
@@ -475,7 +475,8 @@ namespace MysteryGame.Tests
                 GeneratedChatReply reply; string reason;
                 Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply
                 { reply = "เอาล่ะ {hint}", referencedFactIds = Array.Empty<string>() }, out reply, out reason), Is.True, reason);
-                Assert.That(reply.reply.Contains("4592"), Is.EqualTo(relationship == 70));
+                Assert.That(reply.reply, Does.Contain(context.DeterministicHint));
+                Assert.That(reply.reply, Does.Not.Contain("4592"));
             }
         }
 

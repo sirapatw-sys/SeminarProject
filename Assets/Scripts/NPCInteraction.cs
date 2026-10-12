@@ -8,6 +8,8 @@ public class NPCInteraction : MonoBehaviour, IFocusable
     private NpcEventController eventController;
     private Collider2D talkArea;
 
+    public string NpcId { get { return dialogueData != null ? dialogueData.speakerId : string.Empty; } }
+
     private void Awake()
     {
         eventController = GetComponent<NpcEventController>();

@@ -22,6 +22,22 @@ namespace MysteryGame.Core
             var facts = new HashSet<string>();
             foreach (var room in game.rooms.Where(r => r != null))
             {
+                if (room.companionScenario != null)
+                {
+                    errors.AddRange(room.companionScenario.ValidateConfiguration());
+                    if (!npcIds.Contains(room.companionScenario.npcId)) errors.Add(room.roomId + ": companion NPC is missing.");
+                    if (room.companionScenario.stations != null)
+                        foreach (var station in room.companionScenario.stations)
+                            if (station != null) Rules(station.conditions, itemIds, npcIds, errors, roomIds);
+                    if (room.companionScenario.observations != null)
+                        foreach (var observation in room.companionScenario.observations)
+                        {
+                            if (observation == null) continue;
+                            Rules(observation.conditions, itemIds, npcIds, errors, roomIds);
+                            if (!interactionIds.Contains(observation.interactionId))
+                                errors.Add(room.roomId + ": unknown observed interaction " + observation.interactionId);
+                        }
+                }
                 if (room.visibleAmbientTerms != null)
                 {
                     Unique(room.visibleAmbientTerms, room.roomId + "/ambient", errors);

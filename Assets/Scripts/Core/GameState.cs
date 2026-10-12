@@ -11,6 +11,8 @@ namespace MysteryGame.Core
         public event System.Action<string> ItemAdded;
         /// <summary>New-game reset, not save restore. Scene adapters can reapply authored defaults.</summary>
         public event System.Action StateReset;
+        /// <summary>Adapters discard transient movement/tasks after a successful save restore.</summary>
+        public event System.Action StateRestored;
 
         // =====================================================
         // Session
@@ -858,6 +860,7 @@ namespace MysteryGame.Core
             StateSnapshot normalized;
             if (!SnapshotValidator.TryNormalize(snapshot, out normalized, out error)) return false;
             ApplySnapshot(normalized);
+            StateRestored?.Invoke();
             return true;
         }
 

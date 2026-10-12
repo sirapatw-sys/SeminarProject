@@ -31,15 +31,26 @@ public class InteractionSystem : MonoBehaviour
     public bool TryExecute(InteractionData data, out string responseMessage, string answer = null)
     {
         GameState state = GameState.Instance;
-        if (!CanExecute(data, state, out responseMessage)) return false;
+        if (!CanExecute(data, state, out responseMessage)) { InteractionSignals.Publish(data, false); return false; }
         if (data.inputPuzzle != null && !data.inputPuzzle.TrySolve(state, answer))
         {
             responseMessage = data.inputPuzzle.failureMessage;
+            InteractionSignals.Publish(data, false);
             return false;
         }
         foreach (ActionCommand action in data.actions) action?.Execute(state);
         if (!data.repeatable) state.SetFlag("interaction." + data.interactionId + ".completed");
         responseMessage = data.interactionMessage;
+        InteractionSignals.Publish(data, true);
         return true;
     }
+}
+
+/// <summary>Verified gameplay observations, not claims made in AI/player prose.</summary>
+public static class InteractionSignals
+{
+    public static event System.Action<InteractionData, bool> Completed;
+    public static void Publish(InteractionData data, bool success) { Completed?.Invoke(data, success); }
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void Reset() { Completed = null; }
 }

@@ -15,6 +15,7 @@ MonoBehaviour:
   roomId: Room01
   enteredFlag: room01_entered
   roomName: "ห้องทำงานเก่า"
+  companionScenario: {fileID: 11400000, guid: c011ab1e000000000000000000000101, type: 2}
   gameplayTerms:
   - "ภาพวาด"
   - "กรอบภาพ"
