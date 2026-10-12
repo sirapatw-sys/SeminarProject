@@ -21,6 +21,7 @@ namespace MysteryGame.Knowledge
             bool companion = scenario != null && scenario.npcId == npcId && state != null &&
                 state.GetCurrentScene() == roomId && scenario.stations != null;
             var subjects = new List<string>();
+            if (companion) subjects.AddRange(MysteryGame.Companions.CompanionDialogueCommands.RequestTopicsFor(message));
             if (companion) foreach (var station in scenario.stations)
             {
                 if (station == null) continue;

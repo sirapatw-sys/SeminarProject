@@ -1351,6 +1351,14 @@ public class DialogueManager : MonoBehaviour
             EscapeRichText(activeSpeakerName) +
             ":</b></color> กำลังคิด...";
 
+        // Only an actual player send can start a bounded companion action.
+        // Model output, prompt building and repeated callbacks cannot execute it.
+        GeneratedChatReply companionCommand;
+        if (MysteryGame.Companions.CompanionDialogueCommands.TryReply(this, playerMessage, out companionCommand))
+        {
+            CompleteTypedReply(playerMessage, null, serial, companionCommand);
+            return;
+        }
         // Activity instructions/state are authored, not a model command.
         // Resolve locally even when a third-party provider is configured.
         if (NpcReplyPolicy.CompanionReply(AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage)) != null)
@@ -1399,7 +1407,8 @@ public class DialogueManager : MonoBehaviour
     private void CompleteTypedReply(
         string playerMessage,
         GeneratedChatReply generated,
-        int serial)
+        int serial,
+        GeneratedChatReply companionCommand = null)
     {
         // A reply to a request that timed out or belongs to a conversation
         // the player already closed.
@@ -1417,7 +1426,7 @@ public class DialogueManager : MonoBehaviour
 
         var knowledge = AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
         string policyReason = null;
-        var answerReply = NpcReplyPolicy.CompanionReply(knowledge) ??
+        var answerReply = companionCommand ?? NpcReplyPolicy.CompanionReply(knowledge) ??
             NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
         var hintReply = answerReply ?? NpcReplyPolicy.HintReply(knowledge);
         if (generated != null && answerReply == null)
@@ -1437,6 +1446,9 @@ public class DialogueManager : MonoBehaviour
                 : reply.relationshipDelta,
             usedFallback ? null : reply.playerTone,
             PlayerToneClassifier.Read(playerMessage));
+        // Commands are not a repeatable affection button. Comfort/completion
+        // rewards are awarded once by the controller, not also by chat tone.
+        if (companionCommand != null) relationshipDelta = Mathf.Min(0, relationshipDelta);
         // How the message read, before the hint and repeat rules hold gains back.
         int judgedDelta = relationshipDelta;
 

@@ -7,9 +7,9 @@ namespace MysteryGame.Companions
     /// <summary>Small bounded-room path finder. No teleports, diagonal corner cuts or AI-authored destinations.</summary>
     public static class CompanionNavigator
     {
-        // Route to the reachable player, not a single offset which may be in
-        // furniture. Trim at the first entry into the stopping circle; every
-        // retained segment remains part of the collision-checked route.
+        // Physics queries on a shortened segment need not agree with the full
+        // cast. Validate the actual stopping point, then search the grid for
+        // another reachable point on the circle if the shortcut is unsafe.
         public static bool TryFollowPath(Vector2 start, Vector2 player, float distance, Rect bounds, float cell,
             Func<Vector2, bool> free, Func<Vector2, Vector2, bool> clear, List<Vector2> path)
         {
@@ -18,6 +18,15 @@ namespace MysteryGame.Companions
             if (float.IsNaN(distance) || float.IsInfinity(distance) || distance <= 0f ||
                 !TryPath(start, player, bounds, cell, free, clear, path)) return false;
             if (Vector2.Distance(start, player) <= distance) { path.Clear(); return true; }
+            if (TrimFollowPath(start, player, distance, free, clear, path)) return true;
+            path.Clear();
+            return TryGridPath(start, player, bounds, cell, free, clear, path, distance) &&
+                TrimFollowPath(start, player, distance, free, clear, path);
+        }
+
+        private static bool TrimFollowPath(Vector2 start, Vector2 player, float distance,
+            Func<Vector2, bool> free, Func<Vector2, Vector2, bool> clear, List<Vector2> path)
+        {
             Vector2 from = start;
             for (int i = 0; i < path.Count; i++)
             {
@@ -30,14 +39,19 @@ namespace MysteryGame.Companions
                     float t = (-dot - Mathf.Sqrt(discriminant)) / lengthSquared;
                     if (t >= 0f && t <= 1f)
                     {
-                        path[i] = from + segment * t;
+                        Vector2 endpoint = from + segment * t;
+                        if (!free(endpoint) || !clear(from, endpoint)) { path.Clear(); return false; }
+                        path[i] = endpoint;
                         path.RemoveRange(i + 1, path.Count - i - 1);
                         return true;
                     }
                 }
+                if (!free(path[i]) || !clear(from, path[i])) { path.Clear(); return false; }
                 from = path[i];
             }
-            // The final player point must intersect the stopping circle.
+            // Floating point rounding can put a boundary endpoint just outside.
+            if (path.Count > 0 && Mathf.Abs(Vector2.Distance(path[path.Count - 1], player) - distance) < 0.001f)
+                return true;
             path.Clear(); return false;
         }
 
@@ -53,6 +67,12 @@ namespace MysteryGame.Companions
                 !bounds.Contains(start) || !bounds.Contains(goal) || !free(goal)) return false;
             if ((double)(bounds.width / cell + 1f) * (bounds.height / cell + 1f) > 5000d) return false;
             if (clear(start, goal)) { path.Add(goal); return true; }
+            return TryGridPath(start, goal, bounds, cell, free, clear, path);
+        }
+
+        private static bool TryGridPath(Vector2 start, Vector2 goal, Rect bounds, float cell,
+            Func<Vector2, bool> free, Func<Vector2, Vector2, bool> clear, List<Vector2> path, float stoppingDistance = 0f)
+        {
             int width = Mathf.FloorToInt(bounds.width / cell) + 1;
             int height = Mathf.FloorToInt(bounds.height / cell) + 1;
             if ((long)width * height > 5000) return false;
@@ -78,17 +98,24 @@ namespace MysteryGame.Companions
                 return cells;
             };
             var firstCells = connections(start, true);
-            var lastCells = new HashSet<Vector2Int>(connections(goal, false));
-            if (firstCells.Count == 0 || lastCells.Count == 0) return false;
+            var lastCells = stoppingDistance > 0f ? null : new HashSet<Vector2Int>(connections(goal, false));
+            if (firstCells.Count == 0 || (lastCells != null && lastCells.Count == 0)) return false;
             var queue = new Queue<Vector2Int>();
             var previous = new Dictionary<Vector2Int, Vector2Int>();
             foreach (var first in firstCells) { queue.Enqueue(first); previous[first] = first; }
             var directions = new[] { Vector2Int.right, Vector2Int.left, Vector2Int.up, Vector2Int.down };
             Vector2Int last = default(Vector2Int); bool found = false;
+            Vector2 endpoint = goal;
             while (queue.Count > 0)
             {
                 Vector2Int current = queue.Dequeue();
-                if (lastCells.Contains(current)) { last = current; found = true; break; }
+                if (lastCells != null ? lastCells.Contains(current) :
+                    Vector2.Distance(point(current), goal) >= stoppingDistance)
+                {
+                    endpoint = stoppingDistance > 0f ? goal + (point(current) - goal).normalized * stoppingDistance : goal;
+                    if (bounds.Contains(endpoint) && free(endpoint) && clear(point(current), endpoint))
+                    { last = current; found = true; break; }
+                }
                 foreach (Vector2Int direction in directions)
                 {
                     Vector2Int next = current + direction;
@@ -101,7 +128,7 @@ namespace MysteryGame.Companions
             if (!found) return false;
             Vector2Int cursor = last;
             while (previous[cursor] != cursor) { path.Add(point(cursor)); cursor = previous[cursor]; }
-            path.Add(point(cursor)); path.Reverse(); path.Add(goal);
+            path.Add(point(cursor)); path.Reverse(); path.Add(endpoint);
             return true;
         }
     }

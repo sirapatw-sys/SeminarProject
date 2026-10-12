@@ -79,6 +79,11 @@ namespace MysteryGame.Companions
         public bool RequestFollow()
         {
             if (!CanCommand) return false;
+            return FollowCore();
+        }
+        private bool FollowCore()
+        {
+            if (Mode == CompanionMode.Following) { Say(Scenario.followLine); return true; }
             CancelTask(); Mode = CompanionMode.Following; Say(Scenario.followLine);
             string flag = Scenario.Flag("invited");
             if (!state.HasFlag(flag)) { state.SetFlag(flag); state.AddNpcMemory(Scenario.npcId, "ผู้เล่นชวนเดินสำรวจไปด้วยกัน"); }
@@ -87,17 +92,29 @@ namespace MysteryGame.Companions
         public bool RequestWait()
         {
             if (!CanStop) return false;
+            return WaitCore();
+        }
+        private bool WaitCore()
+        {
             CancelTask(); Mode = CompanionMode.Waiting; Say(Scenario.waitLine); return true;
         }
         public bool CanHelp(CompanionStationData station)
         {
-            return CanCommand && station != null && Scenario.stations.Contains(station) && !IsCompleted(station) &&
+            return CanCommand && StationAvailable(station);
+        }
+        private bool StationAvailable(CompanionStationData station)
+        {
+            return station != null && Scenario.stations.Contains(station) && !IsCompleted(station) &&
                 ConditionRule.AllHold(station.conditions, state) &&
                 Vector2.Distance(PlayerFeet, station.playerPoint) <= Scenario.commandDistance;
         }
         public bool RequestHelp(CompanionStationData station)
         {
             if (!CanHelp(station)) return false;
+            return HelpCore(station);
+        }
+        private bool HelpCore(CompanionStationData station)
+        {
             if (ActiveStation == station) return true;
             bool follow = Mode == CompanionMode.Following || (ActiveStation != null && resumeFollowing);
             CancelTask(); ActiveStation = station; Mode = CompanionMode.GoingToHelp;
@@ -107,6 +124,10 @@ namespace MysteryGame.Companions
         public bool RequestComfort()
         {
             if (!CanCommand) return false;
+            return ComfortCore();
+        }
+        private bool ComfortCore()
+        {
             string flag = Scenario.Flag("comforted");
             if (state.HasFlag(flag)) { Say(Scenario.comfortRepeatLine); return true; }
             state.SetFlag(flag);
@@ -114,6 +135,39 @@ namespace MysteryGame.Companions
             state.ChangeRelationship(Scenario.npcId, 1);
             state.AddNpcMemory(Scenario.npcId, Scenario.comfortMemory);
             Say(Scenario.comfortLine); return true;
+        }
+        internal bool ApplyDialogueCommand(DialogueManager dialogue, CompanionCommand command, CompanionStationData station, out string reply)
+        {
+            // Bypass only the conversation's own input lock. Movement/task Tick
+            // remains paused until the player closes dialogue; every other modal
+            // and the live NPC/room/range checks still apply.
+            bool allowed = dialogue != null && dialogue == DialogueManager.Instance && DialogueManager.IsDialogueOpen &&
+                isActiveAndEnabled && Scenario != null && state != null && state == GameState.Instance && player != null &&
+                dialogue.ActiveNpcId == Scenario.npcId && state.GetCurrentScene() == RoomId &&
+                InputGate.IsGameplayActive && !AiSettingsPanel.IsOpen && !KeypadLockUI.IsOpen && !JournalUI.IsOpen && !ItemPopupUI.IsBusy &&
+                Vector2.Distance(Feet, PlayerFeet) <= Scenario.commandDistance;
+            if (!allowed) { reply = "ตอนนี้ยังช่วยตามคำชวนไม่ได้ เข้ามาคุยใกล้ ๆ แล้วลองชวนอีกครั้งนะ"; return false; }
+            if (command == CompanionCommand.Clarify)
+            { reply = "อยากให้ฉันทำอะไรก่อน ชวนทีละอย่างและบอกสิ่งที่อยากให้ช่วยอีกครั้งนะ"; return false; }
+            switch (command)
+            {
+                case CompanionCommand.Follow: FollowCore(); reply = Scenario.followLine; break;
+                case CompanionCommand.Wait: WaitCore(); reply = Scenario.waitLine; break;
+                case CompanionCommand.Comfort:
+                    ComfortCore(); reply = Bubble; return true;
+                case CompanionCommand.Help:
+                    if (station == null || !Scenario.stations.Contains(station))
+                    { reply = "บอกสิ่งที่อยากให้ฉันช่วยให้ชัดอีกครั้งนะ"; return false; }
+                    if (IsCompleted(station)) { reply = "กิจกรรม «" + station.title + "» ทำสำเร็จแล้ว"; return false; }
+                    if (!StationAvailable(station))
+                    { reply = "กิจกรรม «" + station.title + "» ยังช่วยไม่ได้ในตอนนี้ ลองเข้าไปใกล้และตรวจว่าพร้อมแล้วหรือยังนะ"; return false; }
+                    HelpCore(station);
+                    reply = (Mode == CompanionMode.Helping ? station.holdingLine : station.requestLine) +
+                        (string.IsNullOrWhiteSpace(station.instructions) ? "" : "\n" + station.instructions);
+                    break;
+                default: reply = "บอกสิ่งที่อยากให้ฉันช่วยอีกครั้งนะ"; return false;
+            }
+            return true;
         }
         private void Update()
         {
@@ -172,7 +226,7 @@ namespace MysteryGame.Companions
             // live stopping distance while following an older route.
             if (stopDistance > 0f) step = Mathf.Min(step, Mathf.Max(0f, Vector2.Distance(Feet, PlayerFeet) - stopDistance));
             Vector2 next = Vector2.MoveTowards(Feet, path[0], step);
-            if (!IsClear(Feet, next)) { path.Clear(); repath = 0f; return; }
+            if (!IsClear(Feet, next)) { path.Clear(); repath = Mathf.Max(repath, 0.6f); return; }
             transform.position += (Vector3)(next - Feet);
         }
         private bool Blocks(Collider2D collider)
@@ -227,7 +281,7 @@ namespace MysteryGame.Companions
                 (Mode == CompanionMode.Following ? "กำลังเดินตามผู้เล่น" :
                  Mode == CompanionMode.GoingToHelp ? "กำลังเดินไปช่วยงานที่ผู้เล่นขอ ยังไม่สำเร็จ" :
                  Mode == CompanionMode.Helping ? "กำลังจับกลไกให้ รอผู้เล่นทำอีกด้าน ยังไม่สำเร็จ" : "กำลังรออยู่") +
-                "; การพูดในแชทไม่ใช่การสั่งทำงานหรือยืนยันว่างานสำเร็จ ห้ามแต่งผลการกระทำหรือเพิ่มข้อมูลคำใบ้";
+                "; เกมตรวจคำชวนที่ผู้เล่นพิมพ์ก่อนเริ่มงาน ข้อความ AI ไม่ใช่คำสั่งหรือหลักฐานว่างานสำเร็จ ห้ามแต่งผลการกระทำหรือเพิ่มข้อมูลคำใบ้";
         }
         private void Say(string text) { Bubble = text; bubbleSeconds = 5f; }
         private void CancelTask() { ActiveStation = null; Progress = 0f; elapsedTask = 0f; resumeFollowing = false; path.Clear(); repath = 0f; }

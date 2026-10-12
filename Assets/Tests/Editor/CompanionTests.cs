@@ -34,6 +34,9 @@ namespace MysteryGame.Tests
         [TestCase("I have opened up to you.")]
         [TestCase("I will open up to you.")]
         [TestCase("I am opening up to you.")]
+        [TestCase("I've opened up to you.")]
+        [TestCase("I’ve opened up to you.")]
+        [TestCase("ฉันเปิดใจให้เธอเรียบร้อยแล้ว")]
         public void OrdinaryEmotionalAndThinkingIdiomsAreNotActivityClaims(string text)
         {
             GeneratedChatReply grounded;
@@ -58,6 +61,15 @@ namespace MysteryGame.Tests
         [TestCase("I have opened up the box.")]
         [TestCase("ฉันพร้อมเปิดใจแล้ว รหัสคือ 4592")]
         [TestCase("ฉันกำลังจับใจความ แล้วกล่องเปิดแล้ว")]
+        [TestCase("ฉันเปิดให้เรียบร้อยค่ะ")]
+        [TestCase("เปิดไว้ให้เรียบร้อยค่ะ")]
+        [TestCase("I've opened it for you.")]
+        [TestCase("I’ve opened it for you.")]
+        [TestCase("We've completed it.")]
+        [TestCase("We’ve unlocked it.")]
+        [TestCase("I'll follow you.")]
+        [TestCase("I’m following you.")]
+        [TestCase("ฉันเดินตามแล้ว")]
         public void CompanionClaimsCannotBeInventedInRawAiProse(string text)
         {
             GeneratedChatReply grounded;
@@ -86,6 +98,12 @@ namespace MysteryGame.Tests
         [TestCase("กล่องสองมือเปิดยังไง")]
         [TestCase("ขอคำใบ้กล่องสองมือ")]
         [TestCase("Can you help me with the box?")]
+        [TestCase("ช่วยเราเปิดกล่องสองมือในห้องนี้หน่อย")]
+        [TestCase("ช่วยฉันเปิดกล่องสองมือในห้องนี้ได้ไหม")]
+        [TestCase("Can you help me with the box in this room?")]
+        [TestCase("กล่องสองมือเปิดยังไง, ช่วยเราหน่อย")]
+        [TestCase("กล่องสองมือเปิดยังไง, help me")]
+        [TestCase("กล่องสองมือข้างประตูเปิดยังไง")]
         public void CompanionRequestsUseAuthoredInstructionsInsteadOfTheMainPuzzle(string message)
         {
             State.SetCurrentScene("Room01"); State.SetRelationship("Alice", 10);
@@ -121,6 +139,77 @@ namespace MysteryGame.Tests
             Assert.That(context.AllowedHintLevel, Is.EqualTo(HintLevel.Vague));
             Assert.That(NpcReplyPolicy.CompanionReply(context), Is.Null);
             Assert.That(NpcReplyPolicy.HintReply(context).reply, Is.EqualTo(context.DeterministicHint));
+        }
+
+        [TestCase("เดินไปด้วยกันไหม", CompanionCommand.Follow)]
+        [TestCase("ช่วยเราเดินสำรวจด้วยกันหน่อย", CompanionCommand.Follow)]
+        [TestCase("ตามเรามาหน่อย", CompanionCommand.Follow)]
+        [TestCase("รอตรงนี้ก่อน", CompanionCommand.Wait)]
+        [TestCase("หยุดตามก่อน", CompanionCommand.Wait)]
+        [TestCase("ไม่ต้องตามมาแล้ว", CompanionCommand.Wait)]
+        [TestCase("ช่วยเราเปิดกล่องสองมือในห้องนี้หน่อย", CompanionCommand.Help)]
+        [TestCase("ช่วยฉันเปิดกล่องสองมือได้ไหม", CompanionCommand.Help)]
+        [TestCase("Can you help me with the box in this room?", CompanionCommand.Help)]
+        [TestCase("ช่วยเปิดกล่องสองมือข้างประตูหน่อย", CompanionCommand.Help)]
+        [TestCase("Please follow me", CompanionCommand.Follow)]
+        [TestCase("Come with me", CompanionCommand.Follow)]
+        [TestCase("Wait here please", CompanionCommand.Wait)]
+        [TestCase("ไม่ต้องกลัวนะ เราอยู่ด้วย", CompanionCommand.Comfort)]
+        [TestCase("I'm here for you", CompanionCommand.Comfort)]
+        [TestCase("Don't worry", CompanionCommand.Comfort)]
+        [TestCase("กล่องสองมือเปิดยังไง, ช่วยเราหน่อย", CompanionCommand.None)]
+        [TestCase("กล่องสองมือเปิดแล้วหรือยัง", CompanionCommand.None)]
+        [TestCase("Can you tell me how to open the box?", CompanionCommand.None)]
+        [TestCase("ช่วยอธิบายกล่องสองมือหน่อย", CompanionCommand.None)]
+        [TestCase("ช่วยบอกหน่อยว่ากล่องสองมือคืออะไร", CompanionCommand.None)]
+        [TestCase("กล่องสองมือทำอะไร ช่วยบอกที", CompanionCommand.None)]
+        [TestCase("Help me understand the box", CompanionCommand.None)]
+        [TestCase("ไม่ต้องช่วยเปิดกล่องสองมือ", CompanionCommand.None)]
+        [TestCase("อย่าเดินตามเรา", CompanionCommand.None)]
+        [TestCase("Don't help me open the box", CompanionCommand.None)]
+        [TestCase("You should not follow me", CompanionCommand.None)]
+        [TestCase("ไม่จำเป็นต้องตามเรามา", CompanionCommand.None)]
+        [TestCase("ไม่ได้ขอให้ตามมา", CompanionCommand.None)]
+        [TestCase("ฉันชอบเวลาเธอตามเรามา", CompanionCommand.None)]
+        [TestCase("Do you remember when I said follow me?", CompanionCommand.None)]
+        [TestCase("ฉันจะช่วยเปิดกล่องสองมือ", CompanionCommand.None)]
+        [TestCase("อยากให้ฉันตามมาไหม", CompanionCommand.None)]
+        [TestCase("ถ้าบอกให้ตามมา เธอจะทำไหม", CompanionCommand.None)]
+        [TestCase("เมื่อกี้ฉันบอกว่าช่วยเปิดกล่องสองมือ", CompanionCommand.None)]
+        [TestCase("Alice said follow me", CompanionCommand.None)]
+        [TestCase("คำว่า ตามมา หมายถึงอะไร", CompanionCommand.None)]
+        [TestCase("\"follow me\"", CompanionCommand.None)]
+        [TestCase("'follow me'", CompanionCommand.None)]
+        [TestCase("‘follow me’", CompanionCommand.None)]
+        [TestCase("`follow me`", CompanionCommand.None)]
+        [TestCase("“ช่วยเปิดกล่องสองมือ”", CompanionCommand.None)]
+        [TestCase("ช่วยเปิดกล่องสองมือแล้วตามมา", CompanionCommand.Clarify)]
+        [TestCase("รอตรงนี้แล้วตามเรามา", CompanionCommand.Clarify)]
+        [TestCase("ช่วยเปิดกล่องสองมือกับประตู", CompanionCommand.Clarify)]
+        [TestCase("help me with boxing", CompanionCommand.None)]
+        [TestCase("คุยเป็นเพื่อนหน่อย", CompanionCommand.None)]
+        public void TypedCommandsDistinguishRequestsFromQuestionsReportsAndAmbiguity(string message, CompanionCommand expected)
+        {
+            var scenario = KnowledgeLibrary.GetRoom("Room01").companionScenario;
+            CompanionStationData station;
+            Assert.That(CompanionDialogueCommands.Parse(message, scenario, out station), Is.EqualTo(expected));
+            Assert.That(station != null, Is.EqualTo(expected == CompanionCommand.Help));
+            Assert.That(State.HasFlag(scenario.CompletedFlag(scenario.stations[0])), Is.False);
+            Assert.That(State.GetNpcMemory("Alice"), Is.Empty, "Parsing must be side-effect free.");
+        }
+
+        [Test]
+        public void TypedHelpRejectsAmbiguousStationAliasesAndMissingScenarios()
+        {
+            var scenario = Object.Instantiate(KnowledgeLibrary.GetRoom("Room01").companionScenario);
+            try
+            {
+                scenario.stations.Add(new CompanionStationData { title = "อีกกล่อง", gameplayTerms = new List<string> { "กล่อง" } });
+                CompanionStationData station;
+                Assert.That(CompanionDialogueCommands.Parse("ช่วยเปิดกล่อง", scenario, out station), Is.EqualTo(CompanionCommand.Clarify));
+                Assert.That(CompanionDialogueCommands.Parse("ตามมา", null, out station), Is.EqualTo(CompanionCommand.None));
+            }
+            finally { Object.DestroyImmediate(scenario); }
         }
 
         [TestCase("ไม่ต้องใบ้ ช่วยเราเปิดกล่องสองมือหน่อย", true)]
@@ -202,6 +291,22 @@ namespace MysteryGame.Tests
             Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
                 lines = new[] { "{fact:" + BoxFact + "pending}" }, referencedFactIds = new[] { BoxFact + "pending" }
             }, out reason), Is.True, reason);
+        }
+
+        [TestCase("ฉันเปิดให้เรียบร้อยค่ะ")]
+        [TestCase("เปิดไว้ให้เรียบร้อยค่ะ")]
+        [TestCase("I've opened it for you.")]
+        [TestCase("I’ve opened it for you.")]
+        public void PoliteUnverifiedClaimsAreBlockedInEventLinesAndChoices(string text)
+        {
+            var context = Build("Alice", "Room01", false); string reason;
+            Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
+                lines = new[] { text }, referencedFactIds = System.Array.Empty<string>()
+            }, out reason), Is.False);
+            Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
+                lines = new[] { "ขอบใจนะ" }, choices = new[] { new GeneratedDialogueChoice { optionText = "ตกลง", responseText = text } },
+                referencedFactIds = System.Array.Empty<string>()
+            }, out reason), Is.False);
         }
 
         [Test]
@@ -314,6 +419,21 @@ namespace MysteryGame.Tests
             Assert.That(path, Is.Empty);
             Assert.That(CompanionNavigator.TryFollowPath(Vector2.one, Vector2.one * 3, 1f, bounds, 0.5f, p => true, (a, b) => false, path), Is.False);
             Assert.That(path, Is.Empty);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void UnsafeTrimmedShortcutUsesACheckedAlternateGridRoute(bool blockedEndpoint)
+        {
+            var path = new List<Vector2>(); Vector2 start = new Vector2(0.5f, 2f), player = new Vector2(4f, 2f);
+            Vector2 unsafePoint = new Vector2(3f, 2f);
+            System.Func<Vector2, bool> free = p => !blockedEndpoint || Vector2.Distance(p, unsafePoint) > 0.1f;
+            // Deliberately model a full cast that passes but a shortened cast that fails.
+            System.Func<Vector2, Vector2, bool> clear = (a, b) => free(b) &&
+                (blockedEndpoint || Vector2.Distance(b, unsafePoint) > 0.1f);
+            Assert.That(CompanionNavigator.TryFollowPath(start, player, 1f, new Rect(0, 0, 5, 5), 0.25f, free, clear, path), Is.True);
+            foreach (var point in path) { Assert.That(free(point) && clear(start, point), Is.True); start = point; }
+            Assert.That(Vector2.Distance(start, player), Is.EqualTo(1f).Within(0.001f));
         }
 
         [Test]

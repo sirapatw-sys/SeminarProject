@@ -24,6 +24,7 @@ public class Room01CompanionTests
     private class FakeCompanionProvider : IAiDialogueProvider
     {
         public int Calls;
+        public string Text = "เปิดกล่องแล้ว รหัสคือ 4592";
         public bool CanGenerate { get { return true; } }
         public string LastError { get { return ""; } }
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> done) { done(null); yield break; }
@@ -31,7 +32,7 @@ public class Room01CompanionTests
             Action<GeneratedChatReply> done, string personality = null)
         {
             Calls++;
-            done(new GeneratedChatReply { reply = "เปิดกล่องแล้ว รหัสคือ 4592", relationshipDelta = 6, referencedFactIds = Array.Empty<string>() });
+            done(new GeneratedChatReply { reply = Text, relationshipDelta = 6, referencedFactIds = Array.Empty<string>() });
             yield break;
         }
     }
@@ -80,6 +81,20 @@ public class Room01CompanionTests
         PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
         Assert.That(actor.RequestHelp(station), Is.True);
     }
+    private void StartChat()
+    {
+#if UNITY_EDITOR
+        var data = UnityEditor.AssetDatabase.LoadAssetAtPath<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset");
+#else
+        DialogueData data = null;
+#endif
+        Assert.That(data, Is.Not.Null); DialogueManager.Instance.StartDialogue(data);
+    }
+    private void Send(string message)
+    {
+        var input = (TMPro.TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
+        input.text = message; DialogueManager.Instance.SendTypedMessage();
+    }
     private ObjectInteraction Drawer()
     {
         return UnityEngine.Object.FindObjectsOfType<ObjectInteraction>().First(o =>
@@ -91,7 +106,7 @@ public class Room01CompanionTests
         typeof(KeypadLockUI).GetMethod("TrySubmit", Private).Invoke(KeypadLockUI.Instance, null);
     }
     [UnityTest]
-    public IEnumerator TypedActivityHelpUsesLiveAuthoredStateWithoutCommandsRewardsOrMainHints()
+    public IEnumerator TypedActivityRequestStartsWorkButOnlyPhysicalCooperationCanCompleteIt()
     {
 #if UNITY_EDITOR
         var data = UnityEditor.AssetDatabase.LoadAssetAtPath<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset");
@@ -102,15 +117,18 @@ public class Room01CompanionTests
         PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
         foreach (var provider in new IAiDialogueProvider[] { new OfflineProvider(), new FakeCompanionProvider() })
         {
+            State.ResetState(); State.SetRelationship("Alice", 10);
             DialogueProviders.Override = provider;
             DialogueManager.Instance.StartDialogue(data);
             var input = (TMPro.TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance);
-            input.text = "ช่วยเราเปิดกล่องสองมือหน่อย"; DialogueManager.Instance.SendTypedMessage();
+            input.text = "ช่วยเราเปิดกล่องสองมือในห้องนี้หน่อย"; DialogueManager.Instance.SendTypedMessage();
             yield return null;
             string actual = State.GetConversationLog("Alice").Last().Text;
-            Assert.That(actual, Does.Contain("ยังไม่สำเร็จ")); Assert.That(actual, Does.Contain("จุดสีฟ้า"));
+            Assert.That(actual, Does.Contain("จะไปจับด้านสีฟ้า")); Assert.That(actual, Does.Contain("จุดสีฟ้า"));
             Assert.That(actual, Does.Not.Contain("ผนัง")); Assert.That(actual, Does.Not.Contain("4592"));
-            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); Assert.That(actor.ActiveStation, Is.Null);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.GoingToHelp)); Assert.That(actor.ActiveStation, Is.SameAs(station));
+            Vector2 before = actor.Feet; Tick(60f);
+            Assert.That(actor.Feet, Is.EqualTo(before)); Assert.That(actor.Progress, Is.Zero);
             Assert.That(actor.IsCompleted(station), Is.False); Assert.That(State.HasItem("key"), Is.False);
             Assert.That(State.GetRelationship("Alice"), Is.EqualTo(10)); Assert.That(State.GetJournal(), Is.Empty);
             if (provider is FakeCompanionProvider fake) Assert.That(fake.Calls, Is.Zero, "Authored activity help must not consume provider quota.");
@@ -127,6 +145,167 @@ public class Room01CompanionTests
         Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ทำสำเร็จแล้ว"));
         Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain("จุดสีฟ้า"));
         Assert.That(State.GetRelationship("Alice"), Is.EqualTo(13));
+        Send("ช่วยเราเปิดกล่องสองมือหน่อย"); yield return null;
+        Assert.That(actor.ActiveStation, Is.Null); Assert.That(State.GetRelationship("Alice"), Is.EqualTo(13));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ทำสำเร็จแล้ว"));
+    }
+
+    [UnityTest]
+    public IEnumerator TypedFollowWaitAndComfortAreLocalBoundedAndRewardComfortOnlyOnce()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint); State.SetRelationship("Alice", 10);
+        var provider = new FakeCompanionProvider(); DialogueProviders.Override = provider;
+        StartChat(); int memories = State.GetNpcMemory("Alice").Count;
+        Send("ช่วยเราเดินสำรวจด้วยกันหน่อย"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        Send("ตามเรามาหน่อย"); yield return null;
+        Assert.That(State.GetNpcMemory("Alice").Count, Is.EqualTo(memories + 1));
+        Vector2 feet = actor.Feet; Tick(3f); Assert.That(actor.Feet, Is.EqualTo(feet));
+        Send("รอตรงนี้ก่อน"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); Assert.That(actor.ActiveStation, Is.Null);
+        Send("ไม่ต้องกลัวนะ เราอยู่ด้วย"); yield return null;
+        Assert.That(State.GetRelationship("Alice"), Is.EqualTo(11));
+        Send("เราอยู่ตรงนี้ ไม่ต้องห่วงนะ"); yield return null;
+        Assert.That(State.GetRelationship("Alice"), Is.EqualTo(11)); Assert.That(provider.Calls, Is.Zero);
+        DialogueManager.Instance.HideDialogue(); Assert.That(InputGate.IsBlocked, Is.False);
+        Assert.That(actor.IsCompleted(station), Is.False); Assert.That(State.HasItem("key"), Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator TypedQuestionsRefusalsReportsAndAmbiguityDoNotStartWork()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint); State.SetRelationship("Alice", 10);
+        StartChat();
+        foreach (string message in new[] {
+            "กล่องสองมือเปิดยังไง, ช่วยเราหน่อย", "อย่าช่วยเปิดกล่องสองมือ", "กล่องสองมือเปิดแล้วหรือยัง",
+            "ช่วยอธิบายกล่องสองมือหน่อย", "Help me understand the box",
+            "ถ้าชวนให้ตามมา เธอจะทำไหม", "\"ช่วยเปิดกล่องสองมือ\"", "‘follow me’", "`follow me`", "ช่วยเปิดกล่องสองมือแล้วตามมา" })
+        {
+            Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message); Assert.That(actor.ActiveStation, Is.Null, message);
+            Assert.That(actor.IsCompleted(station), Is.False); Assert.That(State.HasItem("key"), Is.False);
+        }
+        Send("กล่องสองมือเปิดยังไง, ช่วยเราหน่อย"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("จุดสีฟ้า"));
+        Send("ช่วยเปิดกล่องสองมือและขอคำใบ้ปริศนา"); yield return null;
+        Assert.That(actor.ActiveStation, Is.Null);
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain("4592"));
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCommandsRespectRangeOtherModalsAndDisabledActors()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint); StartChat();
+        Title(true); Send("ตามเรามาหน่อย"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); Title(false);
+        ItemPopupUI.ShowItem("key"); Send("ตามเรามาหน่อย"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); ItemPopupUI.CancelAll();
+        KeypadLockUI.Show("1234"); Send("ตามเรามาหน่อย"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); KeypadLockUI.Close();
+        typeof(JournalUI).GetProperty("IsOpen").SetValue(null, true);
+        Send("ตามเรามาหน่อย"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); JournalUI.Close();
+        PlayerAt(new Vector2(-6f, -2f)); Send("ตามเรามาหน่อย"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        PlayerAt(station.playerPoint); actor.enabled = false; Send("ตามเรามาหน่อย");
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); actor.enabled = true;
+        DialogueManager.Instance.HideDialogue();
+        GeneratedChatReply reply;
+        Assert.That(CompanionDialogueCommands.TryReply(DialogueManager.Instance, "ตามเรามา", out reply), Is.False);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCommandsCannotBypassActivityConditionsOrTargetAnotherNpcOrRoom()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+        var original = actor.Scenario; var scenario = UnityEngine.Object.Instantiate(original);
+        try
+        {
+            scenario.stations[0].conditions.Add(new ConditionRule { type = ConditionType.HasFlag, targetId = "activity_ready" });
+            actor.Configure(scenario); StartChat(); Send("ช่วยเราเปิดกล่องสองมือหน่อย"); yield return null;
+            Assert.That(actor.ActiveStation, Is.Null); Assert.That(State.HasFlag("activity_ready"), Is.False);
+            State.SetFlag("activity_ready"); Send("ช่วยเราเปิดกล่องสองมือหน่อย"); yield return null;
+            Assert.That(actor.ActiveStation, Is.SameAs(scenario.stations[0]));
+            Send("รอตรงนี้ก่อน"); Assert.That(actor.ActiveStation, Is.Null);
+            typeof(DialogueManager).GetField("activeNpcId", Private).SetValue(DialogueManager.Instance, "Rina");
+            Send("ตามเรามาหน่อย"); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+            typeof(DialogueManager).GetField("activeNpcId", Private).SetValue(DialogueManager.Instance, "Alice");
+            State.SetCurrentScene("Room02"); Send("ตามเรามาหน่อย"); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        }
+        finally { State.SetCurrentScene("Room01"); actor.Configure(original); UnityEngine.Object.DestroyImmediate(scenario); }
+    }
+
+    [UnityTest]
+    public IEnumerator ABlockedStepKeepsTheRepathCooldownRatherThanSearchingEveryFrame()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+        Assert.That(actor.RequestFollow(), Is.True); PlayerAt(new Vector2(5f, -2.65f));
+        var obstacle = new GameObject("CompanionMovingObstacleTest");
+        try
+        {
+            Vector2 before = actor.Feet;
+            obstacle.transform.position = before + Vector2.right * 0.4f;
+            obstacle.AddComponent<BoxCollider2D>().size = Vector2.one * 0.5f; Physics2D.SyncTransforms();
+            var path = (System.Collections.Generic.List<Vector2>)typeof(NpcCompanionController).GetField("path", Private).GetValue(actor);
+            path.Clear(); path.Add(before + Vector2.right);
+            var repath = typeof(NpcCompanionController).GetField("repath", Private); repath.SetValue(actor, 0.5f);
+            actor.Tick(0.05f); Assert.That(actor.Feet, Is.EqualTo(before)); Assert.That(path, Is.Empty);
+            Assert.That((float)repath.GetValue(actor), Is.GreaterThanOrEqualTo(0.6f));
+            actor.Tick(0.05f); Assert.That((float)repath.GetValue(actor), Is.EqualTo(0.55f).Within(0.001f));
+            Assert.That(path, Is.Empty);
+        }
+        finally { UnityEngine.Object.DestroyImmediate(obstacle); }
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator APoliteCompletionClaimFromMockAiIsNeverDisplayedOrExecuted()
+    {
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+        var provider = new FakeCompanionProvider { Text = "ฉันเปิดให้เรียบร้อยค่ะ" }; DialogueProviders.Override = provider;
+        StartChat(); Send("คุยเป็นเพื่อนหน่อย"); yield return null;
+        Assert.That(provider.Calls, Is.EqualTo(1));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain(provider.Text));
+        Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.IsCompleted(station), Is.False);
+        Assert.That(State.HasItem("key"), Is.False);
+        provider.Text = "ตามเรามาหน่อย"; Send("สวัสดี"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), "An AI reply must not be parsed as a player command.");
+    }
+
+    [UnityTest]
+    public IEnumerator SampledReachableDestinationsIncludingTheReviewedCornerConvergeSafely()
+    {
+        var player = GameObject.FindGameObjectWithTag("Player");
+        Vector2 playerSize = (Vector2)player.GetComponent<Collider2D>().bounds.size + Vector2.one * 0.1f;
+        var clearMethod = typeof(NpcCompanionController).GetMethod("IsClear", Private);
+        Func<Vector2, Vector2, bool> clear = (from, to) => (bool)clearMethod.Invoke(actor, new object[] { from, to });
+        var route = new System.Collections.Generic.List<Vector2>();
+        var targets = new System.Collections.Generic.List<Vector2>();
+        for (float y = -3.7f; y <= 1.3f; y += 1.5f)
+            for (float x = -6.5f; x <= 6.5f; x += 2f) targets.Add(new Vector2(x, y));
+        targets.AddRange(new[] { new Vector2(-7.1f, 0.8f), new Vector2(-6.9f, 1.2f), new Vector2(-6.5f, 1.2f), new Vector2(-6.2f, 1.2f) });
+        int sampled = 0; bool reviewedCorner = false; Vector2 start = station.companionPoint;
+        foreach (Vector2 target in targets)
+        {
+            if (Vector2.Distance(start, target) < 3f || !actor.IsFree(target)) continue;
+            bool fits = !Physics2D.OverlapBoxAll(target, playerSize, 0f).Any(c => !c.isTrigger &&
+                c.transform != player.transform && !c.transform.IsChildOf(player.transform));
+            if (!fits || !CompanionNavigator.TryFollowPath(start, target, actor.Scenario.followDistance,
+                actor.Scenario.walkBounds, actor.Scenario.cellSize, actor.IsFree, clear, route)) continue;
+            ActorAt(start); PlayerAt(start + Vector2.right); Assert.That(actor.RequestFollow(), Is.True);
+            PlayerAt(target); Vector2 previous = actor.Feet;
+            for (int i = 0; i < 500 && Vector2.Distance(actor.Feet, target) > actor.Scenario.followDistance + 0.2f; i++)
+            {
+                actor.Tick(0.05f); Physics2D.SyncTransforms();
+                Assert.That(clear(previous, actor.Feet), Is.True, "Collision en route to " + target);
+                Assert.That(Vector2.Distance(previous, actor.Feet), Is.LessThanOrEqualTo(0.23f));
+                Assert.That(Vector2.Distance(actor.Feet, target), Is.GreaterThanOrEqualTo(actor.Scenario.followDistance - 0.01f));
+                previous = actor.Feet;
+            }
+            Assert.That(Vector2.Distance(actor.Feet, target), Is.LessThanOrEqualTo(actor.Scenario.followDistance + 0.21f), target.ToString("F4"));
+            reviewedCorner |= Vector2.Distance(target, new Vector2(-6.5f, 0.8f)) < 0.001f;
+            sampled++;
+        }
+        Assert.That(sampled, Is.GreaterThanOrEqualTo(13)); Assert.That(reviewedCorner, Is.True, "Do not silently exclude the confirmed failure.");
+        yield return null;
     }
 
     [UnityTest]
@@ -372,7 +551,7 @@ public class Room01CompanionTests
         InteractionSystem.Instance.TryExecute(data, out response, "0000"); Assert.That(State.GetNpcMemory("Alice").Count, Is.EqualTo(memories));
         Assert.That(State.HasFlag("found_note"), Is.False); Assert.That(State.HasFlag("drawer_opened"), Is.False);
         var context = NpcKnowledgeContextBuilder.Build("Alice", "Room01", State, false);
-        Assert.That(context.ActiveNotes.Any(n => n.Contains("การพูดในแชทไม่ใช่")), Is.True);
+        Assert.That(context.ActiveNotes.Any(n => n.Contains("ข้อความ AI ไม่ใช่คำสั่ง")), Is.True);
         Assert.That(context.ToPromptSection(), Does.Not.Contain("4592")); yield return null;
     }
     [UnityTest]

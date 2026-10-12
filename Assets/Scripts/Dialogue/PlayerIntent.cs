@@ -173,6 +173,8 @@ public static class PlayerIntentClassifier
     private static readonly Regex CompanionRequest = R(
         @"ช่วย|(?:คำ)?ใบ้|วิธี|ยังไง|อย่างไร|ได้ไหม|ได้หรือ|คืออะไร|ทำอะไร|สำเร็จ|เสร็จ|เปิด|สถานะ|" +
         @"\b(?:help|hint|how|what|can|could|would|open|opened|done|finished|complete|completed|status)\b");
+    private static readonly Regex ActivityLocation = R(@"(?:ใน|ข้าง|ใกล้|ด้านหน้า|ด้านหลัง|หน้า|หลัง)\s*(?:ห้องนี้|ประตู|ลิ้นชัก)|\b(?:in|near|beside|by|behind|next\s+to|in\s+front\s+of)\s+(?:the\s+)?(?:this\s+room|room|door|drawer)\b");
+    internal static string WithoutActivityLocations(string text) { return ActivityLocation.Replace(text, " "); }
 
     public static bool IsCompanionRequest(string message, IEnumerable<string> companionSubjects)
     {
@@ -236,13 +238,19 @@ public static class PlayerIntentClassifier
         if (string.IsNullOrWhiteSpace(message)) return false;
         Regex question = GetGameplayQuestion(roomSubjects);
         bool social = SocialTopic.IsMatch(message);
-        bool asking = false, declined = false;
+        bool asking = false, declined = false, activityTopic = false;
+        var mainSubjects = new List<string>(GameplaySubjects);
+        if (roomSubjects != null) mainSubjects.AddRange(roomSubjects);
+        mainSubjects.RemoveAll(term => term == "ห้องนี้" || term == "this room" ||
+            MentionsSubject(NormalizeHintText(term), companionSubjects));
         foreach (string clause in Clauses.Split(message))
         {
-            // Specific main-puzzle nouns win in mixed clauses. An explicit
-            // main hint in another clause also keeps its normal relationship gate.
-            bool activityOnly = MentionsSubject(clause, companionSubjects) &&
-                !MentionsSubject(clause, GameplaySubjects) && !MentionsSubject(clause, roomSubjects);
+            bool mentionsActivity = MentionsSubject(clause, companionSubjects);
+            // A location is not the target of the request ("box beside the door").
+            string targets = mentionsActivity ? WithoutActivityLocations(clause) : clause;
+            bool mainTarget = MentionsSubject(targets, mainSubjects);
+            bool activityOnly = mentionsActivity && !mainTarget;
+            if (mentionsActivity) activityTopic = activityOnly;
             MatchCollection declines = HintDecline.Matches(clause);
             int lastDecline = declines.Count > 0 ? declines[declines.Count - 1].Index : -1;
             int lastRequest = -1;
@@ -262,6 +270,8 @@ public static class PlayerIntentClassifier
             if (lastRequest >= 0)
             { declined = false; asking = true; continue; }
             if (declined || RequestDecline.IsMatch(clause)) continue;
+            if (activityTopic && !mainTarget &&
+                (GenericHelpRequest.IsMatch(clause) || BareHelpQuestion.IsMatch(clause))) continue;
             if (question.IsMatch(clause) ||
                 (ExplorationQuestion.IsMatch(clause) && !SocialTopic.IsMatch(clause)))
             { asking = true; continue; }
