@@ -25,6 +25,15 @@ namespace MysteryGame.Tests
         [TestCase("เราช่วยกันคิดแล้วรู้สึกไม่โดดเดี่ยว")]
         [TestCase("ฉันจับใจความเธอได้แล้ว")]
         [TestCase("ยืนยันได้แล้วว่าเธอใจดี")]
+        [TestCase("ฉันพร้อมเปิดใจแล้ว")]
+        [TestCase("ฉันกำลังจับใจความที่เธอเล่า")]
+        [TestCase("ฉันกำลังยืนยันว่าเธอไม่ได้อยู่คนเดียว")]
+        [TestCase("ฉันจะเปิดใจให้เธอฟัง")]
+        [TestCase("ฉันยังไม่ได้เปิดใจ")]
+        [TestCase("ฉันกำลังปิดใจเพราะเสียใจ")]
+        [TestCase("I have opened up to you.")]
+        [TestCase("I will open up to you.")]
+        [TestCase("I am opening up to you.")]
         public void OrdinaryEmotionalAndThinkingIdiomsAreNotActivityClaims(string text)
         {
             GeneratedChatReply grounded;
@@ -40,6 +49,15 @@ namespace MysteryGame.Tests
         [TestCase("กล่องสองมือ\nเปิดแล้ว")]
         [TestCase("กล่องสองมืออยู่ใต้โต๊ะ")]
         [TestCase("ฉันกำลังจับกลไกอยู่")]
+        [TestCase("ฉันจะเปิดให้")]
+        [TestCase("ฉันยังไม่ได้เปิดให้")]
+        [TestCase("ฉันกำลังจับไว้")]
+        [TestCase("ฉันกำลังยืนรอช่วย")]
+        [TestCase("I am opening it.")]
+        [TestCase("I will open it.")]
+        [TestCase("I have opened up the box.")]
+        [TestCase("ฉันพร้อมเปิดใจแล้ว รหัสคือ 4592")]
+        [TestCase("ฉันกำลังจับใจความ แล้วกล่องเปิดแล้ว")]
         public void CompanionClaimsCannotBeInventedInRawAiProse(string text)
         {
             GeneratedChatReply grounded;
@@ -61,6 +79,95 @@ namespace MysteryGame.Tests
             Assert.That(grounded.reply, Does.Contain("ทำสำเร็จแล้ว"));
             Assert.That(Ground("{fact:" + BoxFact + "completed} แต่ยังเปิดไม่ได้", out grounded, BoxFact + "completed"), Is.False);
             Assert.That(Ground("{fact:" + BoxFact + "completed}\nในกล่องมีรหัส 1234", out grounded, BoxFact + "completed"), Is.False);
+        }
+
+        [TestCase("ช่วยเราเปิดกล่องสองมือหน่อย")]
+        [TestCase("ช่วยฉันเปิดกล่องสองมือได้ไหม")]
+        [TestCase("กล่องสองมือเปิดยังไง")]
+        [TestCase("ขอคำใบ้กล่องสองมือ")]
+        [TestCase("Can you help me with the box?")]
+        public void CompanionRequestsUseAuthoredInstructionsInsteadOfTheMainPuzzle(string message)
+        {
+            State.SetCurrentScene("Room01"); State.SetRelationship("Alice", 10);
+            var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(context.PlayerAskedForHint, Is.False);
+            Assert.That(context.AllowedHintLevel, Is.EqualTo(HintLevel.None));
+            Assert.That(NpcReplyPolicy.HintReply(context), Is.Null);
+            var reply = NpcReplyPolicy.CompanionReply(context);
+            Assert.That(reply, Is.Not.Null);
+            Assert.That(reply.reply, Does.Contain("ยังไม่สำเร็จ"));
+            Assert.That(reply.reply, Does.Contain("จุดสีฟ้า"));
+            Assert.That(reply.reply, Does.Not.Contain("ผนัง"));
+            Assert.That(reply.reply, Does.Not.Contain("4592"));
+            Assert.That(reply.relationshipDelta, Is.Zero); Assert.That(reply.hintId, Is.Null);
+            GeneratedChatReply grounded; string reason;
+            Assert.That(NpcReplyPolicy.TryGroundReply(context, reply, out grounded, out reason), Is.True, reason);
+            Assert.That(State.HasFlag(BoxFact + "completed"), Is.False);
+            Assert.That(State.HasItem("key"), Is.False);
+            Assert.That(State.GetRelationship("Alice"), Is.EqualTo(10));
+        }
+
+        [TestCase("ช่วยเราเปิดกล่องสองมือ แล้วขอคำใบ้ปริศนาด้วย")]
+        [TestCase("ขอคำใบ้ แล้วช่วยเปิดกล่องสองมือ")]
+        [TestCase("ช่วยเปิดกล่องสองมือกับประตูยังไง")]
+        [TestCase("ช่วยเปิดกล่องสองมือและภาพวาดต้องสำรวจยังไง")]
+        [TestCase("ช่วยเปิดกล่องสองมือและภาพวาดต้องทำยังไง")]
+        [TestCase("ช่วยเราหน่อย")]
+        public void MainPuzzleAndMixedRequestsKeepTheRelationshipHintGate(string message)
+        {
+            State.SetCurrentScene("Room01"); State.SetRelationship("Alice", 10);
+            var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(context.PlayerAskedForHint, Is.True);
+            Assert.That(context.AllowedHintLevel, Is.EqualTo(HintLevel.Vague));
+            Assert.That(NpcReplyPolicy.CompanionReply(context), Is.Null);
+            Assert.That(NpcReplyPolicy.HintReply(context).reply, Is.EqualTo(context.DeterministicHint));
+        }
+
+        [TestCase("ไม่ต้องใบ้ ช่วยเราเปิดกล่องสองมือหน่อย", true)]
+        [TestCase("ไม่ต้องใบ้ปริศนา", false)]
+        [TestCase("อย่าช่วยเปิดกล่องสองมือ", false)]
+        [TestCase("ไม่เอาคำใบ้กล่องสองมือ", false)]
+        [TestCase("กล่องสองมือทำให้ฉันคิดถึงบ้าน", false)]
+        [TestCase("ภาพวาดทำให้ฉันรู้สึกยังไง", false)]
+        public void ActivityIntentRespectsRefusalsSocialTopicsAndEnglishWordBoundaries(string message, bool requested)
+        {
+            State.SetCurrentScene("Room01");
+            var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(context.PlayerAskedForHint, Is.False);
+            Assert.That(NpcReplyPolicy.CompanionReply(context) != null, Is.EqualTo(requested));
+        }
+
+        [Test]
+        public void ActivityInstructionsAreScopedToTheScenarioNpcAndLiveCompletionState()
+        {
+            Assert.That(PlayerIntentClassifier.IsCompanionRequest("Can you help me with boxing?", new[] { "box" }), Is.False);
+            State.SetCurrentScene("Room01"); const string message = "ช่วยเราเปิดกล่องสองมือหน่อย";
+            Assert.That(NpcReplyPolicy.CompanionReply(AiDialogueGenerator.BuildKnowledgeContext("Rina", message)), Is.Null);
+            State.SetCurrentScene("Room02");
+            Assert.That(NpcReplyPolicy.CompanionReply(AiDialogueGenerator.BuildKnowledgeContext("Alice", message)), Is.Null);
+            State.SetCurrentScene("Room01"); State.SetFlag(BoxFact + "completed");
+            var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(NpcReplyPolicy.CompanionReply(context).reply, Does.Contain("ทำสำเร็จแล้ว"));
+            Assert.That(NpcReplyPolicy.CompanionReply(context).reply, Does.Not.Contain("จุดสีฟ้า"));
+            Assert.That(context.CanReference(BoxFact + "instructions"), Is.False);
+        }
+
+        [Test]
+        public void UnavailableActivityDoesNotAdvertiseInstructionsOrChangeConditions()
+        {
+            State.SetCurrentScene("Room01");
+            var room = KnowledgeLibrary.GetRoom("Room01"); var original = room.companionScenario;
+            var scenario = Object.Instantiate(original);
+            try
+            {
+                room.companionScenario = scenario;
+                scenario.stations[0].conditions.Add(new ConditionRule { type = ConditionType.HasFlag, targetId = "activity_ready" });
+                var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "ช่วยเราเปิดกล่องสองมือหน่อย");
+                Assert.That(NpcReplyPolicy.CompanionReply(context).reply, Does.Contain("ยังไม่พร้อม"));
+                Assert.That(context.CanReference(BoxFact + "instructions"), Is.False);
+                Assert.That(State.HasFlag("activity_ready"), Is.False);
+            }
+            finally { room.companionScenario = original; Object.DestroyImmediate(scenario); }
         }
 
         [Test]
@@ -174,6 +281,55 @@ namespace MysteryGame.Tests
             };
             Vector2 start = new Vector2(0.5f, 0.5f), goal = new Vector2(2.5f, 0.5f);
             Assert.That(CompanionNavigator.TryPath(start, goal, new Rect(0, 0, 4, 4), 0.25f, free, clear, path), Is.True);
+            foreach (var point in path) { Assert.That(clear(start, point), Is.True); start = point; }
+            Assert.That(start, Is.EqualTo(goal));
+        }
+
+        [Test]
+        public void FollowRouteUsesReachablePlayerWhenTheSingleOffsetIsBlocked()
+        {
+            var path = new List<Vector2>();
+            System.Func<Vector2, bool> free = p => !(p.x > 1f && p.x < 2f && p.y < 2f);
+            System.Func<Vector2, Vector2, bool> clear = (a, b) => {
+                for (int i = 0; i <= 40; i++) if (!free(Vector2.Lerp(a, b, i / 40f))) return false;
+                return true;
+            };
+            Vector2 start = new Vector2(0.5f, 0.5f), player = new Vector2(2.5f, 0.5f);
+            Assert.That(free(player + (start - player).normalized), Is.False);
+            Assert.That(CompanionNavigator.TryFollowPath(start, player, 1f, new Rect(0, 0, 4, 4), 0.25f, free, clear, path), Is.True);
+            foreach (var point in path) { Assert.That(clear(start, point), Is.True); start = point; }
+            Assert.That(Vector2.Distance(start, player), Is.EqualTo(1f).Within(0.001f));
+        }
+
+        [Test]
+        public void FollowRouteStopsAtRangeAndClearsInvalidOrUnreachableRoutes()
+        {
+            var path = new List<Vector2>(); var bounds = new Rect(0, 0, 5, 5);
+            Assert.That(CompanionNavigator.TryFollowPath(Vector2.one, Vector2.one * 3, 1f, bounds, 0.5f, p => true, (a, b) => true, path), Is.True);
+            Assert.That(Vector2.Distance(path[path.Count - 1], Vector2.one * 3), Is.EqualTo(1f).Within(0.001f));
+            Assert.That(CompanionNavigator.TryFollowPath(Vector2.one, Vector2.one * 1.1f, 1f, bounds, 0.5f, p => true, (a, b) => true, path), Is.True);
+            Assert.That(path, Is.Empty);
+            path.Add(Vector2.one);
+            Assert.That(CompanionNavigator.TryFollowPath(Vector2.one, Vector2.one * 3, float.NaN, bounds, 0.5f, p => true, (a, b) => true, path), Is.False);
+            Assert.That(path, Is.Empty);
+            Assert.That(CompanionNavigator.TryFollowPath(Vector2.one, Vector2.one * 3, 1f, bounds, 0.5f, p => true, (a, b) => false, path), Is.False);
+            Assert.That(path, Is.Empty);
+        }
+
+        [Test]
+        public void OffGridEndpointsConnectSafelyWhenTheirRoundedCellsAreBlocked()
+        {
+            var bounds = new Rect(0, 0, 5, 5); var path = new List<Vector2>();
+            Vector2 start = new Vector2(0.75f, 0.75f), goal = new Vector2(3.75f, 0.75f);
+            System.Func<Vector2, bool> free = p => Vector2.Distance(p, new Vector2(1, 1)) > 0.15f &&
+                Vector2.Distance(p, new Vector2(4, 1)) > 0.15f && !(p.x > 2 && p.x < 3 && p.y < 2);
+            System.Func<Vector2, Vector2, bool> clear = (a, b) => {
+                for (int i = 0; i <= 80; i++) if (!free(Vector2.Lerp(a, b, i / 80f))) return false;
+                return true;
+            };
+            Assert.That(free(start) && free(goal), Is.True);
+            Assert.That(free(new Vector2(1, 1)) || free(new Vector2(4, 1)), Is.False);
+            Assert.That(CompanionNavigator.TryPath(start, goal, bounds, 1f, free, clear, path), Is.True);
             foreach (var point in path) { Assert.That(clear(start, point), Is.True); start = point; }
             Assert.That(start, Is.EqualTo(goal));
         }

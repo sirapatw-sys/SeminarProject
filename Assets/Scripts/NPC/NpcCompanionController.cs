@@ -132,10 +132,9 @@ namespace MysteryGame.Companions
                 Vector2 delta = Feet - PlayerFeet;
                 if (delta.magnitude > Scenario.followDistance + 0.2f)
                 {
-                    Vector2 goal = PlayerFeet + delta.normalized * Scenario.followDistance;
-                    MoveTowards(goal, seconds);
+                    MoveTowards(PlayerFeet, seconds, Scenario.followDistance);
                 }
-                else path.Clear();
+                else { path.Clear(); repath = 0f; }
             }
             else if (ActiveStation != null)
             {
@@ -155,17 +154,24 @@ namespace MysteryGame.Companions
                 if (Progress >= 1f) CompleteStation();
             }
         }
-        private void MoveTowards(Vector2 goal, float seconds)
+        private void MoveTowards(Vector2 goal, float seconds, float stopDistance = 0f)
         {
             repath -= seconds;
             if (repath <= 0f)
             {
                 repath = 0.6f;
-                if (!CompanionNavigator.TryPath(Feet, goal, Scenario.walkBounds, Scenario.cellSize, IsFree, IsClear, path)) return;
+                bool found = stopDistance > 0f
+                    ? CompanionNavigator.TryFollowPath(Feet, goal, stopDistance, Scenario.walkBounds, Scenario.cellSize, IsFree, IsClear, path)
+                    : CompanionNavigator.TryPath(Feet, goal, Scenario.walkBounds, Scenario.cellSize, IsFree, IsClear, path);
+                if (!found) return;
             }
             while (path.Count > 0 && Vector2.Distance(Feet, path[0]) < 0.04f) path.RemoveAt(0);
             if (path.Count == 0) return;
-            Vector2 next = Vector2.MoveTowards(Feet, path[0], Scenario.moveSpeed * Mathf.Min(seconds, 0.1f));
+            float step = Scenario.moveSpeed * Mathf.Min(seconds, 0.1f);
+            // The player can move before the next repath. Never consume the
+            // live stopping distance while following an older route.
+            if (stopDistance > 0f) step = Mathf.Min(step, Mathf.Max(0f, Vector2.Distance(Feet, PlayerFeet) - stopDistance));
+            Vector2 next = Vector2.MoveTowards(Feet, path[0], step);
             if (!IsClear(Feet, next)) { path.Clear(); repath = 0f; return; }
             transform.position += (Vector3)(next - Feet);
         }

@@ -1351,6 +1351,14 @@ public class DialogueManager : MonoBehaviour
             EscapeRichText(activeSpeakerName) +
             ":</b></color> กำลังคิด...";
 
+        // Activity instructions/state are authored, not a model command.
+        // Resolve locally even when a third-party provider is configured.
+        if (NpcReplyPolicy.CompanionReply(AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage)) != null)
+        {
+            CompleteTypedReply(playerMessage, null, serial);
+            return;
+        }
+
         IAiDialogueProvider generator = DialogueProviders.Current;
         if (generator != null && generator.CanGenerate)
         {
@@ -1409,7 +1417,8 @@ public class DialogueManager : MonoBehaviour
 
         var knowledge = AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
         string policyReason = null;
-        var answerReply = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
+        var answerReply = NpcReplyPolicy.CompanionReply(knowledge) ??
+            NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
         var hintReply = answerReply ?? NpcReplyPolicy.HintReply(knowledge);
         if (generated != null && answerReply == null)
         {

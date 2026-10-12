@@ -25,6 +25,9 @@ namespace MysteryGame.Knowledge
         // Deterministic activity state, separate from room clues and hint rights.
         public readonly List<RoomFact> CompanionFacts = new List<RoomFact>();
         public readonly List<string> CompanionTerms = new List<string>();
+        // Selected authored facts for a typed activity question. Reading them
+        // never dispatches a companion command or changes puzzle/hint rights.
+        public readonly List<RoomFact> RequestedCompanionFacts = new List<RoomFact>();
 
         public readonly List<PersonalFact> ShareablePersonalFacts = new List<PersonalFact>();
         public readonly List<PersonalFact> LockedSecrets = new List<PersonalFact>();

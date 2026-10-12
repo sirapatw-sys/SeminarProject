@@ -161,7 +161,42 @@ public static class PlayerIntentClassifier
     /// <summary>Room-authored nouns extend detection without hardcoding each room here.</summary>
     public static bool IsAskingForHint(string message, IEnumerable<string> gameplaySubjects)
     {
-        return ReadHintRequest(NormalizeHintText(message), gameplaySubjects);
+        return IsAskingForHint(message, gameplaySubjects, null);
+    }
+
+    /// <summary>Opt-in activity topics do not turn a request for cooperation into a main-puzzle hint.</summary>
+    public static bool IsAskingForHint(string message, IEnumerable<string> gameplaySubjects, IEnumerable<string> companionSubjects)
+    {
+        return ReadHintRequest(NormalizeHintText(message), gameplaySubjects, companionSubjects);
+    }
+
+    private static readonly Regex CompanionRequest = R(
+        @"ช่วย|(?:คำ)?ใบ้|วิธี|ยังไง|อย่างไร|ได้ไหม|ได้หรือ|คืออะไร|ทำอะไร|สำเร็จ|เสร็จ|เปิด|สถานะ|" +
+        @"\b(?:help|hint|how|what|can|could|would|open|opened|done|finished|complete|completed|status)\b");
+
+    public static bool IsCompanionRequest(string message, IEnumerable<string> companionSubjects)
+    {
+        foreach (string clause in Clauses.Split(NormalizeHintText(message)))
+        {
+            if (!MentionsSubject(clause, companionSubjects) || RequestDecline.IsMatch(clause)) continue;
+            foreach (Match request in CompanionRequest.Matches(clause))
+            {
+                bool negated = false;
+                foreach (Match deny in HintDecline.Matches(clause))
+                    if (request.Index < deny.Index + deny.Length && deny.Index < request.Index + request.Length)
+                    { negated = true; break; }
+                if (!negated) return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool MentionsSubject(string text, IEnumerable<string> subjects)
+    {
+        var patterns = new List<string>(); var seen = new HashSet<string>(StringComparer.Ordinal);
+        AddSubjects(subjects, patterns, seen);
+        foreach (string pattern in patterns) if (Regex.IsMatch(text, pattern, RegexOptions.CultureInvariant)) return true;
+        return false;
     }
 
     private const int GameplayQuestionCacheLimit = 32;
@@ -196,7 +231,7 @@ public static class PlayerIntentClassifier
         return question;
     }
 
-    private static bool ReadHintRequest(string message, IEnumerable<string> roomSubjects)
+    private static bool ReadHintRequest(string message, IEnumerable<string> roomSubjects, IEnumerable<string> companionSubjects)
     {
         if (string.IsNullOrWhiteSpace(message)) return false;
         Regex question = GetGameplayQuestion(roomSubjects);
@@ -204,6 +239,10 @@ public static class PlayerIntentClassifier
         bool asking = false, declined = false;
         foreach (string clause in Clauses.Split(message))
         {
+            // Specific main-puzzle nouns win in mixed clauses. An explicit
+            // main hint in another clause also keeps its normal relationship gate.
+            bool activityOnly = MentionsSubject(clause, companionSubjects) &&
+                !MentionsSubject(clause, GameplaySubjects) && !MentionsSubject(clause, roomSubjects);
             MatchCollection declines = HintDecline.Matches(clause);
             int lastDecline = declines.Count > 0 ? declines[declines.Count - 1].Index : -1;
             int lastRequest = -1;
@@ -219,6 +258,7 @@ public static class PlayerIntentClassifier
             // question cannot silently undo "no hints", even in a later clause.
             if (lastDecline > lastRequest)
             { declined = true; asking = false; continue; }
+            if (activityOnly) continue;
             if (lastRequest >= 0)
             { declined = false; asking = true; continue; }
             if (declined || RequestDecline.IsMatch(clause)) continue;
@@ -243,6 +283,7 @@ public static class PlayerIntentClassifier
         string subject = "(?:" + string.Join("|", nouns) + ")";
         return ThaiAction + QuestionGap + "{0,24}" + subject + QuestionGap + "{0,24}" + ThaiMethod + "|" +
             subject + QuestionGap + "{0,16}" + ThaiAction + QuestionGap + "{0,24}" + ThaiMethod + "|" +
+            subject + QuestionGap + @"{0,12}(?:ต้อง|ควร)?\s*ทำ\s*(?:ยังไง|อย่างไร|อะไร)(?:ต่อ)?|" +
             @"(?:วิธี|ทำยังไง|ทำอย่างไร)" + QuestionGap + "{0,12}" + ThaiAction + QuestionGap + "{0,24}" + subject + "|" +
             subject + QuestionGap + @"{0,16}(?:อยู่|ซ่อน|เก็บ|หา)" + QuestionGap + @"{0,20}(?:ที่ไหน|ตรงไหน|ไหน)|" +
             @"\b(?:(?:how|what|which)\b|(?:can|could|would)\s+(?:you|i|we)\b)" + QuestionGap + "{0,48}" + EnglishAction + QuestionGap + "{0,24}" + subject + "|" +

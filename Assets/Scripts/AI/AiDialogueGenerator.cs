@@ -452,7 +452,8 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 
         NpcKnowledgeContext knowledge = BuildKnowledgeContext(
             npcId, playerMessage);
-        GeneratedChatReply answer = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
+        GeneratedChatReply answer = NpcReplyPolicy.CompanionReply(knowledge) ??
+            NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
         if (answer != null)
         {
             onComplete(answer);
@@ -721,13 +722,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     {
         GameState state = GameState.Instance;
         string roomId = state != null ? state.GetCurrentScene() : string.Empty;
-        RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
-        return NpcKnowledgeContextBuilder.Build(
-            npcId,
-            roomId,
-            state,
-            PlayerIntentClassifier.IsAskingForHint(playerMessage, room != null ? room.gameplayTerms : null)
-        );
+        return NpcKnowledgeContextBuilder.BuildForMessage(npcId, roomId, state, playerMessage);
     }
 
     /// <summary>

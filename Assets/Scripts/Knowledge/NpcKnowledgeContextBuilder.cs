@@ -14,6 +14,37 @@ namespace MysteryGame.Knowledge
         public const int NormalHintRelationship = 45;
         public const int ExplicitHintRelationship = 70;
 
+        public static NpcKnowledgeContext BuildForMessage(string npcId, string roomId, GameState state, string message)
+        {
+            RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
+            var scenario = room != null ? room.companionScenario : null;
+            bool companion = scenario != null && scenario.npcId == npcId && state != null &&
+                state.GetCurrentScene() == roomId && scenario.stations != null;
+            var subjects = new List<string>();
+            if (companion) foreach (var station in scenario.stations)
+            {
+                if (station == null) continue;
+                subjects.Add(station.title);
+                if (station.gameplayTerms != null) subjects.AddRange(station.gameplayTerms);
+            }
+            var context = Build(npcId, roomId, state,
+                PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
+            if (!companion || context.PlayerAskedForHint) return context;
+            foreach (var station in scenario.stations)
+            {
+                if (station == null) continue;
+                var names = new List<string> { station.title };
+                if (station.gameplayTerms != null) names.AddRange(station.gameplayTerms);
+                if (!PlayerIntentClassifier.IsCompanionRequest(message, names)) continue;
+                string prefix = scenario.Flag(station.id + ".");
+                foreach (var fact in context.CompanionFacts)
+                    if (fact.factId == prefix + "pending" || fact.factId == prefix + "completed" ||
+                        fact.factId == prefix + "instructions" || fact.factId == prefix + "unavailable")
+                        context.RequestedCompanionFacts.Add(fact);
+            }
+            return context;
+        }
+
         public static NpcKnowledgeContext Build(
             string npcId,
             string roomId,
@@ -71,6 +102,15 @@ namespace MysteryGame.Knowledge
                     factId = scenario.Flag(station.id + (completed ? ".completed" : ".pending")),
                     statement = "กิจกรรม «" + station.title + "» " + (completed ? "ทำสำเร็จแล้ว" : "ยังไม่สำเร็จ")
                 });
+                if (!completed)
+                {
+                    bool available = ConditionRule.AllHold(station.conditions, state);
+                    if (!available || !string.IsNullOrWhiteSpace(station.instructions))
+                        context.CompanionFacts.Add(new RoomFact {
+                            factId = scenario.Flag(station.id + (available ? ".instructions" : ".unavailable")),
+                            statement = available ? station.instructions : "กิจกรรม «" + station.title + "» ยังไม่พร้อมให้ช่วยในตอนนี้"
+                        });
+                }
                 context.CompanionTerms.Add(station.title);
                 if (station.gameplayTerms != null) context.CompanionTerms.AddRange(station.gameplayTerms);
             }

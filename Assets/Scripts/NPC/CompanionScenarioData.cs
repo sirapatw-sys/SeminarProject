@@ -23,6 +23,8 @@ namespace MysteryGame.Companions
         public string title;
         [Tooltip("Names/aliases that AI must only mention through verified companion fact tokens (Thai and English).")]
         public List<string> gameplayTerms = new List<string>();
+        [Tooltip("Authored optional-activity instructions, not main-puzzle hints or a claim that work has started.")]
+        [TextArea] public string instructions;
         public Vector2 companionPoint;
         public Vector2 playerPoint;
         [Min(0.2f)] public float radius = 0.5f;

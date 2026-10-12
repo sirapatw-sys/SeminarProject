@@ -31,12 +31,14 @@ namespace MysteryGame.Knowledge
         private static readonly Regex FactToken = new Regex(@"\{fact:(?<id>[^{}]+)\}", RegexOptions.IgnoreCase);
         // Also reject subjectless activity reports ("เปิดให้แล้ว") in rooms
         // with a companion. Exact canon facts are removed before this check.
+        private const string CompanionThaiAction = @"(?:เปิด(?!\s*ใจ)|ปิด(?!\s*ใจ)|ปลด|จับ(?!\s*(?:ใจความ|ประเด็น))|ยืน(?!\s*ยัน))";
+        private const string CompanionEnglishOpen = @"open(?:ed|ing|s)?(?![a-z]|\s+up\b)";
         private static readonly Regex CompanionActionClaim = new Regex(RemoveInvisibleCharacters(
-            @"(?:เปิด|ปิด|ปลด|จับ(?!ใจความ|ประเด็น)|ยืน(?!ยัน)|ทำ(?!ให้|ใจ)|ช่วย(?!ให้|คิด|กันคิด|กันนึก|กันทบทวน))[^.!?;]{0,24}(?:แล้ว|สำเร็จ|เสร็จ)|" +
-            @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)(?:เปิด|ปิด|ปลด|จับ|ยืน|เดินตาม|เดินไปช่วย)|" +
+            @"(?:" + CompanionThaiAction + @"|ทำ(?!ให้|ใจ)|ช่วย(?!ให้|คิด|กันคิด|กันนึก|กันทบทวน))[^.!?;]{0,24}(?:แล้ว|สำเร็จ|เสร็จ)|" +
+            @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)\s*(?:" + CompanionThaiAction + @"|เดินตาม|เดินไปช่วย)|" +
             @"(?:สำเร็จ|เสร็จ)(?:แล้ว|ด้วยกัน)|" +
-            @"\b(?:(?:i|we)\s+(?:have\s+|already\s+)?(?:opened|closed|finished|completed|unlocked)|" +
-            @"(?:i|we)\s+(?:am|are|will|haven't|have\s+not|didn't|did\s+not)\s+(?:open|clos|finish|complet|unlock|hold|follow)|" +
+            @"\b(?:(?:i|we)\s+(?:have\s+|already\s+)?(?:opened(?!\s+up\b)|closed|finished|completed|unlocked)|" +
+            @"(?:i|we)\s+(?:am|are|will|haven't|have\s+not|didn't|did\s+not)\s+(?:" + CompanionEnglishOpen + @"|clos|finish|complet|unlock|hold|follow)|" +
             @"(?:it's|it\s+is|we're|we\s+are)\s+(?:done|finished|successful))"),
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex GameplayDirection = new Regex(
@@ -99,6 +101,20 @@ namespace MysteryGame.Knowledge
                 patterns[i] = new Regex(source, RegexOptions.CultureInvariant);
             }
             return patterns;
+        }
+
+        public static GeneratedChatReply CompanionReply(NpcKnowledgeContext context)
+        {
+            if (context == null || context.PlayerAskedForHint || context.RequestedCompanionFacts.Count == 0) return null;
+            var lines = new List<string>(); var references = new List<string>();
+            foreach (var fact in context.RequestedCompanionFacts)
+            {
+                if (fact == null || !context.CanReference(fact.factId)) continue;
+                lines.Add(fact.statement); references.Add(fact.factId);
+            }
+            return lines.Count == 0 ? null : new GeneratedChatReply {
+                reply = string.Join("\n", lines), referencedFactIds = references.ToArray(), relationshipDelta = 0
+            };
         }
 
         public static GeneratedChatReply AnswerReply(NpcKnowledgeContext context, string message, GameState state)
