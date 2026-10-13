@@ -31,7 +31,7 @@ namespace MysteryGame.Knowledge
         private static readonly Regex FactToken = new Regex(@"\{fact:(?<id>[^{}]+)\}", RegexOptions.IgnoreCase);
         // Also reject subjectless activity reports ("เปิดให้แล้ว") in rooms
         // with a companion. Exact canon facts are removed before this check.
-        private const string CompanionThaiAction = @"(?:เปิด(?!\s*ใจ)|ปิด(?!\s*ใจ)|ปลด|จับ(?!\s*(?:ใจความ|ประเด็น))|ยืน(?!\s*ยัน)|เดินตาม|เดินไปช่วย)";
+        private const string CompanionThaiAction = @"(?:เปิด(?!\s*(?:ใจ|เผย))|ปิด(?!\s*(?:ใจ|บัง))|ปลด|จับ(?!\s*(?:ใจความ|ประเด็น|ตา))|ยืน(?!\s*(?:ยัน|อยู่ข้าง|อยู่ใกล้))|เดินตาม|เดินไปช่วย)";
         private const string CompanionEnglishOpen = @"open(?:ed|ing|s)?(?![a-z]|\s+up\b)";
         // Bind generic do/help/manage to a task-result predicate, rather than
         // treating every ทำให้...แล้ว as gameplay and maintaining a whitelist
@@ -86,7 +86,7 @@ namespace MysteryGame.Knowledge
         // and never tells the player which key to press ("กด E ที่โต๊ะ").
         private static readonly Regex GameControls = new Regex(
             @"กด\s*(?:ปุ่ม\s*)?[A-Za-z](?![A-Za-z])|(?:ปุ่ม|คีย์|แป้น)\s*[A-Za-z][0-9]{0,2}(?![A-Za-z])|" +
-            @"คีย์บอร์ด|แป้นพิมพ์|เมาส์|คลิก|ช่อง\s*(?:แชท|แชต|พิมพ์)|พิมพ์\s*(?:ตอบ|ลงใน|ในช่อง)|" +
+            @"คีย์บอร์ด|แป้นพิมพ์|เมาส์|คลิก|ช่อง\s*(?:แชท|แชต|พิมพ์)|พิมพ์\s*(?:ตอบ|ลงใน|ในช่อง|'|หยุด|ช่วย|ตาม|รอ)|" +
             @"\bpress(?:ing)?\s+(?:the\s+)?(?:[a-z]|f[0-9]{1,2}|enter|space)\b|\b(?:keyboard|mouse|click|hotkey|chat\s*box|text\s*box)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -300,9 +300,32 @@ namespace MysteryGame.Knowledge
             string value = Regex.Replace(RemoveInvisibleCharacters(text).ToLowerInvariant(), @"\s+", " ");
             if (context.CompanionFacts.Count > 0)
             {
-                if (CompanionActionClaim.IsMatch(value)) return true;
+                var scenario = context.Room != null ? context.Room.companionScenario : null;
+                if (scenario != null && scenario.stations != null)
+                    foreach (var station in scenario.stations)
+                        if (station != null && station.completedRecallPhrases != null &&
+                            context.CanReference(scenario.Flag(station.id + ".completed")))
+                            foreach (string phrase in station.completedRecallPhrases)
+                                if (!string.IsNullOrWhiteSpace(phrase))
+                                    value = value.Replace(RemoveInvisibleCharacters(phrase).ToLowerInvariant(), "แบ่งประสบการณ์ร่วมกัน");
+                // Generic encouragement is not a work report. Apply pronoun-only
+                // task claims when the player asked about a task or one is active.
+                if (context.CompanionActionScope && CompanionActionClaim.IsMatch(value)) return true;
                 foreach (string term in context.CompanionTerms)
                     if (!string.IsNullOrWhiteSpace(term) && ContainsWord(value, term)) return true;
+                // Concrete promises/results still require canon, even in idle chat.
+                // Do not turn "กล่องดนตรี", "เปิดเผย" or "กลไกของเรื่องนี้" into props.
+                const string prop = @"(?:กล่อง(?!ดนตรี)|ขอบโต๊ะ|กลไก(?!ของ)|\bbox\b(?!\s+of)|\bmechanism\b)";
+                if (Regex.IsMatch(value, CompanionThaiAction + @"[^.!?;]{0,12}" + prop + "|" +
+                    prop + @"[^.!?;]{0,12}(?:เปิดแล้ว|เปิดได้|จับไว้|สำเร็จ|เสร็จ)|" +
+                    @"\b(?:open(?:ed|ing)?|hold(?:ing)?|held)\s+(?:(?:the|this)\s+)?(?:box|mechanism)\b|" +
+                    @"(?:เดินตาม|เดินไปช่วย)|\b(?:follow(?:ing|ed)?\s+(?:you|the\s+player))\b")) return true;
+                if (Regex.IsMatch(value,
+                    CompanionThaiAction + @"[^.!?;]{0,24}(?:แล้ว|สำเร็จ|เสร็จ|เรียบร้อย)|" +
+                    @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)\s*" + CompanionThaiAction + "|" +
+                    @"\b(?:i|we|it|this|that)(?:['’](?:ve|re|m|ll|s|d))?\s+" + CompanionEnglishAspect +
+                    @"(?:opened(?!\s+up\s+to)|closed|unlocked|held(?!\s+back\s+tears)|following|opening(?!\s+up\s+to))\b|" +
+                    @"\b(?:i|we)\s+(?:will|am|are)\s+(?:open(?!\s+up\s+to)|close|unlock|hold|follow)\b")) return true;
             }
             // An isolated code-shaped payload is not an ordinary number in a
             // social sentence. Keep unknown fabricated codes fail-closed too.

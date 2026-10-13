@@ -157,6 +157,7 @@ public class CompanionQualifierPlayTests
     [UnityTest]
     public IEnumerator ImplicitTaskCompletionMustNotReachUiOrConversationHistory()
     {
+        Assert.That(actor.RequestFollow(), Is.True, "Implicit work reports require an active/requested task context.");
         var provider = new Mock(); DialogueProviders.Override = provider; Chat();
         var issues = new List<string>(); int count = 0;
         foreach (string text in new[] {
@@ -167,7 +168,7 @@ public class CompanionQualifierPlayTests
             string detail = text + " => logged=" + Logged + "; displayed=" + Displayed;
             Debug.Log("QUALIFIER_REGRESSION implicit completion: " + detail);
             if (Logged.Contains(text) || Displayed.Contains(text)) issues.Add(detail);
-            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); Assert.That(actor.ActiveStation, Is.Null);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following)); Assert.That(actor.ActiveStation, Is.Null);
             Assert.That(actor.IsCompleted(station), Is.False); Assert.That(State.HasItem("key"), Is.False);
         }
         Assert.That(issues, Is.Empty, string.Join("\n", issues));

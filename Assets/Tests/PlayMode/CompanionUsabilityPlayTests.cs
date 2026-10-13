@@ -21,11 +21,12 @@ public class CompanionUsabilityPlayTests
     private class Offline : IAiDialogueProvider
     {
         public int Calls;
+        public string Text = "หยุดแล้ว ฉันเจอรหัส 4592";
         public bool CanGenerate { get { return true; } }
         public string LastError { get { return ""; } }
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> done) { Calls++; done(null); yield break; }
         public IEnumerator GenerateReply(string id, string name, string context, string message, Action<GeneratedChatReply> done, string personality = null)
-        { Calls++; done(new GeneratedChatReply { reply = "หยุดแล้ว ฉันเจอรหัส 4592" }); yield break; }
+        { Calls++; done(new GeneratedChatReply { reply = Text, referencedFactIds = Array.Empty<string>() }); yield break; }
     }
     private static void Title(bool value) { typeof(TitleMenu).GetProperty("IsOpen").SetValue(null, value); }
     private static void Intro(bool value) { typeof(IntroSequence).GetProperty("IsPlaying").SetValue(null, value); }
@@ -52,7 +53,11 @@ public class CompanionUsabilityPlayTests
     private void PlayerAt(Vector2 point) { GameObject.FindGameObjectWithTag("Player").transform.position += (Vector3)(point - actor.PlayerFeet); Physics2D.SyncTransforms(); }
     private void ActorAt(Vector2 point) { actor.transform.position += (Vector3)(point - actor.Feet); Physics2D.SyncTransforms(); }
     private void Tick(float seconds) { for (int i = 0; i < seconds / 0.05f; i++) { actor.Tick(0.05f); Physics2D.SyncTransforms(); } }
-    private void Chat() { DialogueManager.Instance.StartDialogue(UnityEditor.AssetDatabase.LoadAssetAtPath<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset")); }
+    private void Chat()
+    {
+        var data = (DialogueData)typeof(NPCInteraction).GetField("dialogueData", Private).GetValue(actor.GetComponent<NPCInteraction>());
+        DialogueManager.Instance.StartDialogue(data);
+    }
     private void Send(string text)
     { ((TMPro.TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance)).text = text; DialogueManager.Instance.SendTypedMessage(); }
     private IEnumerator Capture(string name)
@@ -158,19 +163,87 @@ public class CompanionUsabilityPlayTests
         Assert.That(visuals.IsWorking, Is.False); Assert.That(actor.ActiveStation, Is.Null);
     }
     [UnityTest]
-    public IEnumerator SearchCanLearnPreviouslyDiscoveredMainEvidenceWithoutSolvingOrFarmingRewards()
+    public IEnumerator SearchRevisitsDiscoveredMainEvidenceWithoutBypassingSharingOrDuplicatingIt()
     {
         ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
         State.SetFlag("inspected_painting"); State.SetFlag("found_note");
         Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("desk_note", State), Is.False);
         Chat(); Send("ช่วยหาหลักฐานหน่อย"); yield return null; DialogueManager.Instance.HideDialogue(); Tick(40f);
         Assert.That(actor.Mode, Is.Not.EqualTo(CompanionMode.Searching));
-        Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("painting_arrow", State), Is.True);
-        Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("desk_note", State), Is.True);
+        Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("painting_arrow", State), Is.False);
+        Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("desk_note", State), Is.False);
+        Assert.That(State.HasFlag(actor.Scenario.SearchFlag("painting_arrow")), Is.False);
+        Assert.That(State.HasFlag(actor.Scenario.SearchFlag("desk_note")), Is.False);
+        Assert.That(State.GetJournal().Any(e => e.Id == actor.Scenario.SearchFlag("desk_note")), Is.False);
         Assert.That(State.HasFlag("drawer_opened"), Is.False); Assert.That(State.HasItem("key"), Is.False);
         int entries = State.GetJournal().Count, memories = State.GetNpcMemory("Alice").Count, relationship = State.GetRelationship("Alice");
         PlayerAt(actor.Feet + Vector2.right); Chat(); Send("ช่วยหาหลักฐานอีกครั้ง"); yield return null; DialogueManager.Instance.HideDialogue(); Tick(40f);
         Assert.That(State.GetJournal().Count, Is.EqualTo(entries)); Assert.That(State.GetNpcMemory("Alice").Count, Is.EqualTo(memories));
         Assert.That(State.GetRelationship("Alice"), Is.EqualTo(relationship));
+    }
+
+    [UnityTest]
+    public IEnumerator ThaiAddressedRequestsActuallyChangeWorkWithoutCallingAi()
+    {
+        ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+        Chat(); Send("อลิซ ตามมา"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        Send("อลิซ หยุดเดิน"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Send("อลิซ ช่วยหาหลักฐานหน่อย"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Searching));
+        Send("ไม่ต้องแล้ว"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Send("อลิซ ช่วยเปิดกล่องหน่อย"); yield return null;
+        Assert.That(actor.ActiveStation, Is.SameAs(Box));
+        Assert.That(provider.Calls, Is.Zero);
+        Assert.That(NpcReplyPolicy.MentionsGameControls(State.GetConversationLog("Alice").Last().Text), Is.False);
+        Send("หยุดช่วยก่อน"); yield return null;
+        Send("ช่วยจับไว้หน่อย"); yield return null;
+        Assert.That(actor.ActiveStation, Is.SameAs(Box));
+        Send("หยุดช่วยก่อน"); yield return null;
+        Send("ช่วยเดินอีกแบบหนึ่งหน่อย"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("อยากให้ฉันทำอะไร"));
+        Assert.That(provider.Calls, Is.Zero, "An unclear action request asks back rather than making an AI promise.");
+    }
+
+    [UnityTest]
+    public IEnumerator IdleVagueRefusalStaysSocialButActiveVagueRefusalStopsWork()
+    {
+        ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();
+        provider.Text = "ได้สิ เราคุยเรื่องอื่นกันก็ได้";
+        foreach (string text in new[] { "ไม่ต้องแล้ว", "ไม่เอาแล้ว", "ยกเลิก", "หยุดนะ", "พักก่อน" })
+        {
+            int calls = provider.Calls;
+            Send(text); yield return null;
+            Assert.That(provider.Calls, Is.EqualTo(calls + 1), text);
+            Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain(provider.Text), text);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+            Send("มากับฉันหน่อย"); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+            calls = provider.Calls; Send(text); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), text);
+            Assert.That(provider.Calls, Is.EqualTo(calls), text);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator TargetFirstDeskRequestAndInvitationUseSpeechNotSystemControls()
+    {
+        var desk = actor.Scenario.stations.Single(s => s.id == "desk_support");
+        State.SetFlag("inspected_painting"); ActorAt(desk.companionPoint); PlayerAt(desk.playerPoint);
+        actor.RefreshInvitation(); Assert.That(actor.Invitation, Is.SameAs(desk));
+        Chat(); yield return null;
+        Assert.That(actor.Invitation, Is.Null);
+        Assert.That(actor.ActiveStation, Is.Null, "Opening an invitation never starts assistance.");
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain(desk.invitationLine));
+        Send("ขอบโต๊ะมันโยกนะ ช่วยได้ไหม"); yield return null;
+        Assert.That(actor.ActiveStation, Is.SameAs(desk));
+        Assert.That(provider.Calls, Is.Zero);
+        Assert.That(NpcReplyPolicy.MentionsGameControls(State.GetConversationLog("Alice").Last().Text), Is.False);
+        DialogueManager.Instance.HideDialogue(); Tick(0.2f);
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Helping));
+        Assert.That(State.HasFlag("found_note"), Is.False);
     }
 }

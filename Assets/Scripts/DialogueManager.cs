@@ -316,6 +316,14 @@ public class DialogueManager : MonoBehaviour
         string completeOnChoiceFlag,
         bool useGeneratedChoices)
     {
+        string companionInvitation = null;
+        var companion = GameState.Instance == null ? null : MysteryGame.Companions.NpcCompanionController.Find(
+            data.speakerId, GameState.Instance.GetCurrentScene());
+        if (!isEvent && companion != null && companion.CanCommand)
+        {
+            companion.RefreshInvitation();
+            companionInvitation = companion.ReadInvitation();
+        }
         ConversationVersion++;
         dialoguePanel.SetActive(true);
         choicePanel.SetActive(false);
@@ -358,6 +366,12 @@ public class DialogueManager : MonoBehaviour
         dialogueLines = generated != null && generated.IsValid(data.choices.Count)
             ? generated.lines
             : BuildContextualLines(data, isEvent);
+        if (!string.IsNullOrWhiteSpace(companionInvitation))
+        {
+            var invitedLines = new List<string> { companionInvitation };
+            invitedLines.AddRange(dialogueLines);
+            dialogueLines = invitedLines.ToArray();
+        }
         activeDialogueContext = StripLineTags(string.Join(" ", dialogueLines));
         currentLine = 0;
 

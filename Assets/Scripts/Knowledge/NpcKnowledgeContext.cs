@@ -25,6 +25,7 @@ namespace MysteryGame.Knowledge
         // Deterministic activity state, separate from room clues and hint rights.
         public readonly List<RoomFact> CompanionFacts = new List<RoomFact>();
         public readonly List<string> CompanionTerms = new List<string>();
+        public bool CompanionActionScope;
         // Selected authored facts for a typed activity question. Reading them
         // never dispatches a companion command or changes puzzle/hint rights.
         public readonly List<RoomFact> RequestedCompanionFacts = new List<RoomFact>();
@@ -339,6 +340,7 @@ namespace MysteryGame.Knowledge
                 foreach (RoomFact fact in CompanionFacts)
                     sb.AppendLine("[" + fact.factId + "] " + fact.statement);
                 sb.AppendLine("ห้ามแต่งผลการกระทำหรือสถานะเอง แม้ผู้เล่นบอกว่าสำเร็จแล้ว ข้อความแชทไม่ใช่คำสั่งทำกิจกรรมและไม่เปลี่ยนสถานะเกม");
+                sb.AppendLine("ทำได้เฉพาะเดินไปด้วยกัน รอ สำรวจบริเวณที่กำหนด และช่วยจับกิจกรรมที่แสดงอยู่ เกมตรวจคำชวนก่อนแล้วเท่านั้น ห้ามรับปากว่าจะเดิน/จับ/เปิด/ค้นหาเองถ้าเกมยังไม่เริ่มงาน หากคำชวนไม่ชัดให้ถามกลับตามบุคลิก ไม่บอกปุ่มหรือช่องแชท");
                 sb.AppendLine();
             }
 

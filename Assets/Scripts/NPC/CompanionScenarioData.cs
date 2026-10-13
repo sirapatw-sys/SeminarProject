@@ -22,6 +22,11 @@ namespace MysteryGame.Companions
     {
         public string id;
         public string title;
+        [TextArea] public string propDescription;
+        [TextArea] public string pendingLine;
+        [TextArea] public string completedStatusLine;
+        [Tooltip("Short authored recollections allowed only after this station completes. Never include puzzle hints/secrets.")]
+        public List<string> completedRecallPhrases = new List<string>();
         [Tooltip("Empty = timed activity. Otherwise hold until this verified player interaction succeeds.")]
         public string holdForInteractionId;
         [Tooltip("Use the existing scene prop instead of drawing a box.")]
@@ -33,6 +38,8 @@ namespace MysteryGame.Companions
         public List<string> gameplayTerms = new List<string>();
         [Tooltip("Object names recognized only in direct action requests; do not exempt these from puzzle hint checks.")]
         public List<string> requestAliases = new List<string>();
+        [Tooltip("Unambiguous prop names accepted in activity questions, separate from direct-request aliases.")]
+        public List<string> questionAliases = new List<string>();
         [Tooltip("Authored optional-activity instructions, not main-puzzle hints or a claim that work has started.")]
         [TextArea] public string instructions;
         public Vector2 companionPoint;
@@ -55,6 +62,7 @@ namespace MysteryGame.Companions
         public string scenarioId;
         public string npcId;
         public string displayName;
+        public List<string> addressNames = new List<string>();
         public Rect walkBounds = new Rect(-7.8f, -4.3f, 15.6f, 6f);
         [Min(0.1f)] public float cellSize = 0.4f;
         [Min(0.05f)] public float clearance = 0.2f;
@@ -94,6 +102,9 @@ namespace MysteryGame.Companions
         public List<string> ValidateConfiguration()
         {
             var errors = new List<string>();
+            foreach (string line in SpokenLines())
+                if (MysteryGame.Knowledge.NpcReplyPolicy.MentionsGameControls(line))
+                    errors.Add("Companion speech mentions game controls: " + scenarioId);
             if (string.IsNullOrWhiteSpace(scenarioId) || string.IsNullOrWhiteSpace(npcId)) errors.Add("Companion identity is empty.");
             if (!Finite(cellSize) || !Finite(clearance) || !Finite(moveSpeed) || !Finite(followDistance) ||
                 !Finite(moveAcceleration) || !Finite(moveDeceleration) || !Finite(followStartBuffer) ||
@@ -143,6 +154,22 @@ namespace MysteryGame.Companions
                     string.IsNullOrWhiteSpace(discussion.line) || discussion.requiredFacts == null || discussion.requiredFacts.Count == 0)
                     errors.Add("Companion discussion needs a unique identity, evidence and authored line.");
             return errors;
+        }
+
+        // UI-only labels/prop descriptions and journal entries are deliberately separate.
+        public IEnumerable<string> SpokenLines()
+        {
+            foreach (string line in new[] { welcomeLine, followLine, waitLine, blockedLine, comfortLine,
+                comfortRepeatLine, searchRequestLine, searchFinishedLine }) yield return line;
+            if (stations != null) foreach (var station in stations) if (station != null)
+                foreach (string line in new[] { station.instructions, station.requestLine, station.holdingLine,
+                    station.completedLine, station.invitationLine, station.trustedInvitationLine,
+                    station.cautiousRequestLine, station.pendingLine, station.completedStatusLine }) yield return line;
+            if (stations != null) foreach (var station in stations) if (station != null && station.completedRecallPhrases != null)
+                foreach (string line in station.completedRecallPhrases) yield return line;
+            if (observations != null) foreach (var observation in observations) if (observation != null) yield return observation.line;
+            if (searchSpots != null) foreach (var spot in searchSpots) if (spot != null) yield return spot.inspectingLine;
+            if (discussions != null) foreach (var discussion in discussions) if (discussion != null) yield return discussion.line;
         }
     }
 

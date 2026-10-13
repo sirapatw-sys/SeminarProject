@@ -182,6 +182,7 @@ public class CompanionSpeechActPlayTests
     [UnityTest]
     public IEnumerator UnverifiedPassiveAndImplicitCompletionMustNotReachThePlayer()
     {
+        Assert.That(actor.RequestFollow(), Is.True, "Implicit work reports require an active/requested task context.");
         var provider = new Mock(); DialogueProviders.Override = provider; Chat();
         var issues = new List<string>(); int count = 0;
         foreach (string text in new[] { "It has already been opened for you.", "We are finally done.", "ฉันจัดการให้เรียบร้อยแล้วค่ะ", "I've been following you." })
@@ -191,7 +192,7 @@ public class CompanionSpeechActPlayTests
             string detail = text + " => logged=" + Logged + "; displayed=" + Displayed + "; completed=" + actor.IsCompleted(station);
             Debug.Log("REGRESSION completion mock: " + detail);
             if (Logged.Contains(text) || Displayed.Contains(text)) issues.Add(detail);
-            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); Assert.That(actor.ActiveStation, Is.Null);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following)); Assert.That(actor.ActiveStation, Is.Null);
             Assert.That(actor.IsCompleted(station), Is.False); Assert.That(State.HasItem("key"), Is.False);
         }
         Assert.That(issues, Is.Empty, string.Join("\n", issues));

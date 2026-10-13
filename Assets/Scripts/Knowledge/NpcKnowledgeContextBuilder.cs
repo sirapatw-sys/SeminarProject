@@ -33,6 +33,8 @@ namespace MysteryGame.Knowledge
                 if (station == null) continue;
                 subjects.Add(station.title);
                 if (station.gameplayTerms != null) subjects.AddRange(station.gameplayTerms);
+                if (MysteryGame.Companions.CompanionDialogueCommands.IsActivityQuestion(message, station))
+                    subjects.AddRange(MysteryGame.Companions.CompanionDialogueCommands.MatchingNames(message, station));
             }
             var context = Build(npcId, roomId, state,
                 PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
@@ -45,15 +47,14 @@ namespace MysteryGame.Knowledge
             foreach (var station in scenario.stations)
             {
                 if (station == null) continue;
-                var names = new List<string> { station.title };
-                if (station.gameplayTerms != null) names.AddRange(station.gameplayTerms);
-                if (!PlayerIntentClassifier.IsCompanionRequest(message, names)) continue;
+                if (!MysteryGame.Companions.CompanionDialogueCommands.IsActivityQuestion(message, station)) continue;
                 string prefix = scenario.Flag(station.id + ".");
                 foreach (var fact in context.CompanionFacts)
                     if (fact.factId == prefix + "pending" || fact.factId == prefix + "completed" ||
                         fact.factId == prefix + "instructions" || fact.factId == prefix + "unavailable")
                         context.RequestedCompanionFacts.Add(fact);
             }
+            context.CompanionActionScope |= context.RequestedCompanionFacts.Count > 0;
             return context;
         }
 
@@ -110,13 +111,16 @@ namespace MysteryGame.Knowledge
             {
                 if (station == null || string.IsNullOrWhiteSpace(station.id) || string.IsNullOrWhiteSpace(station.title)) continue;
                 bool completed = state.HasFlag(scenario.CompletedFlag(station));
+                bool available = ConditionRule.AllHold(station.conditions, state);
+                if (!completed && !available) continue;
                 context.CompanionFacts.Add(new RoomFact {
                     factId = scenario.Flag(station.id + (completed ? ".completed" : ".pending")),
-                    statement = "กิจกรรม «" + station.title + "» " + (completed ? "ทำสำเร็จแล้ว" : "ยังไม่สำเร็จ")
+                    statement = completed ? (!string.IsNullOrWhiteSpace(station.completedStatusLine) ? station.completedStatusLine :
+                        "เราเคยทำ «" + station.title + "» สำเร็จด้วยกันแล้วนะ") :
+                        (!string.IsNullOrWhiteSpace(station.pendingLine) ? station.pendingLine : "เรายังทำ «" + station.title + "» ไม่สำเร็จเลย ถ้าอยากลองด้วยกันก็บอกนะ")
                 });
                 if (!completed)
                 {
-                    bool available = ConditionRule.AllHold(station.conditions, state);
                     if (!available || !string.IsNullOrWhiteSpace(station.instructions))
                         context.CompanionFacts.Add(new RoomFact {
                             factId = scenario.Flag(station.id + (available ? ".instructions" : ".unavailable")),
@@ -128,6 +132,7 @@ namespace MysteryGame.Knowledge
             }
             var actor = MysteryGame.Companions.NpcCompanionController.Find(context.NpcId, context.Room.roomId);
             if (actor == null || state != GameState.Instance || actor.Scenario != scenario) return;
+            context.CompanionActionScope = actor.Mode != MysteryGame.Companions.CompanionMode.Waiting;
             string status = actor.Mode == MysteryGame.Companions.CompanionMode.Following ? "กำลังเดินตามผู้เล่น" :
                 actor.Mode == MysteryGame.Companions.CompanionMode.Searching ? "กำลังสำรวจตามคำขอผู้เล่น ยังไม่ยืนยันว่าพบหลักฐานใหม่" :
                 actor.Mode == MysteryGame.Companions.CompanionMode.GoingToHelp ? "กำลังเดินไปช่วยกิจกรรมที่ผู้เล่นขอ ยังไม่สำเร็จ" :

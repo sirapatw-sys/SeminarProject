@@ -47,16 +47,21 @@ namespace MysteryGame.Companions
             @"never\s*mind|scratch\s+that|cancel\s+(?:that|(?:my|the)\s+request))" +
             @"(?:\s*(?:นะ|ล่ะ|ละ|ครับ|ค่ะ|คะ|please)){0,3}\s*$");
         private static readonly Regex StopWork = R(@"^\s*(?:หยุดช่วย(?:ก่อน|แล้ว)?|หยุดงาน(?:ก่อน)?|ยกเลิกงาน(?:นี้|ก่อน)?|stop\s+(?:helping|working)|cancel\s+(?:the\s+)?task)(?:\s*(?:นะ|หน่อย|ครับ|ค่ะ|คะ|please))*\s*[.!?]*$");
+        private static readonly Regex AmbiguousStop = R(@"^\s*(?:หยุด|พักก่อน|พอแล้ว)(?:\s*(?:นะ|หน่อย|ก่อน|ครับ|ค่ะ|คะ|please))*[.!?]*\s*$");
+        // Remove only courtesy conditions, not arbitrary if/hypothetical clauses.
+        private static readonly Regex CourtesyCondition = R(@"^\s*(?:ถ้าว่าง|ถ้าไม่ยุ่ง)(?:ก็)?\s*|\s*(?:ถ้าไม่ลำบาก|ถ้าสะดวก)\s*$");
+        private static readonly Regex TargetFirstHelp = R(@"^\s*(?:มันโยกนะ|โยกนะ|นี้|มันโยก|โยก)?\s*ช่วย(?:จับ|ถือ|ประคอง)?(?:ได้ไหม|หน่อย|ที)(?:นะ|ครับ|ค่ะ|คะ)*\s*$");
+        private static readonly Regex IncompleteActionRequest = R(@"^\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้)\s*(?:(?:เรา|ฉัน|ผม|มา|ไป)\s*)?(?:จับ|ถือ|เปิด|ประคอง|เดิน|ค้น|หา|สำรวจ)");
         // Only split coordinated actions after classifying the enclosing
         // clause. A question about two actions must not execute its first half.
         private static readonly Regex ActionJoiner = R(
             @"(?:แล้ว(?:ก็)?|และ)(?=\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้|ตาม|เดิน|รอ|หยุด|ไม่ต้อง|อย่า))|\band\b");
         private static readonly Regex RequestLead = R(
-            @"^\s*(?:(?:เอ่อ|อืม|งั้น|โอเค|ตอนนี้|เธอ|คุณ|ขอให้|อยากให้|ช่วย(?:เรา|ฉัน|ผม)?|กรุณา|โปรด)\s*|" +
+            @"^\s*(?:(?:เอ่อ|อืม|งั้น|โอเค|ตอนนี้|เดี๋ยวจะไปดูทางนั้น|เธอ|คุณ|ขอให้|อยากให้|ช่วย(?:เรา|ฉัน|ผม)?|กรุณา|โปรด)\s*|" +
             @"(?:please|do|you\s+(?:should|must)|(?:can|could|would|will)\s+you)\s+){0,6}$");
         private const string HelpRequestPhrase =
-            @"(?:(?:เธอ|คุณ|กรุณา|โปรด|ขอให้|อยากให้)\s*){0,4}" +
-            @"(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?(?:(?:มา|ไป)\s*)?(?:(?:เปิด|จับ|ถือ|ทำกิจกรรม|เรื่อง|กับ)\s*)?|(?:เปิด|จับ|ถือ)\s*)|" +
+            @"(?:(?:เธอ|คุณ|กรุณา|โปรด|ขอให้|อยากให้|มา)\s*){0,4}" +
+            @"(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?(?:(?:มา|ไป)\s*)?(?:(?:เปิด|จับ|ถือ|ประคอง|ทำกิจกรรม|เรื่อง|กับ)\s*)?|(?:เปิด|จับ|ถือ|ประคอง)\s*)|" +
             @"(?:(?:please|(?:can|could|would|will)\s+you|you\s+should)\s+){0,4}" +
             @"(?:help(?:\s+(?:me|us))?(?:\s+(?:with|open|hold))?|open|hold)\s+(?:(?:the|a)\s+)?";
         private static readonly Regex HelpToTarget = R(@"^\s*(?:" + HelpRequestPhrase + @")$");
@@ -65,16 +70,16 @@ namespace MysteryGame.Companions
         private static readonly Regex Decline = R(
             @"อย่า|ห้าม|ไม่(?:ต้อง|อยาก|เอา|ขอ|ต้องการ|ได้|ควร|จำเป็น|พร้อม|ตกลง|ใช่)|\b(?:don't|dont|do\s+not|never|not)\b");
         private static readonly Regex Follow = R(
-            @"(?:เดิน|ไป|มา)(?:สำรวจ)?(?:ไป|มา)?ด้วยกัน|(?:เดิน)?ตาม(?:เรา|ฉัน|ผม|มา)|" +
+            @"(?:เดิน|ไป|มา)(?:สำรวจ)?(?:ไป|มา)?ด้วยกัน|มากับ(?:เรา|ฉัน|ผม)|ไปกันเถอะ|มาทางนี้|(?:เดิน)?ตาม(?:เรา|ฉัน|ผม|มา)|" +
             @"\b(?:follow\s+(?:me|us)|(?:come|walk|go)\s+with\s+(?:me|us))\b");
         private static readonly Regex Wait = R(
             @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ|เดี๋ยว)|อยู่(?:ตรงนี้|ที่นี่)|ยืนรอ|อยู่นิ่ง(?:ๆ)?|หยุด(?:เดิน(?:ตาม)?|ตาม|เคลื่อนที่|สำรวจ|ค้นหา|หา(?:หลักฐาน|เบาะแส))|หยุด(?=\s*(?:ก่อน|หน่อย|นะ|ครับ|ค่ะ|คะ|$))|" +
-            @"ไม่ต้อง(?:เดิน)?ตาม(?:มา|เรา|ฉัน|ผม)?(?:แล้ว|ก่อน)|ไม่ต้องเดิน(?:แล้ว|ก่อน)|" +
+            @"พักก่อน|พอแล้ว|ไม่ต้อง(?:เดิน)?ตาม(?:มา|เรา|ฉัน|ผม)?(?:แล้ว|ก่อน|(?=\s*$))|ไม่ต้องเดิน(?:แล้ว|ก่อน)|" +
             @"\b(?:wait\s+(?:here|for\s+(?:me|us))|wait(?=\s*(?:please|a\s+moment|$))|stay\s+here|stop\s+(?:following|walking|moving)(?:\s+(?:me|us))?|stop(?=\s*(?:please|here|$)))\b");
         private static readonly Regex Search = R(
-            @"(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?)?(?:(?:ลองไป|ไป|ลอง)\s*)?(?:ค้นหา|หา|ค้น)\s*(?:หลักฐาน|เบาะแส)|ช่วย\s*(?:เรา\s*)?สำรวจ(?:ห้อง|แถวนี้)|" +
+            @"ช่วยค้นห้อง|ช่วยดูรอบ\s*ๆ?\s*ห้อง|ลองหาดูหน่อย|(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?)?(?:(?:ลองไป|ไป|ลอง)\s*)?(?:ค้นหา|หา|ค้น)\s*(?:หลักฐาน|เบาะแส)|ช่วย\s*(?:เรา\s*)?สำรวจ(?:ห้อง|แถวนี้)|" +
             @"\b(?:search(?:\s+(?:the\s+)?room)?(?:\s+for\s+(?:clues|evidence))?|look\s+for\s+(?:clues|evidence)|help\s+(?:me\s+)?(?:find|search\s+for)\s+(?:clues|evidence))\b");
-        private static readonly Regex ContextHelp = R(@"^\s*(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม)\s*)?)?(?:จับ|ถือ|เปิด)(?:ให้)?(?:\s*(?:หน่อย|ที|ก่อน|ได้ไหม|นะ|ครับ|ค่ะ|คะ))*[.!?]*$");
+        private static readonly Regex ContextHelp = R(@"^\s*(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม)\s*)?)?(?:จับ|ถือ|เปิด|ประคอง)(?:ไว้|ให้)?(?:\s*(?:หน่อย|ที|ก่อน|ได้ไหม|นะ|ครับ|ค่ะ|คะ))*[.!?]*$");
         private static readonly Regex Comfort = R(
             @"ไม่ต้อง(?:กลัว|ห่วง)|ไม่เป็นไรนะ|(?:เรา|ฉัน|ผม)อยู่(?:ตรงนี้|นี่|ด้วย)|อยู่ด้วยกันนะ|" +
             @"\b(?:don't\s+worry|do\s+not\s+worry|i(?:'m|\s+am)\s+here\s+for\s+you|you(?:'re|\s+are)\s+not\s+alone)\b");
@@ -93,7 +98,7 @@ namespace MysteryGame.Companions
         {
             station = null;
             if (scenario == null || string.IsNullOrWhiteSpace(message) || message.Length > 1000) return CompanionCommand.None;
-            string text = Normalize(message);
+            string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), scenario), " ");
             if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text)) return CompanionCommand.None;
             string[] clauses = Clauses.Split(text);
             foreach (string clause in clauses)
@@ -195,17 +200,23 @@ namespace MysteryGame.Companions
             {
                 string term = TermPattern(name); if (term == null) continue;
                 foreach (Match match in Regex.Matches(text, term, RegexOptions.CultureInvariant))
-                    if ((direct ? HelpToTarget : HelpMentionToTarget).IsMatch(WithoutAddress(text.Substring(0, match.Index), scenario))) return true;
+                {
+                    string lead = WithoutAddress(text.Substring(0, match.Index), scenario);
+                    if ((direct ? HelpToTarget : HelpMentionToTarget).IsMatch(lead)) return true;
+                    if (string.IsNullOrWhiteSpace(lead) && TargetFirstHelp.IsMatch(text.Substring(match.Index + match.Length))) return true;
+                }
             }
             return false;
         }
 
         private static string WithoutAddress(string lead, CompanionScenarioData scenario)
         {
-            foreach (string name in new[] { scenario.npcId, scenario.displayName })
+            var names = new List<string> { scenario.npcId, scenario.displayName };
+            if (scenario.addressNames != null) names.AddRange(scenario.addressNames);
+            foreach (string name in names)
             {
                 string term = TermPattern(name); if (term == null) continue;
-                lead = Regex.Replace(lead, @"^\s*" + term + @"\s+", string.Empty, RegexOptions.CultureInvariant);
+                lead = Regex.Replace(lead, @"^\s*" + term + @"[\s,:，]*", string.Empty, RegexOptions.CultureInvariant);
             }
             return lead;
         }
@@ -221,7 +232,29 @@ namespace MysteryGame.Companions
         {
             string term = Normalize(name).Trim(); if (term.Length == 0) return null;
             string pattern = Regex.Escape(term);
+            if (term == "กล่อง") return pattern + @"(?!ดนตรี)";
+            if (term == "box") return @"(?<!music )(?<![a-z])box(?![a-z])";
             return Regex.IsMatch(term, @"^[a-z ]+$") ? @"(?<![a-z])" + pattern + @"(?![a-z])" : pattern;
+        }
+
+        public static IEnumerable<string> MatchingNames(string message, CompanionStationData station)
+        {
+            string text = Normalize(message);
+            foreach (string name in Names(station))
+            {
+                string pattern = TermPattern(name);
+                if (pattern != null && Regex.IsMatch(text, pattern, RegexOptions.CultureInvariant)) yield return name;
+            }
+        }
+
+        public static bool IsActivityQuestion(string message, CompanionStationData station)
+        {
+            string text = Normalize(message);
+            if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(CourtesyCondition.Replace(text, " "))) return false;
+            var names = new List<string> { station.title };
+            if (station.gameplayTerms != null) names.AddRange(station.gameplayTerms);
+            if (station.questionAliases != null) names.AddRange(station.questionAliases);
+            return PlayerIntentClassifier.IsCompanionRequest(text, names);
         }
 
         private static bool Mentions(string text, CompanionStationData station)
@@ -264,8 +297,10 @@ namespace MysteryGame.Companions
             if (dialogue == null || dialogue != DialogueManager.Instance || !DialogueManager.IsDialogueOpen || GameState.Instance == null) return false;
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null) return false;
-            string normalized = Normalize(message);
-            if (actor.CanConverse(dialogue) && (StopWork.IsMatch(normalized) || Withdrawal.IsMatch(normalized) || CancelsActiveRequest(normalized, actor)))
+            string normalized = WithoutAddress(Normalize(message), actor.Scenario);
+            bool vagueStop = StopWork.IsMatch(normalized) || Withdrawal.IsMatch(normalized) || AmbiguousStop.IsMatch(normalized);
+            if (vagueStop && actor.Mode == CompanionMode.Waiting) return false;
+            if (actor.CanConverse(dialogue) && (vagueStop || CancelsActiveRequest(normalized, actor)))
             {
                 string stopped;
                 actor.ApplyDialogueCommand(dialogue, CompanionCommand.Wait, null, out stopped);
@@ -280,11 +315,16 @@ namespace MysteryGame.Companions
             {
                 int matches = 0;
                 foreach (var candidate in actor.Scenario.stations)
-                    if (ConditionRule.AllHold(candidate.conditions, GameState.Instance) &&
+                    if (!actor.IsCompleted(candidate) && ConditionRule.AllHold(candidate.conditions, GameState.Instance) &&
                         UnityEngine.Vector2.Distance(actor.PlayerFeet, (candidate.playerPoint + candidate.companionPoint) * 0.5f) <= actor.Scenario.activityLabelDistance)
                     { station = candidate; matches++; }
                 command = matches == 1 ? CompanionCommand.Help : CompanionCommand.Clarify;
             }
+            if (command == CompanionCommand.None && !knowledge.PlayerAskedForHint &&
+                IncompleteActionRequest.IsMatch(normalized) && !Quoted.IsMatch(normalized) &&
+                !NonDirectContext.IsMatch(normalized) && !InformationClause.IsMatch(normalized) &&
+                !InformationRequest.IsMatch(normalized) && !ActionConfirmation.IsMatch(normalized) && !Decline.IsMatch(normalized))
+                command = CompanionCommand.Clarify;
             if (knowledge.PlayerAskedForHint && command != CompanionCommand.Wait && command != CompanionCommand.Search && !ContextHelp.IsMatch(normalized)) return false;
             if (command == CompanionCommand.None) return false;
             string text;

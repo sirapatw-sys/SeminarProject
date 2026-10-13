@@ -72,7 +72,7 @@ namespace MysteryGame.Tests
         [TestCase("I'm holding back tears. It has already been opened.", false)]
         [TestCase("We're done talking. I opened it for you.", false)]
         [TestCase("I'm holding back tears, the code is 4592", false)]
-        [TestCase("We're done talking about the box.", false)]
+        [TestCase("We're done talking about the box.", true)]
         [TestCase("I'm holding back the box.", false)]
         [TestCase("I'm holding it back.", false)]
         [TestCase("We are done opening it.", false)]
@@ -87,6 +87,7 @@ namespace MysteryGame.Tests
         public void ClaimsNeedEvidenceButSocialSpeechMustRemainUsable(string text, bool expected)
         {
             var context = Build("Alice", "Room01", false);
+            context.CompanionActionScope = true;
             GeneratedChatReply grounded; string chatReason, eventReason;
             bool chat = NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
                 reply = text, playerTone = "neutral", referencedFactIds = Array.Empty<string>()
@@ -110,6 +111,7 @@ namespace MysteryGame.Tests
             const string id = "companion.room01_alice.two_hands_box.pending";
             string token = "{fact:" + id + "}";
             var context = Build("Alice", "Room01", false);
+            context.CompanionActionScope = true;
             GeneratedChatReply grounded; string reason;
             Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
                 reply = token + "\n" + prose, referencedFactIds = new[] { id }

@@ -37,6 +37,7 @@ namespace MysteryGame.Companions
         private Vector2 feetOffset;
         private GameState state;
         private readonly List<Vector2> path = new List<Vector2>();
+        private readonly Collider2D[] overlapBuffer = new Collider2D[64];
         private float repath, elapsedTask, bubbleSeconds;
         private int searchIndex;
         private float searchProgress;
@@ -62,7 +63,8 @@ namespace MysteryGame.Companions
             foreach (var npc in FindObjectsOfType<NPCInteraction>())
                 if (npc.gameObject.scene == scene && npc.NpcId == room.companionScenario.npcId)
                 {
-                    var actor = npc.GetComponent<NpcCompanionController>() ?? npc.gameObject.AddComponent<NpcCompanionController>();
+                    NpcCompanionController actor;
+                    if (!npc.TryGetComponent(out actor)) actor = npc.gameObject.AddComponent<NpcCompanionController>();
                     actor.Configure(room.companionScenario);
                     if (npc.GetComponent<CompanionHud>() == null) npc.gameObject.AddComponent<CompanionHud>();
                 }
@@ -254,9 +256,10 @@ namespace MysteryGame.Companions
                 case CompanionCommand.Help:
                     if (station == null || !Scenario.stations.Contains(station))
                     { reply = "บอกสิ่งที่อยากให้ฉันช่วยให้ชัดอีกครั้งนะ"; return false; }
-                    if (IsCompleted(station)) { reply = "กิจกรรม «" + station.title + "» ทำสำเร็จแล้ว"; return false; }
+                    if (IsCompleted(station)) { reply = !string.IsNullOrWhiteSpace(station.completedStatusLine) ? station.completedStatusLine :
+                        "เราเคยทำตรงนั้นสำเร็จด้วยกันแล้วนะ"; return false; }
                     if (!StationAvailable(station))
-                    { reply = "กิจกรรม «" + station.title + "» ยังช่วยไม่ได้ในตอนนี้ ลองเข้าไปใกล้และตรวจว่าพร้อมแล้วหรือยังนะ"; return false; }
+                    { reply = "ตอนนี้ฉันยังช่วยตรงนั้นไม่ได้ ลองเข้าไปใกล้และดูว่าพร้อมแล้วหรือยังนะ"; return false; }
                     HelpCore(station);
                     reply = (Mode == CompanionMode.Helping ? station.holdingLine : RequestLineFor(station)) +
                         (string.IsNullOrWhiteSpace(station.instructions) ? "" : "\n" + station.instructions);
@@ -391,7 +394,12 @@ namespace MysteryGame.Companions
         public bool IsFree(Vector2 point)
         {
             if (!Scenario.walkBounds.Contains(point)) return false;
-            foreach (var collider in Physics2D.OverlapCircleAll(point, Scenario.clearance)) if (Blocks(collider)) return false;
+            int count = Physics2D.OverlapCircleNonAlloc(point, Scenario.clearance, overlapBuffer);
+            // A full buffer may omit a blocker. Fall back rather than accepting
+            // a truncated query. Ordinary room queries reuse the fixed buffer.
+            var hits = count == overlapBuffer.Length ? Physics2D.OverlapCircleAll(point, Scenario.clearance) : overlapBuffer;
+            if (hits != overlapBuffer) count = hits.Length;
+            for (int i = 0; i < count; i++) if (Blocks(hits[i])) return false;
             return true;
         }
         private bool IsClear(Vector2 from, Vector2 to)
@@ -403,9 +411,12 @@ namespace MysteryGame.Companions
             // whole footprint avoids CircleCast missing a shallow furniture
             // corner that OverlapCircle then rejects on the next small step.
             Vector2 size = new Vector2(delta.magnitude + 2f * Scenario.clearance, 2f * Scenario.clearance);
-            foreach (var collider in Physics2D.OverlapCapsuleAll((from + to) * 0.5f, size,
-                CapsuleDirection2D.Horizontal, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg))
-                if (Blocks(collider)) return false;
+            float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
+            int count = Physics2D.OverlapCapsuleNonAlloc((from + to) * 0.5f, size, CapsuleDirection2D.Horizontal, angle, overlapBuffer);
+            var hits = count == overlapBuffer.Length ? Physics2D.OverlapCapsuleAll((from + to) * 0.5f, size,
+                CapsuleDirection2D.Horizontal, angle) : overlapBuffer;
+            if (hits != overlapBuffer) count = hits.Length;
+            for (int i = 0; i < count; i++) if (Blocks(hits[i])) return false;
             return true;
         }
         private void CompleteStation()

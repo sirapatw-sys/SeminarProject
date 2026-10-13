@@ -103,6 +103,7 @@ namespace MysteryGame.Tests
         public void PreserveSocialSpeechButRequireFactsForActivityReports(string text, bool expected)
         {
             var context = Build("Alice", "Room01", false);
+            context.CompanionActionScope = true;
             GeneratedChatReply grounded; string chatReason, eventReason;
             bool chat = NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
                 reply = text, playerTone = "neutral", referencedFactIds = Array.Empty<string>()
@@ -125,6 +126,7 @@ namespace MysteryGame.Tests
         {
             const string id = "companion.room01_alice.two_hands_box.pending";
             var context = Build("Alice", "Room01", false);
+            context.CompanionActionScope = true;
             string text = prose + "\n{fact:" + id + "}";
             GeneratedChatReply grounded; string reason;
             Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
@@ -133,7 +135,7 @@ namespace MysteryGame.Tests
             Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
                 lines = new[] { text }, referencedFactIds = new[] { id }
             }, out reason), Is.EqualTo(accepted), reason);
-            if (accepted) Assert.That(grounded.reply, Does.Contain(prose).And.Contain("ยังไม่สำเร็จ"));
+            if (accepted) Assert.That(grounded.reply, Does.Contain(prose).And.Contain(KnowledgeLibrary.GetRoom("Room01").companionScenario.stations[0].pendingLine));
             Assert.That(State.HasFlag("companion.room01_alice.two_hands_box.completed"), Is.False);
             Assert.That(State.HasItem("key"), Is.False);
         }

@@ -15,7 +15,9 @@ namespace MysteryGame.Tests
         private bool Ground(string text, out GeneratedChatReply grounded, params string[] references)
         {
             string reason;
-            return NpcReplyPolicy.TryGroundReply(Build("Alice", "Room01", false),
+            var context = Build("Alice", "Room01", false);
+            context.CompanionActionScope = true;
+            return NpcReplyPolicy.TryGroundReply(context,
                 new GeneratedChatReply { reply = text, referencedFactIds = references }, out grounded, out reason);
         }
 
@@ -106,6 +108,7 @@ namespace MysteryGame.Tests
         public void CompletionParaphrasesNeedCanonInBothChatAndEventsWithoutBlockingEmotionalIdioms(string text, bool accepted)
         {
             var context = Build("Alice", "Room01", false);
+            context.CompanionActionScope = true;
             GeneratedChatReply grounded; string reason;
             Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
                 reply = text, referencedFactIds = System.Array.Empty<string>()
@@ -122,12 +125,12 @@ namespace MysteryGame.Tests
         {
             GeneratedChatReply grounded;
             Assert.That(Ground("{fact:" + BoxFact + "pending}", out grounded, BoxFact + "pending"), Is.True);
-            Assert.That(grounded.reply, Does.Contain("ยังไม่สำเร็จ"));
+            Assert.That(grounded.reply, Does.Contain(KnowledgeLibrary.GetRoom("Room01").companionScenario.stations[0].pendingLine));
             Assert.That(Ground("{fact:" + BoxFact + "completed}", out grounded, BoxFact + "completed"), Is.False);
             State.SetFlag(BoxFact + "completed");
             Assert.That(Ground("{fact:" + BoxFact + "pending}", out grounded, BoxFact + "pending"), Is.False);
             Assert.That(Ground("ดีใจที่ได้อยู่ด้วยกันนะ\n{fact:" + BoxFact + "completed}", out grounded, BoxFact + "completed"), Is.True);
-            Assert.That(grounded.reply, Does.Contain("ทำสำเร็จแล้ว"));
+            Assert.That(grounded.reply, Does.Contain(KnowledgeLibrary.GetRoom("Room01").companionScenario.stations[0].completedStatusLine));
             Assert.That(Ground("{fact:" + BoxFact + "completed} แต่ยังเปิดไม่ได้", out grounded, BoxFact + "completed"), Is.False);
             Assert.That(Ground("{fact:" + BoxFact + "completed}\nในกล่องมีรหัส 1234", out grounded, BoxFact + "completed"), Is.False);
         }
@@ -152,8 +155,8 @@ namespace MysteryGame.Tests
             Assert.That(NpcReplyPolicy.HintReply(context), Is.Null);
             var reply = NpcReplyPolicy.CompanionReply(context);
             Assert.That(reply, Is.Not.Null);
-            Assert.That(reply.reply, Does.Contain("ยังไม่สำเร็จ"));
-            Assert.That(reply.reply, Does.Contain("จุดสีฟ้า"));
+            Assert.That(reply.reply, Does.Contain(KnowledgeLibrary.GetRoom("Room01").companionScenario.stations[0].pendingLine));
+            Assert.That(reply.reply, Does.Contain(KnowledgeLibrary.GetRoom("Room01").companionScenario.stations[0].instructions));
             Assert.That(reply.reply, Does.Not.Contain("ผนัง"));
             Assert.That(reply.reply, Does.Not.Contain("4592"));
             Assert.That(reply.relationshipDelta, Is.Zero); Assert.That(reply.hintId, Is.Null);
@@ -319,7 +322,7 @@ namespace MysteryGame.Tests
             Assert.That(NpcReplyPolicy.CompanionReply(AiDialogueGenerator.BuildKnowledgeContext("Alice", message)), Is.Null);
             State.SetCurrentScene("Room01"); State.SetFlag(BoxFact + "completed");
             var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
-            Assert.That(NpcReplyPolicy.CompanionReply(context).reply, Does.Contain("ทำสำเร็จแล้ว"));
+            Assert.That(NpcReplyPolicy.CompanionReply(context).reply, Does.Contain(KnowledgeLibrary.GetRoom("Room01").companionScenario.stations[0].completedStatusLine));
             Assert.That(NpcReplyPolicy.CompanionReply(context).reply, Does.Not.Contain("จุดสีฟ้า"));
             Assert.That(context.CanReference(BoxFact + "instructions"), Is.False);
         }
@@ -335,7 +338,8 @@ namespace MysteryGame.Tests
                 room.companionScenario = scenario;
                 scenario.stations[0].conditions.Add(new ConditionRule { type = ConditionType.HasFlag, targetId = "activity_ready" });
                 var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "ช่วยเราเปิดกล่องสองมือหน่อย");
-                Assert.That(NpcReplyPolicy.CompanionReply(context).reply, Does.Contain("ยังไม่พร้อม"));
+                Assert.That(NpcReplyPolicy.CompanionReply(context), Is.Null);
+                Assert.That(context.CompanionFacts.Exists(f => f.factId.StartsWith(BoxFact)), Is.False);
                 Assert.That(context.CanReference(BoxFact + "instructions"), Is.False);
                 Assert.That(State.HasFlag("activity_ready"), Is.False);
             }
@@ -383,6 +387,7 @@ namespace MysteryGame.Tests
         public void PoliteUnverifiedClaimsAreBlockedInEventLinesAndChoices(string text)
         {
             var context = Build("Alice", "Room01", false); string reason;
+            context.CompanionActionScope = true;
             Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
                 lines = new[] { text }, referencedFactIds = System.Array.Empty<string>()
             }, out reason), Is.False);

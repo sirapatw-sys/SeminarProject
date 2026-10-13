@@ -61,6 +61,32 @@ public class CompanionNavigationPlayTests
     {
         return (bool)typeof(NpcCompanionController).GetMethod("IsClear", Private).Invoke(actor, new object[] { from, to });
     }
+
+    [UnityTest]
+    public IEnumerator SaturatedOverlapBuffersNeverLoseARealBlocker()
+    {
+        var center = new Vector2(0, -3.4f);
+        var objects = new List<GameObject>();
+        try
+        {
+            for (int i = 0; i < 80; i++)
+            {
+                var item = new GameObject("QueryOverflow" + i); objects.Add(item);
+                item.transform.position = center;
+                var collider = item.AddComponent<CircleCollider2D>(); collider.radius = 0.04f; collider.isTrigger = true;
+            }
+            var blocker = new GameObject("OverflowBlocker"); objects.Add(blocker);
+            blocker.transform.position = center; blocker.AddComponent<CircleCollider2D>().radius = 0.05f;
+            Physics2D.SyncTransforms();
+            Assert.That(actor.IsFree(center), Is.False);
+            Assert.That(Clear(center + Vector2.left, center + Vector2.right), Is.False);
+            UnityEngine.Object.DestroyImmediate(blocker); Physics2D.SyncTransforms();
+            Assert.That(actor.IsFree(center), Is.True);
+            Assert.That(Clear(center + Vector2.left, center + Vector2.right), Is.True);
+        }
+        finally { foreach (var item in objects) if (item != null) UnityEngine.Object.DestroyImmediate(item); }
+        yield return null;
+    }
     // Independent endpoint-overlap samples, rather than trusting only the
     // sweep predicate that the production path finder itself uses.
     private bool FreeAlongStep(Vector2 from, Vector2 to)

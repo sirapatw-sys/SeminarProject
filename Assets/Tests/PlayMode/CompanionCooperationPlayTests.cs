@@ -84,7 +84,7 @@ public class CompanionCooperationPlayTests
     }
     private void Chat()
     {
-        var data = UnityEditor.AssetDatabase.LoadAssetAtPath<DialogueData>("Assets/Data/Dialogue/Alice_Intro.asset");
+        var data = (DialogueData)typeof(NPCInteraction).GetField("dialogueData", Private).GetValue(actor.GetComponent<NPCInteraction>());
         Assert.That(data, Is.Not.Null); DialogueManager.Instance.StartDialogue(data);
     }
     private void Send(string text)
@@ -290,7 +290,7 @@ public class CompanionCooperationPlayTests
         State.ResetState();
         Assert.That(desk.PreparationProgress, Is.Zero);
         State.SetFlag("inspected_painting"); desk.Interact();
-        yield return new WaitForSeconds(5.3f);
+        yield return new WaitForSeconds(2.3f);
         Assert.That(State.HasFlag("found_note"), Is.True);
         Assert.That(actor.IsCompleted(DeskStation), Is.False);
         Assert.That(State.HasItem("key"), Is.False);
@@ -322,9 +322,9 @@ public class CompanionCooperationPlayTests
         State.SetFlag("inspected_painting"); actor.RefreshInvitation();
         Assert.That(actor.Invitation, Is.SameAs(DeskStation));
         Assert.That(DialogueManager.IsDialogueOpen, Is.False);
-        Chat(); Send("มีอะไรอยากบอกไหม"); yield return null;
+        Chat(); yield return null;
         Assert.That(actor.ActiveStation, Is.Null);
-        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("จับไว้ให้"));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain(DeskStation.invitationLine));
         DialogueManager.Instance.HideDialogue(); actor.RefreshInvitation();
         Assert.That(actor.Invitation, Is.Null);
     }

@@ -41,7 +41,8 @@ namespace MysteryGame.Companions
             if (!CanFocus || InputGate.IsBlocked || ItemPopupUI.IsBusy ||
                 Vector2.Distance(actor.PlayerFeet, FocusPoint) > 1.65f || DialogueManager.Instance == null) return;
             string text = actor.IsCompleted(station) ? station.journalText :
-                "มีจุดจับคนละด้านของ «" + station.title + "» ลองชวน " + actor.Scenario.displayName + " มาช่วยจับอีกด้าน\n" + station.instructions;
+                (!string.IsNullOrWhiteSpace(station.propDescription) ? station.propDescription :
+                "มีจุดจับคนละด้านของ «" + station.title + "» ลองชวน " + actor.Scenario.displayName + " มาช่วยอีกด้าน");
             DialogueManager.Instance.StartDialogue(station.title, new[] { text }, false);
         }
         private void OnTriggerEnter2D(Collider2D other) { if (other.CompareTag("Player")) InteractionFocus.Enter(this); }

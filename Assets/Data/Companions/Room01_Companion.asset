@@ -15,6 +15,7 @@ MonoBehaviour:
   scenarioId: room01_alice
   npcId: Alice
   displayName: Alice
+  addressNames: ["อลิซ", "อลิส", "Alice"]
   walkBounds:
     serializedVersion: 2
     x: -7.8
@@ -44,12 +45,16 @@ MonoBehaviour:
   stations:
   - id: two_hands_box
     title: "กล่องสองมือ"
+    propDescription: "กล่องมีจุดจับสองด้าน ต้องมีคนประจำทั้งสองด้านพร้อมกันจึงเปิดได้ ลองชวน Alice มาช่วยจับอีกด้าน แล้วไปยืนฝั่งของคุณ"
+    pendingLine: "ยังไม่ได้เปิดเลย... ฉันก็ยังไม่รู้ว่าข้างในมีอะไร ถ้าอยากลองเปิดด้วยกันก็ชวนฉันได้นะ"
+    completedStatusLine: "เราเปิดกล่องด้วยกันแล้วนี่... ข้างในมีข้อความว่า 'ไม่มีใครต้องผ่านความมืดตามลำพัง' จำได้ไหม?"
+    completedRecallPhrases: ["เปิดกล่องด้วยกัน"]
     gameplayTerms:
-    - "กล่อง"
-    - "กลไก"
-    - "box"
-    - "mechanism"
-    instructions: "กล่องสองมือต้องช่วยกันคนละด้าน ถ้าเราตกลงช่วยกัน ฉันจะอยู่จุดสีฟ้า ส่วนเธออยู่จุดสีทองพร้อมกัน 3 วินาที กิจกรรมนี้เป็นทางเลือก ไม่จำเป็นต่อการออกจากห้อง"
+    - "กล่องสองมือ"
+    - "two-hand box"
+    requestAliases: ["กล่องนี้", "กล่อง", "box"]
+    questionAliases: ["กล่องนี้", "the box", "this box"]
+    instructions: "เราต้องจับกล่องคนละด้านนะ ฉันอยู่ฝั่งนี้ ส่วนเธอไปอีกฝั่ง แล้วเราค่อยลองยกพร้อมกัน ไม่ต้องรีบหรอก"
     companionPoint: {x: -0.9, y: -2.65}
     playerPoint: {x: 0.9, y: -2.65}
     radius: 0.5
@@ -63,6 +68,8 @@ MonoBehaviour:
     relationshipReward: 3
   - id: desk_support
     title: "ขอบโต๊ะ"
+    pendingLine: "ฉันช่วยประคองขอบโต๊ะให้ได้นะ ส่วนเธอลองสำรวจ อยากให้ช่วยก็บอกฉันได้"
+    completedStatusLine: "ตอนนั้นฉันประคองขอบโต๊ะ ส่วนเธอเป็นคนพบกระดาษ เราแบ่งหน้าที่กันได้ดีนะ"
     holdForInteractionId: inspect_desk
     useSceneProp: 1
     invitationLine: "...ขอบโต๊ะโยกนิดหน่อย ถ้าอยากให้จับไว้ให้ก็บอกนะ เธอจะได้ใช้สองมือสำรวจ หรือค่อย ๆ ประคองเองก็ได้"
@@ -72,7 +79,7 @@ MonoBehaviour:
     - "ขอบโต๊ะ"
     - "desk edge"
     requestAliases: ["โต๊ะ", "โต๊ะทำงาน", "desk", "table"]
-    instructions: "ฉันจับขอบโต๊ะด้านสีฟ้าให้ได้ ส่วนเธอไปด้านสีทองแล้วกด E สำรวจโต๊ะ อ่านสิ่งที่เจอด้วยตัวเองนะ ถ้าเปลี่ยนใจพิมพ์ 'หยุดช่วยก่อน' ได้"
+    instructions: "ฉันจับฝั่งนี้ไว้ให้ เธอไปอีกฝั่งแล้วลองสำรวจดู อ่านสิ่งที่เจอด้วยตัวเองนะ อยากให้ปล่อยเมื่อไหร่ก็บอก"
     companionPoint: {x: -5.7, y: -1.15}
     playerPoint: {x: -4.1, y: -1.15}
     radius: 0.65
@@ -96,8 +103,8 @@ MonoBehaviour:
   - id: discovered_painting
     point: {x: 0, y: 1.3}
     inspectSeconds: 1.5
-    factId: painting_arrow
-    inspectingLine: "ฉันจะอ่านหลักฐานที่เธอพบตรงนี้ให้ละเอียดอีกครั้ง..."
+    factId:
+    inspectingLine: "เธอเคยตรวจบริเวณนี้แล้วสินะ ถ้าอยากให้ฉันช่วยคิด เอาสิ่งที่พบมาให้ดูด้วยนะ..."
     conditions:
     - type: 0
       targetId: inspected_painting
@@ -117,8 +124,8 @@ MonoBehaviour:
   - id: discovered_desk_note
     point: {x: -4.1, y: -1.15}
     inspectSeconds: 2
-    factId: desk_note
-    inspectingLine: "ฉันจะทบทวนร่องรอยตรงที่เธอพบกระดาษ..."
+    factId:
+    inspectingLine: "เธอพบกระดาษตรงนี้ใช่ไหม ถ้าอยากทบทวนด้วยกัน เอามาให้ฉันดูได้นะ..."
     conditions:
     - type: 0
       targetId: found_note
