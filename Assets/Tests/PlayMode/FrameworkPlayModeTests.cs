@@ -117,7 +117,7 @@ public class FrameworkPlayModeTests
     private static void Queue(NpcEventController controller, MiniEventData data)
     {
         typeof(NpcEventController).GetMethod("SetPendingEvent", BindingFlags.Instance | BindingFlags.NonPublic)
-            .Invoke(controller, new object[] { data, null, false });
+            .Invoke(controller, new object[] { data, null, false, null });
     }
 
     [UnityTest]
@@ -656,14 +656,14 @@ public class FrameworkPlayModeTests
             GameState.Instance.SetFlag("inspected_painting");
             EvidenceShareResult shared;
             Assert.That(EvidenceSharing.TryShare(GameState.Instance, "Alice", "painting_arrow", out shared), Is.True);
-            queue.Invoke(controller, new object[] { data, raw, true });
+            queue.Invoke(controller, new object[] { data, raw, true, null });
             Assert.That(controller.TryStartPendingEvent(), Is.True);
             var log = GameState.Instance.GetConversationLog("Alice");
             Assert.That(log[log.Count - 1].Text, Does.Contain("ด้านหลังกรอบภาพ"));
             Assert.That(log[log.Count - 1].Text, Does.Not.Contain("{fact:"));
             DialogueManager.Instance.HideDialogue();
             GameState.Instance.RemoveFlag("inspected_painting");
-            queue.Invoke(controller, new object[] { data, raw, true });
+            queue.Invoke(controller, new object[] { data, raw, true, null });
             Assert.That(controller.TryStartPendingEvent(), Is.True);
             log = GameState.Instance.GetConversationLog("Alice");
             Assert.That(log[log.Count - 1].Text, Is.EqualTo("บทสำรองที่ยืนยันได้"));

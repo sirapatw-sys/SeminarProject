@@ -287,7 +287,8 @@ public class DialogueManager : MonoBehaviour
         GeneratedDialogueContent generated,
         bool isEvent = false,
         string completeOnChoiceFlag = null,
-        bool useGeneratedChoices = false)
+        bool useGeneratedChoices = false,
+        DialogueData authoredChoiceSource = null)
     {
         if (data == null)
         {
@@ -300,21 +301,21 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
-        OpenDialogue(data, generated, isEvent, completeOnChoiceFlag, useGeneratedChoices);
+        OpenDialogue(data, generated, isEvent, completeOnChoiceFlag, useGeneratedChoices, authoredChoiceSource);
     }
 
     /// <param name="useGeneratedChoices">
-    /// Only for free-topic chats, whose choices are stances (listen / ask back
-    /// / brush off) rather than story decisions: the topic's wording (AI or an
-    /// authored variant) replaces the labels and replies, and each keeps the
-    /// authored effect of its position.
+    /// Retained for callers using authored offline topic variants. Generated
+    /// JSON never supplies actionable choice text; a separate DialogueData
+    /// supplies the authored labels, responses and their matching effects.
     /// </param>
     private void OpenDialogue(
         DialogueData data,
         GeneratedDialogueContent generated,
         bool isEvent,
         string completeOnChoiceFlag,
-        bool useGeneratedChoices)
+        bool useGeneratedChoices,
+        DialogueData authoredChoiceSource)
     {
         string companionInvitation = null;
         var companion = GameState.Instance == null ? null : MysteryGame.Companions.NpcCompanionController.Find(
@@ -333,7 +334,10 @@ public class DialogueManager : MonoBehaviour
         choiceCompletionFlag = completeOnChoiceFlag;
         // Story events keep their authored labels and responses, which stay
         // paired with their effects (and any completion flag).
-        activeChoices = useGeneratedChoices ? BuildRuntimeChoices(data, generated) : data.choices;
+        activeChoices = useGeneratedChoices && authoredChoiceSource != null &&
+            authoredChoiceSource.speakerId == data.speakerId && authoredChoiceSource.choices != null &&
+            authoredChoiceSource.choices.Count == data.choices.Count
+            ? authoredChoiceSource.choices : data.choices;
         // Per dialogue, not per speaker: Alice's Room02 choices must still
         // appear the first time even though she was met in Room01.
         string metFlag = "dialogue." + data.dialogueId + ".met";
@@ -397,29 +401,6 @@ public class DialogueManager : MonoBehaviour
         }
     }
 
-    private List<DialogueChoiceData> BuildRuntimeChoices(
-        DialogueData data,
-        GeneratedDialogueContent generated)
-    {
-        if (generated == null || !generated.IsValid(data.choices.Count))
-        {
-            return data.choices;
-        }
-
-        var runtimeChoices = new List<DialogueChoiceData>();
-        for (int index = 0; index < data.choices.Count; index++)
-        {
-            runtimeChoices.Add(new DialogueChoiceData
-            {
-                optionText = generated.choices[index].optionText,
-                responseText = generated.choices[index].responseText,
-                actions = data.choices[index].actions
-            });
-        }
-
-        return runtimeChoices;
-    }
-
     /// <summary>The numbers line for a reply to a choice or shared evidence.</summary>
     private string InsightFor(int hintPercent, int closenessBefore)
     {
@@ -481,14 +462,14 @@ public class DialogueManager : MonoBehaviour
         textRect.offsetMin = new Vector2(0f, 92f);
         textRect.offsetMax = new Vector2(-150f, -72f);
         dialogueText.fontSize = 25f;
-        // Long replies shrink to fit instead of spilling past the box.
-        dialogueText.enableAutoSizing = true;
+        dialogueText.enableAutoSizing = false;
         dialogueText.fontSizeMax = 25f;
         dialogueText.fontSizeMin = 15f;
         dialogueText.enableWordWrapping = true;
-        dialogueText.overflowMode = TextOverflowModes.Truncate;
+        dialogueText.overflowMode = TextOverflowModes.Overflow;
         dialogueText.lineSpacing = 5f;
         dialogueText.color = new Color(1f, 1f, 1f, 1f);
+        DialogueTextScroll.Install(dialogueText);
 
         RectTransform continueRect =
             continueButton.GetComponent<RectTransform>();

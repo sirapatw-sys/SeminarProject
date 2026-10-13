@@ -25,6 +25,7 @@ public class NpcEventController : MonoBehaviour
 
     private MiniEventData pendingEvent;
     private GeneratedDialogueContent pendingDialogue;
+    private DialogueData pendingChoiceSource;
     private bool pendingIsAi;
     private float pendingUntil;
     private float nextCheckTime;
@@ -202,15 +203,17 @@ public class NpcEventController : MonoBehaviour
             return false;
         }
         GeneratedDialogueContent selectedDialogue = pendingDialogue;
+        DialogueData selectedChoiceSource = pendingChoiceSource;
         if (pendingIsAi)
         {
             var context = NpcKnowledgeContextBuilder.Build(selectedEvent.npcId,
                 GameState.Instance.GetCurrentScene(), GameState.Instance, false);
             GeneratedDialogueContent grounded;
             string reason;
-            selectedDialogue = selectedDialogue != null && selectedDialogue.IsValid(selectedEvent.dialogue.choices.Count) &&
-                NpcReplyPolicy.TryGroundEvent(context, selectedDialogue, out grounded, out reason)
-                ? grounded : BuildOfflineTopic(selectedEvent);
+            if (selectedDialogue != null && selectedDialogue.IsValid(selectedEvent.dialogue.choices.Count) &&
+                NpcReplyPolicy.TryGroundEvent(context, selectedDialogue, out grounded, out reason))
+            { selectedDialogue = grounded; selectedChoiceSource = null; }
+            else selectedDialogue = BuildOfflineTopic(selectedEvent, out selectedChoiceSource);
         }
         ClearPendingEvent();
 
@@ -223,15 +226,15 @@ public class NpcEventController : MonoBehaviour
             GameState.Instance.SetFlag(selectedEvent.CompletedFlag);
         }
 
-        // A free-topic chat's choices are stances, so its wording may vary
-        // with each topic (AI-written or one of the authored variants); the
-        // effects stay with each position. Story events keep authored text.
+        // Only authored offline variants may replace choices and their effects.
+        // A model's topic/opening never changes the meaning of an action.
         DialogueManager.Instance.StartDialogue(
             selectedEvent.dialogue,
             selectedDialogue,
             isEvent: true,
             completeOnChoiceFlag: selectedEvent.completeOnChoice ? selectedEvent.CompletedFlag : null,
-            useGeneratedChoices: selectedEvent.freeTopic && selectedDialogue != null
+            useGeneratedChoices: selectedEvent.freeTopic && selectedChoiceSource != null,
+            authoredChoiceSource: selectedChoiceSource
         );
         return true;
     }
@@ -365,7 +368,9 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
-        SetPendingEvent(candidate, candidate.freeTopic ? BuildOfflineTopic(candidate) : null);
+        DialogueData offlineChoiceSource = null;
+        var offline = candidate.freeTopic ? BuildOfflineTopic(candidate, out offlineChoiceSource) : null;
+        SetPendingEvent(candidate, offline, authoredChoiceSource: offlineChoiceSource);
     }
 
     private bool IsCurrentGeneration(MiniEventData candidate, int version)
@@ -389,7 +394,9 @@ public class NpcEventController : MonoBehaviour
         string reason;
         bool validAi = generated != null && generated.IsValid(candidate.dialogue.choices.Count) &&
             NpcReplyPolicy.ValidateEvent(context, generated, out reason);
-        SetPendingEvent(candidate, validAi ? generated : BuildOfflineTopic(candidate), validAi);
+        DialogueData offlineChoiceSource = null;
+        var selected = validAi ? generated : BuildOfflineTopic(candidate, out offlineChoiceSource);
+        SetPendingEvent(candidate, selected, validAi, offlineChoiceSource);
     }
 
     private void CancelGeneration()
@@ -418,6 +425,13 @@ public class NpcEventController : MonoBehaviour
 
     public static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate)
     {
+        DialogueData ignored;
+        return BuildOfflineTopic(candidate, out ignored);
+    }
+
+    private static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate, out DialogueData authoredChoiceSource)
+    {
+        authoredChoiceSource = null;
         if (candidate == null || candidate.dialogue == null) return null;
         DialogueData source = candidate.dialogue;
         int count = candidate.offlineVariants != null ? candidate.offlineVariants.Count : 0;
@@ -431,7 +445,9 @@ public class NpcEventController : MonoBehaviour
             lastOfflineTopic[key] = pick;
             source = candidate.offlineVariants[pick] ?? source;
         }
-        if (source.choices.Count != candidate.dialogue.choices.Count) source = candidate.dialogue;
+        if (source.speakerId != candidate.dialogue.speakerId || source.choices == null ||
+            source.choices.Count != candidate.dialogue.choices.Count) source = candidate.dialogue;
+        authoredChoiceSource = source;
         var choices = new List<GeneratedDialogueChoice>();
         foreach (var choice in source.choices)
             choices.Add(new GeneratedDialogueChoice { optionText = choice.optionText, responseText = choice.responseText });
@@ -442,10 +458,12 @@ public class NpcEventController : MonoBehaviour
     private void SetPendingEvent(
         MiniEventData candidate,
         GeneratedDialogueContent generated,
-        bool fromAi = false)
+        bool fromAi = false,
+        DialogueData authoredChoiceSource = null)
     {
         pendingEvent = candidate;
         pendingDialogue = generated;
+        pendingChoiceSource = fromAi ? null : authoredChoiceSource;
         pendingIsAi = fromAi;
         pendingUntil = Time.time + candidate.expiresSeconds;
         indicatorText.gameObject.SetActive(true);
@@ -461,6 +479,7 @@ public class NpcEventController : MonoBehaviour
     {
         pendingEvent = null;
         pendingDialogue = null;
+        pendingChoiceSource = null;
         pendingIsAi = false;
         pendingUntil = 0f;
 

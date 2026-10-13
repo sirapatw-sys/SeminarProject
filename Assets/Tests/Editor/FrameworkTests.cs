@@ -207,6 +207,21 @@ namespace MysteryGame.Tests
             }
         }
         [Test]
+        public void OfflineChoiceEffectsAreValidatedBeforeTheyCanBeUsed()
+        {
+            var ev = Object.Instantiate(Load<MiniEventData>("Assets/Data/Events/Alice_Chatter_Event.asset"));
+            var variant = Object.Instantiate(ev.offlineVariants[0]);
+            try
+            {
+                ev.offlineVariants = new List<DialogueData> { variant };
+                variant.choices[0].actions.Add(new ActionCommand { type = ActionType.AddItem, targetId = "missing_variant_item" });
+                var errors = ContentValidator.Validate(GameDefinition.Current, All<InteractionData>("Assets/Data"),
+                    All<InputPuzzleData>("Assets/Data"), new[] { ev });
+                Assert.That(errors, Does.Contain("Unknown action item missing_variant_item"));
+            }
+            finally { Object.DestroyImmediate(variant); Object.DestroyImmediate(ev); }
+        }
+        [Test]
         public void SecondGameCanAdvanceThroughTwoRoomsUsingOnlyAuthoredAssets()
         {
             var game = Load<GameDefinition>("Assets/Samples/Observatory/Observatory.asset");

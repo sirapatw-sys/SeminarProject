@@ -244,16 +244,16 @@ namespace MysteryGame.Tests
         [TestCase(true)]
         public void EventPromptsKeepAuthoredChoiceTextAndLimitAiToOpeningLines(bool freeTopic)
         {
-            // Story events keep their authored choices. A free-topic chat's
-            // choices are stances, so it is asked to reword them in order.
+            // Both story and free-topic events keep authored choice semantics.
             string prompt = BuildEventPrompt(freeTopic);
             Assert.That(prompt, Does.Contain("ฉันฟังอยู่"));
             Assert.That(prompt, Does.Contain("ขอบคุณที่รับฟัง"));
+            Assert.That(prompt, Does.Contain("คัดลอก optionText และ responseText ต้นฉบับ"));
+            Assert.That(prompt, Does.Contain("แต่งเฉพาะ lines"));
+            Assert.That(prompt, Does.Not.Contain("ตัวอย่างด้านล่างเป็นแค่แนว"));
             if (freeTopic)
             {
-                Assert.That(prompt, Does.Contain("คงท่าทีของแต่ละข้อตามลำดับ"));
                 Assert.That(prompt, Does.Contain("ทุกครั้งที่ชวนคุยต้องไม่ซ้ำ"));
-                Assert.That(prompt, Does.Not.Contain("คัดลอก optionText และ responseText ต้นฉบับ"));
             }
             else
             {

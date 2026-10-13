@@ -42,14 +42,19 @@ namespace MysteryGame.Companions
             @"^\s*(?:(?:ใช่|จริง|ถูก(?:ต้อง)?)(?:ไหม|มั้ย|(?:หรือ|รึ)(?:เปล่า|ไม่))|เหรอ|หรอ|(?:หรือ|รึ)(?:เปล่า|ไม่|ยัง)|" +
             @"right|correct|is\s+that\s+right|(?:do|are|have|don't|aren't|haven't)\s+you|(?:isn't|is\s+not)\s+it)" +
             @"(?:\s*(?:นะ|ล่ะ|ละ|ครับ|ค่ะ|คะ|please)){0,3}\s*$");
+        private const string CourtesyParticles = @"(?:\s*(?:นะ|หน่อย|ล่ะ|ละ|ก่อน|ครับ|ค่ะ|คะ|please)){0,4}";
+        private const string SentenceEnd = @"[\s.!?…]*$";
         private static readonly Regex Withdrawal = R(
             @"^\s*(?:ไม่(?:ต้อง|เอา)(?:แล้ว|ก่อน)|ยกเลิก(?:คำขอ|คำสั่ง)?(?:นี้|นั้น|ก่อน)?|" +
             @"never\s*mind|scratch\s+that|cancel\s+(?:that|(?:my|the)\s+request))" +
-            @"(?:\s*(?:นะ|ล่ะ|ละ|ครับ|ค่ะ|คะ|please)){0,3}\s*$");
-        private static readonly Regex StopWork = R(@"^\s*(?:หยุดช่วย(?:ก่อน|แล้ว)?|หยุดงาน(?:ก่อน)?|ยกเลิกงาน(?:นี้|ก่อน)?|stop\s+(?:helping|working)|cancel\s+(?:the\s+)?task)(?:\s*(?:นะ|หน่อย|ครับ|ค่ะ|คะ|please))*\s*[.!?]*$");
-        private static readonly Regex AmbiguousStop = R(@"^\s*(?:หยุด|พักก่อน|พอแล้ว)(?:\s*(?:นะ|หน่อย|ก่อน|ครับ|ค่ะ|คะ|please))*[.!?]*\s*$");
+            CourtesyParticles + SentenceEnd);
+        private static readonly Regex StopWork = R(@"^\s*(?:หยุดช่วย(?:ก่อน|แล้ว)?|หยุดงาน(?:ก่อน)?|ยกเลิกงาน(?:นี้|ก่อน)?|stop\s+(?:helping|working)|cancel\s+(?:the\s+)?task)" + CourtesyParticles + SentenceEnd);
+        private static readonly Regex AmbiguousStop = R(@"^\s*(?:หยุด|พักก่อน|พอแล้ว)" + CourtesyParticles + SentenceEnd);
         // Remove only courtesy conditions, not arbitrary if/hypothetical clauses.
-        private static readonly Regex CourtesyCondition = R(@"^\s*(?:ถ้าว่าง|ถ้าไม่ยุ่ง)(?:ก็)?\s*|\s*(?:ถ้าไม่ลำบาก|ถ้าสะดวก)\s*$");
+        private static readonly Regex CourtesyCondition = R(
+            @"^\s*(?:ถ้าว่าง|ถ้าไม่ยุ่ง)" + CourtesyParticles + @"\s*" +
+            @"(?:ก็\s*|(?=\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้|ตาม|เดิน|มา|ไป|รอ|หยุด|ค้น|หา|ลอง|พัก|พอ)))\s*|" +
+            @"\s*(?:ถ้าไม่ลำบาก|ถ้าสะดวก)" + CourtesyParticles + SentenceEnd);
         private static readonly Regex TargetFirstHelp = R(@"^\s*(?:มันโยกนะ|โยกนะ|นี้|มันโยก|โยก)?\s*ช่วย(?:จับ|ถือ|ประคอง)?(?:ได้ไหม|หน่อย|ที)(?:นะ|ครับ|ค่ะ|คะ)*\s*$");
         private static readonly Regex IncompleteActionRequest = R(@"^\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้)\s*(?:(?:เรา|ฉัน|ผม|มา|ไป)\s*)?(?:จับ|ถือ|เปิด|ประคอง|เดิน|ค้น|หา|สำรวจ)");
         // Only split coordinated actions after classifying the enclosing
@@ -297,7 +302,7 @@ namespace MysteryGame.Companions
             if (dialogue == null || dialogue != DialogueManager.Instance || !DialogueManager.IsDialogueOpen || GameState.Instance == null) return false;
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null) return false;
-            string normalized = WithoutAddress(Normalize(message), actor.Scenario);
+            string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
             bool vagueStop = StopWork.IsMatch(normalized) || Withdrawal.IsMatch(normalized) || AmbiguousStop.IsMatch(normalized);
             if (vagueStop && actor.Mode == CompanionMode.Waiting) return false;
             if (actor.CanConverse(dialogue) && (vagueStop || CancelsActiveRequest(normalized, actor)))

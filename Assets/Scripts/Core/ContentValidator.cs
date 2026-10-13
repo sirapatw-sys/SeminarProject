@@ -182,8 +182,13 @@ namespace MysteryGame.Core
                 Rules(ev.conditions, itemIds, npcIds, errors, roomIds);
                 if (ev.offlineVariants != null)
                     foreach (var variant in ev.offlineVariants)
-                        if (variant == null || ev.dialogue == null || variant.choices.Count != ev.dialogue.choices.Count)
-                            errors.Add(ev.eventId + ": offline variant has mismatched choices.");
+                    {
+                        if (variant == null || ev.dialogue == null || variant.speakerId != ev.dialogue.speakerId ||
+                            variant.choices == null || variant.choices.Count != ev.dialogue.choices.Count)
+                        { errors.Add(ev.eventId + ": offline variant has mismatched choices or speaker."); continue; }
+                        foreach (var choice in variant.choices)
+                            if (choice != null) Actions(choice.actions, itemIds, npcIds, errors);
+                    }
             }
             return errors;
         }
