@@ -1,12 +1,15 @@
 using UnityEngine;
+using MysteryGame.Core;
 
 namespace MysteryGame.Companions
 {
+    public enum CompanionStationDisplay { Hidden, Nearby, Active }
+
     /// <summary>Read-only status/props. Requests are written by the player in dialogue, never chosen here.</summary>
     public class CompanionHud : MonoBehaviour
     {
         private NpcCompanionController actor;
-        private GUIStyle panel, title, label, bubble, bluePad, goldPad, donePad;
+        private GUIStyle caption, bubble, bluePad, goldPad;
         private readonly System.Collections.Generic.List<Texture2D> textures = new System.Collections.Generic.List<Texture2D>();
         private void Awake() { actor = GetComponent<NpcCompanionController>(); }
         private Texture2D Background(Color color, int radius)
@@ -19,72 +22,63 @@ namespace MysteryGame.Companions
         }
         private void Styles()
         {
-            if (panel != null) return;
-            panel = Style(new Color(0.025f, 0.045f, 0.065f, 0.95f), 18, TextAnchor.UpperLeft);
-            title = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, normal = { textColor = new Color(0.47f, 0.9f, 0.91f) } };
-            label = new GUIStyle(GUI.skin.label) { fontSize = 16, wordWrap = true, normal = { textColor = Color.white } };
+            if (caption != null) return;
+            caption = Style(new Color(0.025f, 0.045f, 0.065f, 0.85f), 16, TextAnchor.MiddleCenter);
             bubble = Style(new Color(0.03f, 0.08f, 0.12f, 0.96f), 18, TextAnchor.MiddleCenter);
-            bluePad = Style(new Color(0.12f, 0.65f, 0.77f, 0.8f), 14, TextAnchor.MiddleCenter, 22);
-            goldPad = Style(new Color(0.68f, 0.46f, 0.12f, 0.85f), 14, TextAnchor.MiddleCenter, 22);
-            donePad = Style(new Color(0.12f, 0.48f, 0.29f, 0.75f), 14, TextAnchor.MiddleCenter, 22);
+            bluePad = Style(new Color(0.12f, 0.65f, 0.77f, 0.8f), 14, TextAnchor.MiddleCenter, 14);
+            goldPad = Style(new Color(0.68f, 0.46f, 0.12f, 0.85f), 14, TextAnchor.MiddleCenter, 14);
+        }
+        // The prop stays in the room, but its labels are contextual, not a
+        // permanent tutorial card. Finished activities never retain a banner.
+        public CompanionStationDisplay StationDisplayFor(CompanionStationData station)
+        {
+            if (actor == null || actor.Scenario == null || !actor.isActiveAndEnabled || station == null ||
+                InputGate.IsBlocked || ItemPopupUI.IsBusy || actor.RoomId != GameState.Instance?.GetCurrentScene() ||
+                !actor.Scenario.stations.Contains(station) || actor.IsCompleted(station)) return CompanionStationDisplay.Hidden;
+            Vector2 center = (station.companionPoint + station.playerPoint) * 0.5f;
+            if (Vector2.Distance(actor.PlayerFeet, center) > actor.Scenario.activityLabelDistance)
+                return CompanionStationDisplay.Hidden;
+            return actor.ActiveStation == station ? CompanionStationDisplay.Active : CompanionStationDisplay.Nearby;
         }
         private void OnGUI()
         {
-            if (actor == null || actor.Scenario == null || !actor.isActiveAndEnabled || InputGate.IsBlocked || ItemPopupUI.IsBusy) return;
+            if (actor == null || actor.Scenario == null || !actor.isActiveAndEnabled || InputGate.IsBlocked || ItemPopupUI.IsBusy ||
+                actor.RoomId != GameState.Instance?.GetCurrentScene()) return;
             Matrix4x4 previous = GUI.matrix; Color previousColor = GUI.color; bool previousEnabled = GUI.enabled; int previousDepth = GUI.depth;
             UiScale.Apply(); GUI.depth = -2; Styles();
             var scenario = actor.Scenario;
-            Rect card = new Rect(Mathf.Max(8f, UiScale.Width - 402f), 82f, Mathf.Min(380f, UiScale.Width - 16f), 130f);
-            GUI.Box(card, GUIContent.none, panel);
-            GUI.Label(new Rect(card.x + 14, card.y + 10, card.width - 28, 30), scenario.displayName + " • เพื่อนร่วมสำรวจ", title);
-            string status = actor.Mode == CompanionMode.Following ? "เดินไปด้วยกัน" : actor.Mode == CompanionMode.GoingToHelp ? "กำลังเดินไปช่วย" :
-                actor.Mode == CompanionMode.Helping ? "จับกลไกอยู่ • ยืนบนจุดสีทองด้วยกัน" : "รอคำชวน • ไม่จำเป็นต้องสนิทก่อนช่วยกัน";
-            GUI.Label(new Rect(card.x + 14, card.y + 44, card.width - 28, 42), status, label);
-            GUI.Label(new Rect(card.x + 12, card.y + 89, card.width - 24, 34), "เข้าใกล้แล้วกด E • พิมพ์ชวนด้วยคำพูดของคุณ", label);
             foreach (var station in scenario.stations)
             {
-                bool done = actor.IsCompleted(station);
-                DrawBox((station.companionPoint + station.playerPoint) * 0.5f, done,
-                    actor.ActiveStation == station ? actor.Progress : 0f);
-                DrawWorld(station.companionPoint, scenario.displayName, done ? donePad : bluePad, new Vector2(96f, 42f));
-                DrawWorld(station.playerPoint, done ? "สำเร็จ" : "คุณ", done ? donePad : goldPad, new Vector2(70f, 42f));
+                var display = StationDisplayFor(station);
+                if (station.useSceneProp && !ConditionRule.AllHold(station.conditions, GameState.Instance)) continue;
+                if (display == CompanionStationDisplay.Hidden) continue;
+                if (display == CompanionStationDisplay.Active)
+                {
+                    DrawWorld(station.companionPoint, actor.Scenario.displayName, bluePad, new Vector2(70f, 28f));
+                    DrawWorld(station.playerPoint, "คุณ", goldPad, new Vector2(55f, 28f));
+                }
                 Vector2 middle = (station.companionPoint + station.playerPoint) * 0.5f + Vector2.up * 0.65f;
-                string caption = done ? "กล่องเปิดแล้ว • ทำสำเร็จด้วยกัน" :
-                    actor.ActiveStation == station ? station.title + " " + Mathf.RoundToInt(actor.Progress * 100f) + "%" : station.title + " • ชวนเพื่อนช่วย";
-                DrawWorld(middle, caption, panel, new Vector2(270f, 36f));
+                string text = display == CompanionStationDisplay.Active
+                    ? station.title + (string.IsNullOrWhiteSpace(station.holdForInteractionId) ? " " + Mathf.RoundToInt(actor.Progress * 100f) + "%" :
+                        actor.Mode == CompanionMode.Helping ? " · จับไว้ให้แล้ว" : " · กำลังไปช่วย") : station.title;
+                DrawWorld(middle, text, caption, new Vector2(190f, 32f));
             }
-            if (actor.HasBubble) DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, actor.Bubble, bubble, new Vector2(390f, 76f));
-            GUI.matrix = previous; GUI.color = previousColor; GUI.enabled = previousEnabled; GUI.depth = previousDepth;
-        }
-        private static void Fill(Rect rect, Color color)
-        {
-            Color previous = GUI.color; GUI.color = color;
-            GUI.DrawTexture(rect, Texture2D.whiteTexture); GUI.color = previous;
-        }
-        // A code-drawn 2D prop, with a lifted lid and a visible shared-action meter.
-        private static void DrawBox(Vector2 point, bool opened, float progress)
-        {
-            if (Camera.main == null) return;
-            Vector3 pixel = Camera.main.WorldToScreenPoint(point);
-            if (pixel.z <= 0f) return;
-            float x = pixel.x / UiScale.Factor, y = (Screen.height - pixel.y) / UiScale.Factor;
-            Fill(new Rect(x - 40, y + 18, 80, 9), new Color(0, 0, 0, 0.35f));
-            Fill(new Rect(x - 34, y - 15, 68, 40), new Color(0.25f, 0.15f, 0.1f));
-            Fill(new Rect(x - 30, y - 11, 60, 32), opened ? new Color(0.85f, 0.72f, 0.4f) : new Color(0.48f, 0.3f, 0.17f));
-            Fill(new Rect(x - 35, y - (opened ? 32 : 17), 70, 12), new Color(0.62f, 0.43f, 0.23f));
-            Fill(new Rect(x - 5, y - (opened ? 32 : 17), 10, opened ? 12 : 36), new Color(0.91f, 0.73f, 0.31f));
-            if (progress > 0f)
+            if (actor.HasBubble)
             {
-                Fill(new Rect(x - 38, y + 32, 76, 7), new Color(0.05f, 0.1f, 0.12f));
-                Fill(new Rect(x - 37, y + 33, 74 * progress, 5), new Color(0.4f, 0.9f, 0.86f));
+                float width = Mathf.Min(340f, UiScale.Width - 16f);
+                float height = Mathf.Clamp(bubble.CalcHeight(new GUIContent(actor.Bubble), width), 40f, 112f);
+                DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, actor.Bubble, bubble, new Vector2(width, height));
             }
+            if (!actor.HasBubble && actor.Invitation != null)
+                DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "?", goldPad, new Vector2(32f, 36f));
+            GUI.matrix = previous; GUI.color = previousColor; GUI.enabled = previousEnabled; GUI.depth = previousDepth;
         }
         private static void DrawWorld(Vector2 point, string text, GUIStyle style, Vector2 size)
         {
             var camera = Camera.main;
             if (camera == null) return;
             Vector3 pixel = camera.WorldToScreenPoint(point);
-            if (pixel.z <= 0f) return;
+            if (pixel.z <= 0f || pixel.x < 0f || pixel.x > Screen.width || pixel.y < 0f || pixel.y > Screen.height) return;
             float x = pixel.x / UiScale.Factor, y = (Screen.height - pixel.y) / UiScale.Factor;
             GUI.Box(new Rect(Mathf.Clamp(x - size.x * 0.5f, 4f, Mathf.Max(4f, UiScale.Width - size.x - 4f)),
                 Mathf.Clamp(y - size.y * 0.5f, 4f, Mathf.Max(4f, UiScale.Height - size.y - 4f)), size.x, size.y), text, style);

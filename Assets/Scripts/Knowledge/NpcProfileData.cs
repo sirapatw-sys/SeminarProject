@@ -255,6 +255,8 @@ namespace MysteryGame.Knowledge
                 return false;
             }
 
+            if (state != null && NpcObservation.Knows(state, npcId, state.GetCurrentScene(), factId)) return true;
+
             if (knownFactIds != null && knownFactIds.Contains(factId))
             {
                 return true;

@@ -84,6 +84,16 @@ MonoBehaviour:
     statement: "ประตูทางออกถูกล็อคอยู่"
     revealedWhen: []
     isPuzzleAnswer: 0
+  - factId: companion_box_marks
+    canShareAsEvidence: 1
+    evidenceTitle: "รอยมือบนกล่องสองมือ"
+    statement: "ฝากล่องกลางห้องมีรอยมือคนละด้านและกลไกที่ต้องจับพร้อมกันสองฝั่ง เป็นกล่องสำหรับช่วยกันเปิด ไม่ใช่รหัสประตู"
+    revealedWhen:
+    - type: 0
+      targetId: companion.room01_alice.search.companion_box_marks.found
+      amount: 0
+    isPuzzleAnswer: 0
+    isPuzzleGuidance: 0
   steps:
   - stepId: inspect_painting
     summary: "ตรวจภาพวาดบนผนัง"

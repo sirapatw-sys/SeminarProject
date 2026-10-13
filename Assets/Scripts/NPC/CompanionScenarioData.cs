@@ -13,6 +13,7 @@ namespace MysteryGame.Companions
         public bool success = true;
         [TextArea] public string line;
         [TextArea] public string memory;
+        public List<string> recallTerms = new List<string>();
         public List<ConditionRule> conditions = new List<ConditionRule>();
     }
 
@@ -21,8 +22,17 @@ namespace MysteryGame.Companions
     {
         public string id;
         public string title;
+        [Tooltip("Empty = timed activity. Otherwise hold until this verified player interaction succeeds.")]
+        public string holdForInteractionId;
+        [Tooltip("Use the existing scene prop instead of drawing a box.")]
+        public bool useSceneProp;
+        [TextArea] public string invitationLine;
+        [TextArea] public string trustedInvitationLine;
+        [TextArea] public string cautiousRequestLine;
         [Tooltip("Names/aliases that AI must only mention through verified companion fact tokens (Thai and English).")]
         public List<string> gameplayTerms = new List<string>();
+        [Tooltip("Object names recognized only in direct action requests; do not exempt these from puzzle hint checks.")]
+        public List<string> requestAliases = new List<string>();
         [Tooltip("Authored optional-activity instructions, not main-puzzle hints or a claim that work has started.")]
         [TextArea] public string instructions;
         public Vector2 companionPoint;
@@ -48,8 +58,16 @@ namespace MysteryGame.Companions
         public Rect walkBounds = new Rect(-7.8f, -4.3f, 15.6f, 6f);
         [Min(0.1f)] public float cellSize = 0.4f;
         [Min(0.05f)] public float clearance = 0.2f;
-        [Min(0.5f)] public float moveSpeed = 4.4f;
+        [Min(0.5f)] public float moveSpeed = 2.6f;
+        [Min(0.1f)] public float moveAcceleration = 6.5f;
+        [Min(0.1f)] public float moveDeceleration = 8f;
         [Min(0.5f)] public float followDistance = 1.6f;
+        [Tooltip("Extra distance before a stopped companion starts following again, to avoid idle shuffling.")]
+        [Min(0.15f)] public float followStartBuffer = 0.45f;
+        [Tooltip("Show an unfinished activity's label only when the player is this close.")]
+        [Min(0.5f)] public float activityLabelDistance = 2.4f;
+        [Tooltip("Companion-only walking cadence; does not change the player's animation.")]
+        [Range(0.1f, 1.5f)] public float walkAnimationPace = 0.55f;
         [Min(1f)] public float commandDistance = 4f;
         [Min(1f)] public float witnessDistance = 5f;
         [Min(1f)] public float taskTimeoutSeconds = 35f;
@@ -63,6 +81,11 @@ namespace MysteryGame.Companions
         public string comfortEmotion = "homesickness";
         public List<CompanionStationData> stations = new List<CompanionStationData>();
         public List<CompanionObservation> observations = new List<CompanionObservation>();
+        public List<CompanionDiscussion> discussions = new List<CompanionDiscussion>();
+        public List<CompanionSearchSpot> searchSpots = new List<CompanionSearchSpot>();
+        [TextArea] public string searchRequestLine = "ฉันจะสำรวจบริเวณที่เดินถึงและตรวจสิ่งที่เห็น ถ้าเจอหลักฐานจะบอกนะ";
+        [TextArea] public string searchFinishedLine = "สำรวจรอบนี้เสร็จแล้ว หลักฐานที่ยืนยันได้อยู่ในสมุด เราคุยทบทวนกันต่อได้";
+        public string SearchFlag(string factId) { return Flag("search." + factId + ".found"); }
 
         public string Flag(string suffix) { return "companion." + scenarioId + "." + suffix; }
         public string CompletedFlag(CompanionStationData station) { return Flag(station.id + ".completed"); }
@@ -73,9 +96,13 @@ namespace MysteryGame.Companions
             var errors = new List<string>();
             if (string.IsNullOrWhiteSpace(scenarioId) || string.IsNullOrWhiteSpace(npcId)) errors.Add("Companion identity is empty.");
             if (!Finite(cellSize) || !Finite(clearance) || !Finite(moveSpeed) || !Finite(followDistance) ||
+                !Finite(moveAcceleration) || !Finite(moveDeceleration) || !Finite(followStartBuffer) ||
+                !Finite(activityLabelDistance) || !Finite(walkAnimationPace) ||
                 !Finite(commandDistance) || !Finite(witnessDistance) || !Finite(taskTimeoutSeconds) ||
                 !Finite(walkBounds.x) || !Finite(walkBounds.y) || !Finite(walkBounds.width) || !Finite(walkBounds.height) ||
                 cellSize < 0.15f || clearance <= 0f || moveSpeed <= 0f || followDistance <= clearance ||
+                moveAcceleration <= 0f || moveDeceleration <= 0f || followStartBuffer < 0.15f ||
+                activityLabelDistance < 0.5f || walkAnimationPace < 0.1f || walkAnimationPace > 1.5f ||
                 commandDistance <= 0f || witnessDistance <= 0f || taskTimeoutSeconds <= 0f ||
                 walkBounds.width <= 0f || walkBounds.height <= 0f ||
                 (walkBounds.width / cellSize + 1f) * (walkBounds.height / cellSize + 1f) > 5000f)
@@ -104,7 +131,38 @@ namespace MysteryGame.Companions
                 if (observation == null || string.IsNullOrWhiteSpace(observation.id) ||
                     !ids.Add(observation.id) || string.IsNullOrWhiteSpace(observation.interactionId))
                     errors.Add("Companion observation identity is empty/duplicate.");
+            ids.Clear();
+            if (searchSpots != null) foreach (var spot in searchSpots)
+                if (spot == null || string.IsNullOrWhiteSpace(spot.id) || !ids.Add(spot.id) ||
+                    !Finite(spot.point.x) || !Finite(spot.point.y) || !walkBounds.Contains(spot.point) ||
+                    !Finite(spot.inspectSeconds) || spot.inspectSeconds < 0.5f || spot.inspectSeconds >= taskTimeoutSeconds)
+                    errors.Add("Companion search spot identity, point or timing is invalid.");
+            ids.Clear();
+            if (discussions != null) foreach (var discussion in discussions)
+                if (discussion == null || string.IsNullOrWhiteSpace(discussion.id) || !ids.Add(discussion.id) ||
+                    string.IsNullOrWhiteSpace(discussion.line) || discussion.requiredFacts == null || discussion.requiredFacts.Count == 0)
+                    errors.Add("Companion discussion needs a unique identity, evidence and authored line.");
             return errors;
         }
+    }
+
+    [Serializable]
+    public class CompanionSearchSpot
+    {
+        public string id;
+        public Vector2 point;
+        [Min(0.5f)] public float inspectSeconds = 2f;
+        public string factId;
+        [TextArea] public string inspectingLine;
+        public List<ConditionRule> conditions = new List<ConditionRule>();
+    }
+
+    [Serializable]
+    public class CompanionDiscussion
+    {
+        public string id;
+        public List<string> requiredFacts = new List<string>();
+        public List<ConditionRule> conditions = new List<ConditionRule>();
+        [TextArea] public string line;
     }
 }

@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactionId: inspect_desk
   displayName: Desk
+  soloPreparationSeconds: 5
+  helperNpcId: Alice
+  preparationLabel: "กำลังประคองขอบโต๊ะและสำรวจ"
+  assistedMessage: "Alice จับขอบโต๊ะที่โยกไว้ให้ คุณจึงใช้มือทั้งสองตรวจซอกใต้ขอบโต๊ะได้สะดวก... พบกระดาษโน้ตพับซ่อนอยู่!"
   interactionMessage: "คุณไล่มือไปตามขอบโต๊ะทำงานตามที่ข้อความหลังภาพบอก... ตรงซอกใต้ขอบโต๊ะมีกระดาษโน้ตแผ่นหนึ่งพับซ่อนอยู่!"
   failureMessage: "โต๊ะทำงานไม้ตัวเก่า ดูเผินๆ เหมือนไม่มีอะไรผิดปกติ..."
   repeatable: 1

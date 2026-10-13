@@ -16,9 +16,14 @@ namespace MysteryGame.Companions
             if (path == null) return false;
             path.Clear();
             if (float.IsNaN(distance) || float.IsInfinity(distance) || distance <= 0f ||
-                !TryPath(start, player, bounds, cell, free, clear, path)) return false;
+                free == null || clear == null || float.IsNaN(cell) || float.IsInfinity(cell) || cell <= 0f ||
+                float.IsNaN(start.x + start.y + player.x + player.y + bounds.x + bounds.y + bounds.width + bounds.height) ||
+                float.IsInfinity(start.x + start.y + player.x + player.y + bounds.x + bounds.y + bounds.width + bounds.height) ||
+                bounds.width <= 0f || bounds.height <= 0f || !bounds.Contains(start) ||
+                (double)(bounds.width / cell + 1f) * (bounds.height / cell + 1f) > 5000d) return false;
             if (Vector2.Distance(start, player) <= distance) { path.Clear(); return true; }
-            if (TrimFollowPath(start, player, distance, free, clear, path)) return true;
+            if (TryPath(start, player, bounds, cell, free, clear, path) &&
+                TrimFollowPath(start, player, distance, free, clear, path)) return true;
             path.Clear();
             return TryGridPath(start, player, bounds, cell, free, clear, path, distance) &&
                 TrimFollowPath(start, player, distance, free, clear, path);

@@ -238,7 +238,7 @@ public static class PlayerIntentClassifier
         if (string.IsNullOrWhiteSpace(message)) return false;
         Regex question = GetGameplayQuestion(roomSubjects);
         bool social = SocialTopic.IsMatch(message);
-        bool asking = false, declined = false, activityTopic = false;
+        bool asking = false, genericHelp = false, declined = false, activityTopic = false;
         var mainSubjects = new List<string>(GameplaySubjects);
         if (roomSubjects != null) mainSubjects.AddRange(roomSubjects);
         mainSubjects.RemoveAll(term => term == "ห้องนี้" || term == "this room" ||
@@ -265,8 +265,10 @@ public static class PlayerIntentClassifier
             // A later explicit request can retract a refusal. An indirect
             // question cannot silently undo "no hints", even in a later clause.
             if (lastDecline > lastRequest)
-            { declined = true; asking = false; continue; }
-            if (activityOnly) continue;
+            { declined = true; asking = false; genericHelp = false; continue; }
+            // A later activity target resolves an earlier, otherwise unbound
+            // "help me". Never erase an explicit hint or main-puzzle question.
+            if (activityOnly) { genericHelp = false; continue; }
             if (lastRequest >= 0)
             { declined = false; asking = true; continue; }
             if (declined || RequestDecline.IsMatch(clause)) continue;
@@ -279,9 +281,12 @@ public static class PlayerIntentClassifier
             // anxiety. Specific puzzle requests above are not suppressed.
             if (!social &&
                 (GenericHelpRequest.IsMatch(clause) || BareHelpQuestion.IsMatch(clause) || StuckRequest.IsMatch(clause)))
-                asking = true;
+            {
+                if (mainTarget || StuckRequest.IsMatch(clause)) asking = true;
+                else genericHelp = true;
+            }
         }
-        return asking;
+        return asking || genericHelp;
     }
 
     private static string BuildGameplayQuestion(IEnumerable<string> roomSubjects)

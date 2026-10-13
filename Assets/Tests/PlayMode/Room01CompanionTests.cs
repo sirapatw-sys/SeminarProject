@@ -179,6 +179,8 @@ public class Room01CompanionTests
         foreach (string message in new[] {
             "กล่องสองมือเปิดยังไง, ช่วยเราหน่อย", "อย่าช่วยเปิดกล่องสองมือ", "กล่องสองมือเปิดแล้วหรือยัง",
             "ช่วยอธิบายกล่องสองมือหน่อย", "Help me understand the box",
+            "เธอช่วยเปิดกล่องสองมือแล้วใช่ไหม", "เธอตามเรามาเหรอ", "ช่วยสอนฉันเปิดกล่องสองมือหน่อย",
+            "เธอรอตรงนี้ใช่ไหมครับ", "Help me; teach me to open the box", "Do you help me with the box?",
             "ถ้าชวนให้ตามมา เธอจะทำไหม", "\"ช่วยเปิดกล่องสองมือ\"", "‘follow me’", "`follow me`", "ช่วยเปิดกล่องสองมือแล้วตามมา" })
         {
             Send(message); yield return null;
@@ -190,6 +192,29 @@ public class Room01CompanionTests
         Send("ช่วยเปิดกล่องสองมือและขอคำใบ้ปริศนา"); yield return null;
         Assert.That(actor.ActiveStation, Is.Null);
         Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain("4592"));
+    }
+
+    [UnityTest]
+    public IEnumerator GenericHelpPrefixRoutesToTheExplicitCompanionCommandWithoutGivingAPuzzleHint()
+    {
+        string[] messages = { "ช่วยหน่อย, ตามเรามาหน่อย", "ช่วยเราหน่อย, รอตรงนี้ก่อน", "ช่วยหน่อย, ช่วยเปิดกล่องสองมือหน่อย" };
+        CompanionMode[] expected = { CompanionMode.Following, CompanionMode.Waiting, CompanionMode.GoingToHelp };
+        var provider = new FakeCompanionProvider(); DialogueProviders.Override = provider;
+        for (int i = 0; i < messages.Length; i++)
+        {
+            State.ResetState(); PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+            State.SetRelationship("Alice", 10);
+            if (i == 1) Assert.That(actor.RequestFollow(), Is.True);
+            StartChat(); Send(messages[i]); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(expected[i]), messages[i]);
+            Assert.That(actor.ActiveStation != null, Is.EqualTo(i == 2), messages[i]);
+            string actual = State.GetConversationLog("Alice").Last().Text;
+            Assert.That(actual, Does.Not.Contain("ห้องนี้มีอะไรบางอย่างดูไม่เข้าที่เข้าทาง"));
+            Assert.That(State.HasItem("key"), Is.False); Assert.That(actor.IsCompleted(station), Is.False);
+            Assert.That(State.GetRelationship("Alice"), Is.EqualTo(10));
+            DialogueManager.Instance.HideDialogue();
+        }
+        Assert.That(provider.Calls, Is.Zero, "Player commands remain local, not AI tools.");
     }
 
     [UnityTest]
@@ -260,12 +285,20 @@ public class Room01CompanionTests
     public IEnumerator APoliteCompletionClaimFromMockAiIsNeverDisplayedOrExecuted()
     {
         PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
-        var provider = new FakeCompanionProvider { Text = "ฉันเปิดให้เรียบร้อยค่ะ" }; DialogueProviders.Override = provider;
-        StartChat(); Send("คุยเป็นเพื่อนหน่อย"); yield return null;
-        Assert.That(provider.Calls, Is.EqualTo(1));
-        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain(provider.Text));
-        Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.IsCompleted(station), Is.False);
-        Assert.That(State.HasItem("key"), Is.False);
+        var provider = new FakeCompanionProvider(); DialogueProviders.Override = provider;
+        StartChat(); int calls = 0;
+        foreach (string text in new[] { "ฉันเปิดให้เรียบร้อยค่ะ", "I have already opened it for you.",
+            "We have already finished it for you.", "I just opened it for you.", "ฉันทำให้เรียบร้อยแล้วค่ะ", "Opened it for you." })
+        {
+            provider.Text = text; Send("คุยเป็นเพื่อนหน่อย"); yield return null;
+            Assert.That(provider.Calls, Is.EqualTo(++calls));
+            Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain(text));
+            var display = (TMPro.TMP_Text)typeof(DialogueManager).GetField("dialogueText", Private).GetValue(DialogueManager.Instance);
+            Assert.That(display.text, Does.Not.Contain(text));
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+            Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.IsCompleted(station), Is.False);
+            Assert.That(State.HasItem("key"), Is.False);
+        }
         provider.Text = "ตามเรามาหน่อย"; Send("สวัสดี"); yield return null;
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), "An AI reply must not be parsed as a player command.");
     }

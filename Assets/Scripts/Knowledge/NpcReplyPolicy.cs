@@ -33,14 +33,44 @@ namespace MysteryGame.Knowledge
         // with a companion. Exact canon facts are removed before this check.
         private const string CompanionThaiAction = @"(?:เปิด(?!\s*ใจ)|ปิด(?!\s*ใจ)|ปลด|จับ(?!\s*(?:ใจความ|ประเด็น))|ยืน(?!\s*ยัน)|เดินตาม|เดินไปช่วย)";
         private const string CompanionEnglishOpen = @"open(?:ed|ing|s)?(?![a-z]|\s+up\b)";
+        // Bind generic do/help/manage to a task-result predicate, rather than
+        // treating every ทำให้...แล้ว as gameplay and maintaining a whitelist
+        // of emotions. Unknown emotional verbs cannot create an exemption for
+        // object names, concrete actions, secrets, or numbers checked elsewhere.
+        private const string CompanionThaiTaskBindings =
+            @"(?:(?:ให้(?:เธอ|คุณ|เรา|ฉัน|ผม)?|เธอ|คุณ|เรา|ฉัน|ผม|มัน|ไว้|เอาไว้|ไป|กัน|งาน|กิจกรรม|เรื่อง(?:นี้|นั้น)|สิ่ง(?:นี้|นั้น)|ทุกอย่าง|ทั้งหมด|จน|ได้|แก้(?:ไข)?|ทำ(?!\s*ใจ)|ช่วย)\s*){0,5}";
+        private const string CompanionThaiTaskSubject = @"(?:งาน|กิจกรรม|ภารกิจ)(?:นี้|นั้น)?";
+        private const string CompanionThaiCompletion = @"(?:สำเร็จ|เสร็จ|เรียบร้อย)(?:แล้ว|ด้วยกัน)";
+        private const string CompanionEnglishModifiers = @"(?:(?:already|just|finally|now)\s+){0,3}";
+        // Exempt only these verb complements, not the rest of the prose:
+        // "done talking" is social; "done opening it" still needs a fact.
+        private const string CompanionEnglishSocialComplement = @"(?!\s+(?:talking|chatting|sharing|speaking)\b)";
+        private const string CompanionEnglishTearsComplement = @"(?!\s+back\s+(?:(?:my|our|the)\s+)?tears\b)";
+        private const string CompanionEnglishFinished = @"finish(?:ed|es|ing)?" + CompanionEnglishSocialComplement;
+        private const string CompanionEnglishCompleted = @"(?:opened(?!\s+up\b)|closed|finished" + CompanionEnglishSocialComplement +
+            @"|completed|unlocked|followed|held" + CompanionEnglishTearsComplement + @"|done" + CompanionEnglishSocialComplement + @")\b";
+        private const string CompanionEnglishActor = @"(?:i|we|it|this|that|everything)(?:['’](?:ve|re|m|ll|s|d))?";
+        // A bounded auxiliary chain covers active/passive, tense, negation and
+        // modifiers together, e.g. "It has already been opened".
+        private const string CompanionEnglishAspect =
+            @"(?:(?:have|has|had|am|is|are|was|were|been|being|will|shall|not|never|haven't|hasn't|hadn't|isn't|aren't|wasn't|weren't|didn't|did|do|don't|already|just|finally|now|still|yet|all)\s+){0,6}";
+        private const string CompanionEnglishAction = @"(?:" + CompanionEnglishOpen + @"|clos(?:e[ds]?|ing)|" + CompanionEnglishFinished +
+            @"|complet(?:e[ds]?|ing)|unlock(?:ed|s|ing)?|(?:hold(?:s|ing)?|held)" + CompanionEnglishTearsComplement + @"|follow(?:ed|s|ing)?)\b";
         private static readonly Regex CompanionActionClaim = new Regex(RemoveInvisibleCharacters(
-            @"(?:" + CompanionThaiAction + @"|ทำ(?!ให้|ใจ)|ช่วย(?!ให้|คิด|กันคิด|กันนึก|กันทบทวน))[^.!?;]{0,24}(?:แล้ว|สำเร็จ|เสร็จ|เรียบร้อย)|" +
+            CompanionThaiAction + @"[^.!?;]{0,24}(?:แล้ว|สำเร็จ|เสร็จ|เรียบร้อย)|" +
+            @"(?:ทำ(?!\s*ใจ)|ช่วย|จัดการ)\s*" + CompanionThaiTaskBindings + @"(?:สำเร็จ|เสร็จ|เรียบร้อย|แล้ว)|" +
             @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)\s*(?:" + CompanionThaiAction + @"|เดินตาม|เดินไปช่วย)|" +
-            @"(?:สำเร็จ|เสร็จ)(?:แล้ว|ด้วยกัน)|" +
-            @"\b(?:(?:(?:i|we)\s+(?:have\s+|already\s+)?|(?:i|we)['’]ve\s+(?:already\s+)?)(?:opened(?!\s+up\b)|closed|finished|completed|unlocked|followed|held)|" +
-            @"(?:i['’](?:ll|m)|we['’](?:ll|re))\s+(?:already\s+)?(?:" + CompanionEnglishOpen + @"|clos|finish|complet|unlock|hold|follow)|" +
-            @"(?:i|we)\s+(?:am|are|will|haven't|have\s+not|didn't|did\s+not)\s+(?:" + CompanionEnglishOpen + @"|clos|finish|complet|unlock|hold|follow)|" +
-            @"(?:it's|it\s+is|we're|we\s+are)\s+(?:done|finished|successful))"),
+            @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)\s*(?:ทำ(?!\s*ใจ)|ช่วย|จัดการ)\s*" + CompanionThaiTaskBindings + @"(?=[.!?;]|$)|" +
+            CompanionThaiTaskSubject + @"\s*" + CompanionThaiCompletion + @"|" +
+            @"(?:^|[.!?;])\s*(?:(?:ตอนนี้|ในที่สุด|คราวนี้)\s*)?(?:(?:เรา|ฉัน|ผม|มัน|ทุกอย่าง|ทั้งหมด)\s*)?" + CompanionThaiCompletion + @"|" +
+            @"\b" + CompanionEnglishActor + @"\s+" + CompanionEnglishAspect + CompanionEnglishCompleted + @"|" +
+            @"\b(?:i['’](?:ll|m)|we['’](?:ll|re)|it['’]s)\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b(?:i|we|it|this|that)\s+(?:am|is|are|was|were|will|shall|haven't|have\s+not|didn't|did\s+not)\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b" + CompanionEnglishActor + @"\s+(?:have|has|had|haven't|hasn't|hadn't)\s+" + CompanionEnglishModifiers + @"been\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b(?:i|we)['’](?:ve|d)\s+" + CompanionEnglishModifiers + @"been\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b(?:(?:it|this|that|everything|we)\s+(?:is|are|was|were)|it's|we're)\s+" + CompanionEnglishModifiers + @"(?:complete|successful)\b|" +
+            @"(?:^|[.!?;])\s*" + CompanionEnglishModifiers + @"(?:" + CompanionEnglishCompleted + @"|(?:all\s+)?done\b)" +
+            @"(?=\s+(?:it|this|that|for\s+(?:you|us))\b|[.!?;]|$)"),
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex GameplayDirection = new Regex(
             @"(?:ไป|ลอง|จง).{0,24}(?:ค้น|สำรวจ|ตรวจ|หยิบ|ไข|ปลด)");

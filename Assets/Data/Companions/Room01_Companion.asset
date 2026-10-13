@@ -23,12 +23,17 @@ MonoBehaviour:
     height: 6
   cellSize: 0.4
   clearance: 0.2
-  moveSpeed: 4.4
+  moveSpeed: 2.6
+  moveAcceleration: 6.5
+  moveDeceleration: 8
   followDistance: 1.6
+  followStartBuffer: 0.45
+  activityLabelDistance: 2.4
+  walkAnimationPace: 0.55
   commandDistance: 4
   witnessDistance: 5
   taskTimeoutSeconds: 45
-  welcomeLine: "...จะลองไปดูด้วยกันไหม? ฉันไม่อยากยืนเฉย ๆ แล้ว"
+  welcomeLine: "...จะไปสำรวจด้วยกันไหม? จะให้ช่วยหาหลักฐานหรือหยุดรอก็บอกฉันได้"
   followLine: "...ก็ได้ ฉันเดินไปด้วย อย่าวิ่งทิ้งกันก็แล้วกัน"
   waitLine: "อืม ฉันรอตรงนี้ ถ้าต้องการให้ช่วยก็เรียกนะ"
   blockedLine: "ฉันไปไม่ถึงตรงนั้น... ขยับมาหากันแล้วลองใหม่ได้ไหม?"
@@ -56,26 +61,107 @@ MonoBehaviour:
     memory: "ผู้เล่นกับ Alice แบ่งหน้าที่จับกลไกคนละด้านจนเปิดกล่องสองมือได้ด้วยกัน"
     journalText: "เรากับ Alice เปิดกล่องสองมือด้วยการยืนประจำกลไกคนละด้านพร้อมกัน ด้านในมีแผ่นข้อความว่า 'ไม่มีใครต้องผ่านความมืดตามลำพัง' นี่เป็นความทรงจำร่วมกัน ไม่ใช่รหัสหรือเงื่อนไขผ่านห้อง"
     relationshipReward: 3
+  - id: desk_support
+    title: "ขอบโต๊ะ"
+    holdForInteractionId: inspect_desk
+    useSceneProp: 1
+    invitationLine: "...ขอบโต๊ะโยกนิดหน่อย ถ้าอยากให้จับไว้ให้ก็บอกนะ เธอจะได้ใช้สองมือสำรวจ หรือค่อย ๆ ประคองเองก็ได้"
+    trustedInvitationLine: "...เราแบ่งงานกันก็ได้นะ ฉันจับขอบโต๊ะให้ เธอสำรวจ ถ้าอยากลองก็บอกฉัน ฉันรอฟังอยู่"
+    cautiousRequestLine: "...ตกลง ฉันจะจับขอบโต๊ะไว้ ส่วนเธอสำรวจนะ อยากให้ปล่อยเมื่อไหร่ก็บอก"
+    gameplayTerms:
+    - "ขอบโต๊ะ"
+    - "desk edge"
+    requestAliases: ["โต๊ะ", "โต๊ะทำงาน", "desk", "table"]
+    instructions: "ฉันจับขอบโต๊ะด้านสีฟ้าให้ได้ ส่วนเธอไปด้านสีทองแล้วกด E สำรวจโต๊ะ อ่านสิ่งที่เจอด้วยตัวเองนะ ถ้าเปลี่ยนใจพิมพ์ 'หยุดช่วยก่อน' ได้"
+    companionPoint: {x: -5.7, y: -1.15}
+    playerPoint: {x: -4.1, y: -1.15}
+    radius: 0.65
+    holdSeconds: 3
+    conditions:
+    - type: 0
+      targetId: inspected_painting
+      amount: 0
+    - type: 1
+      targetId: found_note
+      amount: 0
+    requestLine: "...ได้ ฉันจะไปประคองขอบโต๊ะ เธอเป็นคนสำรวจนะ"
+    holdingLine: "จับไว้แล้ว เธอลองสำรวจได้เลย ฉันจะไม่ปล่อยจนกว่าเธอจะเสร็จ"
+    completedLine: "เจอแล้วสินะ... คราวนี้เราแบ่งหน้าที่กันได้ดี"
+    memory: "Alice ประคองขอบโต๊ะให้ผู้เล่นใช้สองมือสำรวจ จนผู้เล่นพบกระดาษโน้ตด้วยตัวเอง"
+    journalText: "Alice ประคองขอบโต๊ะ ส่วนเราเป็นคนสำรวจและพบกระดาษโน้ต เราแบ่งหน้าที่กันโดยไม่ได้ให้เธอบอกคำตอบแทน"
+    relationshipReward: 2
+  searchRequestLine: "...ได้ ฉันจะเดินตรวจบริเวณรอบ ๆ แล้วบอกหลักฐานที่พบ เธอสำรวจส่วนของเธอได้ ถ้าอยากให้หยุดก็บอกนะ"
+  searchFinishedLine: "สำรวจรอบนี้เสร็จแล้ว หลักฐานที่พบอยู่ในสมุด เราทบทวนด้วยกันต่อได้"
+  searchSpots:
+  - id: discovered_painting
+    point: {x: 0, y: 1.3}
+    inspectSeconds: 1.5
+    factId: painting_arrow
+    inspectingLine: "ฉันจะอ่านหลักฐานที่เธอพบตรงนี้ให้ละเอียดอีกครั้ง..."
+    conditions:
+    - type: 0
+      targetId: inspected_painting
+      amount: 0
+  - id: open_floor
+    point: {x: -1.8, y: -3.4}
+    inspectSeconds: 1.5
+    factId:
+    inspectingLine: "ฉันตรวจรอยบนพื้นตรงนี้ก่อน..."
+    conditions: []
+  - id: box_marks
+    point: {x: -0.9, y: -2.65}
+    inspectSeconds: 2
+    factId: companion_box_marks
+    inspectingLine: "ขอดูรอยบนกล่องนี้สักครู่..."
+    conditions: []
+  - id: discovered_desk_note
+    point: {x: -4.1, y: -1.15}
+    inspectSeconds: 2
+    factId: desk_note
+    inspectingLine: "ฉันจะทบทวนร่องรอยตรงที่เธอพบกระดาษ..."
+    conditions:
+    - type: 0
+      targetId: found_note
+      amount: 0
+  discussions:
+  - id: after_failure
+    requiredFacts: [painting_arrow, desk_note]
+    conditions:
+    - type: 0
+      targetId: companion.room01_alice.observed.drawer_failed
+      amount: 0
+    - type: 1
+      targetId: drawer_opened
+      amount: 0
+    line: "...ฉันเห็นว่าที่ลองไปยังไม่สำเร็จ แต่ผลครั้งเดียวไม่ได้แปลว่าหลักฐานผิด เราแยกสิ่งที่อ่านจริงออกจากสิ่งที่เดาก่อน แล้วเธอค่อยตัดสินใจลองอีกครั้งนะ"
+  - id: compare_evidence
+    requiredFacts: [painting_arrow, desk_note]
+    conditions: []
+    line: "ข้อความแรกพาเราไปพบกระดาษอีกชิ้นจริง นี่คือสิ่งที่ตรวจสอบแล้ว แต่ยังไม่ได้ยืนยันว่าสิ่งที่เราคิดจะใช้ได้ทั้งหมด... เธอคิดว่าอะไรเป็นข้อเท็จจริง และอะไรยังเป็นข้อสันนิษฐาน?"
   observations:
   - id: painting_seen
+    recallTerms: ["ภาพวาด", "กรอบภาพ", "painting"]
     interactionId: inspect_painting
     success: 1
     line: "เจออะไรแล้วเหรอ? ...ถ้าอยากคิดด้วยกันก็เอามาให้ดูได้นะ"
     memory: "Alice อยู่ใกล้และเห็นผู้เล่นสำรวจภาพวาดในห้องแรก"
     conditions: []
   - id: desk_seen
+    recallTerms: ["โต๊ะ", "กระดาษ", "desk", "note"]
     interactionId: inspect_desk
     success: 1
     line: "ดีแล้วที่เราไม่เดินผ่านมันไป... ค่อย ๆ ดูไปด้วยกัน"
     memory: "Alice อยู่ใกล้ขณะผู้เล่นสำรวจโต๊ะสำเร็จและชวนกันทบทวนสิ่งที่พบ"
     conditions: []
   - id: drawer_failed
+    recallTerms: ["ลิ้นชัก", "ไม่สำเร็จ", "drawer", "failed"]
     interactionId: open_drawer
     success: 0
     line: "ยังไม่ได้ก็ไม่เป็นไร... พักหายใจนิดหนึ่ง ฉันยังอยู่ตรงนี้"
     memory: "Alice เห็นผู้เล่นลองเปิดลิ้นชักไม่สำเร็จและให้กำลังใจโดยไม่บอกเฉลย"
     conditions: []
   - id: drawer_seen
+    recallTerms: ["ลิ้นชัก", "drawer"]
     interactionId: open_drawer
     success: 1
     line: "ทำได้แล้วนี่! ...อย่ามองฉันแบบนั้น ฉันก็ลุ้นอยู่เหมือนกัน"

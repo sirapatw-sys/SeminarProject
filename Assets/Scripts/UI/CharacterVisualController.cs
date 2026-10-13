@@ -1,4 +1,5 @@
 using UnityEngine;
+using MysteryGame.Companions;
 
 public class CharacterVisualController : MonoBehaviour
 {
@@ -36,7 +37,10 @@ public class CharacterVisualController : MonoBehaviour
     private float frameTimer;
     private int currentFrameIndex;
     private PlayerMovement playerMovement;
+    private NpcCompanionController companion;
+    private float companionWalkBlend;
     private float startledAt = -10f;
+    public int ArtworkSortingOrder { get { return visualRenderer != null ? visualRenderer.sortingOrder : sortingOrder; } }
 
     private const float StartleSeconds = 0.45f;
 
@@ -64,6 +68,7 @@ public class CharacterVisualController : MonoBehaviour
         TryAutoLoadPlayerFrames();
 
         playerMovement = GetComponent<PlayerMovement>();
+        companion = GetComponent<NpcCompanionController>();
 
         Sprite refSprite = null;
         if (HasWalkFrames && walkDownFrames != null && walkDownFrames.Length > 0 && walkDownFrames[0] != null)
@@ -199,6 +204,20 @@ public class CharacterVisualController : MonoBehaviour
             moveVector = new Vector2(lastMoveDelta.x, lastMoveDelta.y);
         }
 
+        if (companion != null && companion.Scenario != null)
+        {
+            float pace = isMoving ? Mathf.Clamp01(companion.MovementSpeed / companion.Scenario.moveSpeed) : 0f;
+            companionWalkBlend = Mathf.MoveTowards(companionWalkBlend, pace, Time.deltaTime * 5f);
+        }
+
+        bool working = companion != null && (companion.IsInspecting ||
+            (companion.Mode == CompanionMode.Helping && companion.ActiveStation != null));
+        if (working && !isMoving)
+        {
+            Vector2 attention = companion.IsInspecting ? Vector2.right : companion.ActiveStation.playerPoint - companion.Feet;
+            currentDirection = attention.x >= 0f ? Direction.Right : Direction.Left;
+            worldDelta.x = attention.x >= 0f ? 0.001f : -0.001f;
+        }
         if (HasWalkFrames)
         {
             UpdateWalkAnimation(moveVector, isMoving);
@@ -209,6 +228,12 @@ public class CharacterVisualController : MonoBehaviour
         }
 
         ApplyStartle();
+        // A small held pose comes from the real task, not generated dialogue.
+        float workWave = working ? Mathf.Sin(companion.WorkAnimationTime * 5.5f) : 0f;
+        visualTransform.localRotation = Quaternion.Euler(0f, 0f, working ? 5f + workWave * 4f : 0f);
+        if (working && !isMoving)
+            visualTransform.localScale = new Vector3(visualTransform.localScale.x * 1.025f,
+                visualTransform.localScale.y * 0.975f, visualTransform.localScale.z);
 
         // Lower characters render in front, matching a top-down room.
         visualRenderer.sortingOrder =
@@ -250,7 +275,9 @@ public class CharacterVisualController : MonoBehaviour
                 currentDirection = moveVector.y > 0f ? Direction.Up : Direction.Down;
             }
 
-            frameTimer += Time.deltaTime * animationFps;
+            float pace = companion != null && companion.Scenario != null
+                ? companion.Scenario.walkAnimationPace * Mathf.Lerp(0.3f, 1f, companionWalkBlend) : 1f;
+            frameTimer += Time.deltaTime * animationFps * pace;
             if (frameTimer >= 1f)
             {
                 frameTimer -= 1f;
@@ -285,15 +312,17 @@ public class CharacterVisualController : MonoBehaviour
 
     private void UpdateProceduralMotion(Vector3 worldDelta, bool isMoving)
     {
-        float speed = isMoving ? walkCyclesPerSecond : 1.2f;
+        bool companionGait = companion != null && companion.Scenario != null;
+        float blend = companionGait ? companionWalkBlend : (isMoving ? 1f : 0f);
+        float speed = companionGait
+            ? Mathf.Lerp(1.2f, walkCyclesPerSecond * companion.Scenario.walkAnimationPace, blend)
+            : (isMoving ? walkCyclesPerSecond : 1.2f);
         animationTime += Time.deltaTime * speed * Mathf.PI * 2f;
 
-        float bounce = isMoving
-            ? Mathf.Abs(Mathf.Sin(animationTime)) * walkBounceHeight
-            : Mathf.Sin(animationTime) * idleBounceHeight;
-        float squash = isMoving
-            ? Mathf.Abs(Mathf.Sin(animationTime)) * 0.06f
-            : 0f;
+        float wave = Mathf.Sin(animationTime);
+        float bounce = Mathf.Lerp(wave * idleBounceHeight,
+            Mathf.Abs(wave) * walkBounceHeight * (companionGait ? 0.55f : 1f), blend);
+        float squash = Mathf.Abs(wave) * (companionGait ? 0.025f : 0.06f) * blend;
 
         visualTransform.localPosition =
             baseLocalPosition + new Vector3(0f, bounce, 0f);

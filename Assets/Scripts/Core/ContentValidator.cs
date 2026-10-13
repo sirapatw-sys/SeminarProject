@@ -28,7 +28,34 @@ namespace MysteryGame.Core
                     if (!npcIds.Contains(room.companionScenario.npcId)) errors.Add(room.roomId + ": companion NPC is missing.");
                     if (room.companionScenario.stations != null)
                         foreach (var station in room.companionScenario.stations)
-                            if (station != null) Rules(station.conditions, itemIds, npcIds, errors, roomIds);
+                            if (station != null)
+                            {
+                                Rules(station.conditions, itemIds, npcIds, errors, roomIds);
+                                if (!string.IsNullOrWhiteSpace(station.holdForInteractionId) && !interactionIds.Contains(station.holdForInteractionId))
+                                    errors.Add(room.roomId + ": unknown held interaction " + station.holdForInteractionId);
+                            }
+                    if (room.companionScenario.discussions != null)
+                        foreach (var discussion in room.companionScenario.discussions)
+                        {
+                            if (discussion == null) continue;
+                            Rules(discussion.conditions, itemIds, npcIds, errors, roomIds);
+                            if (discussion.requiredFacts != null) foreach (string id in discussion.requiredFacts)
+                            {
+                                var fact = room.FindFact(id);
+                                if (fact == null || fact.isPuzzleAnswer || fact.isPuzzleGuidance)
+                                    errors.Add(room.roomId + ": discussion requires a missing or hint-only fact " + id);
+                            }
+                        }
+                    if (room.companionScenario.searchSpots != null)
+                        foreach (var spot in room.companionScenario.searchSpots)
+                        {
+                            if (spot == null) continue;
+                            Rules(spot.conditions, itemIds, npcIds, errors, roomIds);
+                            if (string.IsNullOrWhiteSpace(spot.factId)) continue;
+                            var discovered = room.FindFact(spot.factId);
+                            if (discovered == null || discovered.isPuzzleAnswer || discovered.isPuzzleGuidance)
+                                errors.Add(room.roomId + ": search spot references a missing or hint-only fact " + spot.factId);
+                        }
                     if (room.companionScenario.observations != null)
                         foreach (var observation in room.companionScenario.observations)
                         {
@@ -116,6 +143,10 @@ namespace MysteryGame.Core
             }
             foreach (var interaction in allInteractions)
             {
+                if (float.IsNaN(interaction.soloPreparationSeconds) || float.IsInfinity(interaction.soloPreparationSeconds) || interaction.soloPreparationSeconds < 0f)
+                    errors.Add(interaction.interactionId + ": invalid solo preparation time.");
+                if (!string.IsNullOrWhiteSpace(interaction.helperNpcId) && !npcIds.Contains(interaction.helperNpcId))
+                    errors.Add(interaction.interactionId + ": unknown helper NPC.");
                 Rules(interaction.conditions, itemIds, npcIds, errors, roomIds);
                 Actions(interaction.actions, itemIds, npcIds, errors);
                 if (!string.IsNullOrWhiteSpace(interaction.popupItemId) && !itemIds.Contains(interaction.popupItemId))

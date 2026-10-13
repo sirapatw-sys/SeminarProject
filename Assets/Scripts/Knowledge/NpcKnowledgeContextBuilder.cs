@@ -22,6 +22,12 @@ namespace MysteryGame.Knowledge
                 state.GetCurrentScene() == roomId && scenario.stations != null;
             var subjects = new List<string>();
             if (companion) subjects.AddRange(MysteryGame.Companions.CompanionDialogueCommands.RequestTopicsFor(message));
+            if (companion)
+            {
+                MysteryGame.Companions.CompanionStationData requested;
+                if (MysteryGame.Companions.CompanionDialogueCommands.Parse(message, scenario, out requested) == MysteryGame.Companions.CompanionCommand.Help &&
+                    requested != null && requested.requestAliases != null) subjects.AddRange(requested.requestAliases);
+            }
             if (companion) foreach (var station in scenario.stations)
             {
                 if (station == null) continue;
@@ -30,6 +36,11 @@ namespace MysteryGame.Knowledge
             }
             var context = Build(npcId, roomId, state,
                 PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
+            if (companion)
+            {
+                context.RecentMemories.Clear();
+                context.RecentMemories.AddRange(NpcMemoryRecall.Select(state.GetNpcMemory(npcId), message, scenario, MemoryLimit));
+            }
             if (!companion || context.PlayerAskedForHint) return context;
             foreach (var station in scenario.stations)
             {
@@ -118,6 +129,7 @@ namespace MysteryGame.Knowledge
             var actor = MysteryGame.Companions.NpcCompanionController.Find(context.NpcId, context.Room.roomId);
             if (actor == null || state != GameState.Instance || actor.Scenario != scenario) return;
             string status = actor.Mode == MysteryGame.Companions.CompanionMode.Following ? "กำลังเดินตามผู้เล่น" :
+                actor.Mode == MysteryGame.Companions.CompanionMode.Searching ? "กำลังสำรวจตามคำขอผู้เล่น ยังไม่ยืนยันว่าพบหลักฐานใหม่" :
                 actor.Mode == MysteryGame.Companions.CompanionMode.GoingToHelp ? "กำลังเดินไปช่วยกิจกรรมที่ผู้เล่นขอ ยังไม่สำเร็จ" :
                 actor.Mode == MysteryGame.Companions.CompanionMode.Helping ? "กำลังช่วยจับกลไก รอผู้เล่นทำอีกด้าน ยังไม่สำเร็จ" : "กำลังรออยู่";
             context.CompanionFacts.Add(new RoomFact {

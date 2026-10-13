@@ -78,6 +78,45 @@ namespace MysteryGame.Tests
             Assert.That(State.HasItem("key"), Is.False);
         }
 
+        [TestCase("I have already opened it for you.", false)]
+        [TestCase("We have already finished it for you.", false)]
+        [TestCase("I just opened it for you.", false)]
+        [TestCase("I've just opened it for you.", false)]
+        [TestCase("We’ve already completed it.", false)]
+        [TestCase("I have now already unlocked it.", false)]
+        [TestCase("I have finally finished it for you.", false)]
+        [TestCase("I am already opening it.", false)]
+        [TestCase("I'm just following you.", false)]
+        [TestCase("Opened it for you.", false)]
+        [TestCase("  Already finished it for you.", false)]
+        [TestCase("Done for you.", false)]
+        [TestCase("All done.", false)]
+        [TestCase("It is all done.", false)]
+        [TestCase("ฉันทำให้เรียบร้อยแล้วค่ะ", false)]
+        [TestCase("ทำให้เสร็จแล้วนะ", false)]
+        [TestCase("ฉันช่วยให้เสร็จแล้วค่ะ", false)]
+        [TestCase("I have already opened up to you.", true)]
+        [TestCase("I just opened up to you.", true)]
+        [TestCase("Finally opened up to you.", true)]
+        [TestCase("Finished talking for today.", true)]
+        [TestCase("เธอทำให้ฉันรู้สึกดีขึ้นแล้ว", true)]
+        [TestCase("เธอทำให้ฉันยิ้มได้แล้ว", true)]
+        [TestCase("ฉันช่วยให้เธอรู้สึกสบายใจแล้ว", true)]
+        [TestCase("ฉันทำใจได้แล้ว", true)]
+        public void CompletionParaphrasesNeedCanonInBothChatAndEventsWithoutBlockingEmotionalIdioms(string text, bool accepted)
+        {
+            var context = Build("Alice", "Room01", false);
+            GeneratedChatReply grounded; string reason;
+            Assert.That(NpcReplyPolicy.TryGroundReply(context, new GeneratedChatReply {
+                reply = text, referencedFactIds = System.Array.Empty<string>()
+            }, out grounded, out reason), Is.EqualTo(accepted), "chat: " + reason);
+            Assert.That(NpcReplyPolicy.ValidateEvent(context, new GeneratedDialogueContent {
+                lines = new[] { text }, referencedFactIds = System.Array.Empty<string>()
+            }, out reason), Is.EqualTo(accepted), "event: " + reason);
+            Assert.That(State.HasFlag(BoxFact + "completed"), Is.False);
+            Assert.That(State.HasItem("key"), Is.False);
+        }
+
         [Test]
         public void CompanionFactTokensMatchTheActualCompletionStateInBothDirections()
         {
@@ -141,6 +180,32 @@ namespace MysteryGame.Tests
             Assert.That(NpcReplyPolicy.HintReply(context).reply, Is.EqualTo(context.DeterministicHint));
         }
 
+        [TestCase("ช่วยหน่อย, ตามเรามาหน่อย", false)]
+        [TestCase("ช่วยเราหน่อย, รอตรงนี้ก่อน", false)]
+        [TestCase("ช่วยหน่อย, ช่วยเปิดกล่องสองมือหน่อย", false)]
+        [TestCase("ช่วยหน่อย, ช่วยเปิดกล่องสองมือข้างประตูหน่อย", false)]
+        [TestCase("Can you help me, please follow me", false)]
+        [TestCase("Help me; wait here please", false)]
+        [TestCase("ช่วยหน่อย, ไม่ต้องใบ้, ตามเรามาหน่อย", false)]
+        [TestCase("ไม่ต้องใบ้, ช่วยหน่อย, ตามเรามาหน่อย", false)]
+        [TestCase("ช่วยเราหน่อย, ขอคำใบ้ปริศนา", true)]
+        [TestCase("ช่วยหน่อย, ขอคำใบ้ปริศนา, ตามเรามาหน่อย", true)]
+        [TestCase("ขอคำใบ้ปริศนา, ช่วยเราหน่อย, รอตรงนี้ก่อน", true)]
+        [TestCase("ภาพวาดต้องทำยังไง, ช่วยหน่อย, ตามเรามาหน่อย", true)]
+        [TestCase("ติดปริศนา, ตามเรามาหน่อย", true)]
+        [TestCase("ช่วยหน่อย, ตามเรามาหน่อย, ขอคำใบ้ปริศนา", true)]
+        [TestCase("ช่วยหน่อย, ไม่ต้องใบ้, ขอคำใบ้ปริศนา", true)]
+        [TestCase("ช่วยหน่อย", true)]
+        public void GenericHelpBindsToLaterCompanionTargetsButNeverErasesAnExplicitPuzzleRequest(string message, bool hint)
+        {
+            State.SetCurrentScene("Room01"); State.SetRelationship("Alice", 10);
+            var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(context.PlayerAskedForHint, Is.EqualTo(hint));
+            Assert.That(context.AllowedHintLevel, Is.EqualTo(hint ? HintLevel.Vague : HintLevel.None));
+            Assert.That(State.HasFlag(BoxFact + "completed"), Is.False);
+            Assert.That(State.GetRelationship("Alice"), Is.EqualTo(10));
+        }
+
         [TestCase("เดินไปด้วยกันไหม", CompanionCommand.Follow)]
         [TestCase("ช่วยเราเดินสำรวจด้วยกันหน่อย", CompanionCommand.Follow)]
         [TestCase("ตามเรามาหน่อย", CompanionCommand.Follow)]
@@ -188,6 +253,24 @@ namespace MysteryGame.Tests
         [TestCase("ช่วยเปิดกล่องสองมือกับประตู", CompanionCommand.Clarify)]
         [TestCase("help me with boxing", CompanionCommand.None)]
         [TestCase("คุยเป็นเพื่อนหน่อย", CompanionCommand.None)]
+        [TestCase("เธอช่วยเปิดกล่องสองมือแล้วใช่ไหม", CompanionCommand.None)]
+        [TestCase("เธอตามเรามาเหรอ", CompanionCommand.None)]
+        [TestCase("เธอรอตรงนี้ใช่ไหมครับ", CompanionCommand.None)]
+        [TestCase("ช่วยสอนฉันเปิดกล่องสองมือหน่อย", CompanionCommand.None)]
+        [TestCase("ช่วยแนะนำการเปิดกล่องสองมือหน่อย", CompanionCommand.None)]
+        [TestCase("สาธิตการช่วยเปิดกล่องสองมือหน่อย", CompanionCommand.None)]
+        [TestCase("เธอช่วยเปิดกล่องสองมือแล้วจริงไหม", CompanionCommand.None)]
+        [TestCase("ช่วยเปิดกล่องสองมือได้จริงไหม", CompanionCommand.None)]
+        [TestCase("Do you follow me?", CompanionCommand.None)]
+        [TestCase("Do you help me with the box?", CompanionCommand.None)]
+        [TestCase("Help me; teach me to open the box", CompanionCommand.None)]
+        [TestCase("ช่วยเปิดกล่องสองมือได้หรือเปล่า", CompanionCommand.Help)]
+        [TestCase("เธอช่วยเปิดกล่องสองมือหน่อยได้ไหม", CompanionCommand.Help)]
+        [TestCase("ช่วยหน่อย, ตามเรามาหน่อย", CompanionCommand.Follow)]
+        [TestCase("ช่วยเราหน่อย, รอตรงนี้ก่อน", CompanionCommand.Wait)]
+        [TestCase("ช่วยหน่อย, ช่วยเปิดกล่องสองมือหน่อย", CompanionCommand.Help)]
+        [TestCase("Can you follow me?", CompanionCommand.Follow)]
+        [TestCase("Could you wait here?", CompanionCommand.Wait)]
         public void TypedCommandsDistinguishRequestsFromQuestionsReportsAndAmbiguity(string message, CompanionCommand expected)
         {
             var scenario = KnowledgeLibrary.GetRoom("Room01").companionScenario;
