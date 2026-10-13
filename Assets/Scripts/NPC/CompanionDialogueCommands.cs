@@ -43,7 +43,7 @@ namespace MysteryGame.Companions
             @"right|correct|is\s+that\s+right|(?:do|are|have|don't|aren't|haven't)\s+you|(?:isn't|is\s+not)\s+it)" +
             @"(?:\s*(?:นะ|ล่ะ|ละ|ครับ|ค่ะ|คะ|please)){0,3}\s*$");
         private const string CourtesyParticles = @"(?:\s*(?:นะ|หน่อย|ล่ะ|ละ|ก่อน|ครับ|ค่ะ|คะ|please)){0,4}";
-        private const string SentenceEnd = @"[\s.!?…]*$";
+        private const string SentenceEnd = @"[\s.!?,;:…]*$";
         private static readonly Regex Withdrawal = R(
             @"^\s*(?:ไม่(?:ต้อง|เอา)(?:แล้ว|ก่อน)|ยกเลิก(?:คำขอ|คำสั่ง)?(?:นี้|นั้น|ก่อน)?|" +
             @"never\s*mind|scratch\s+that|cancel\s+(?:that|(?:my|the)\s+request))" +

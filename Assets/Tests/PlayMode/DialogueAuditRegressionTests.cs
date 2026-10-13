@@ -223,6 +223,54 @@ public class DialogueAuditRegressionTests
         Assert.That(scroll.verticalScrollbar.gameObject.activeSelf, Is.False);
         DialogueManager.Instance.HideDialogue(); Assert.That(DialogueManager.IsDialogueOpen, Is.False);
     }
+    [UnityTest]
+    public IEnumerator ClauseEndingPunctuationCancelsEveryActiveTask()
+    {
+        foreach (var mode in new[] { CompanionMode.Following, CompanionMode.Searching, CompanionMode.Helping })
+        foreach (var stop in new[] { "ไม่ต้องแล้ว,", "ยกเลิก;", "อลิซ ไม่เอาแล้วค่ะ:" })
+        {
+            RoomTransitionManager.CloseRoomOverlays(); State.ResetState(); Position();
+            if (mode == CompanionMode.Following) Assert.That(actor.RequestFollow(), Is.True);
+            else if (mode == CompanionMode.Searching) { Chat(); Send("ช่วยหาหลักฐานหน่อย"); DialogueManager.Instance.HideDialogue(); }
+            else { Assert.That(actor.RequestHelp(actor.Scenario.stations[0]), Is.True); actor.Tick(0.05f); }
+            Assert.That(actor.Mode, Is.EqualTo(mode)); Chat(); Send(stop); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), stop);
+            Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.ActiveSearchSpot, Is.Null);
+        }
+        Assert.That(provider.Calls, Is.Zero);
+    }
+
+    [UnityTest]
+    public IEnumerator RepeatedSynchronousRepliesResetScrollEvenWhenTheTextIsIdentical()
+    {
+        Position(); State.SetRelationship("Alice", 100); Chat();
+        provider.Text = string.Concat(Enumerable.Repeat("ฉันรู้สึกสบายใจที่ได้คุยกับเธอ เราค่อยคุยกันไปก็ได้ ", 20));
+        const string message = "วันนี้รู้สึกยังไงบ้าง";
+        Send(message); yield return null; yield return null;
+        var scroll = Text.GetComponentInParent<ScrollRect>(); Assert.That(scroll, Is.Not.Null);
+        string previous = Text.text;
+        scroll.verticalNormalizedPosition = 0f; Canvas.ForceUpdateCanvases();
+        AssertBottomReachable(scroll);
+        Send(message); yield return null; yield return null;
+        Assert.That(Text.text, Is.EqualTo(previous), "The provider delivers the identical transcript synchronously.");
+        Assert.That(scroll.verticalNormalizedPosition, Is.EqualTo(1f).Within(0.01f));
+        Assert.That(provider.Calls, Is.EqualTo(2));
+        Assert.That(Text.isTextTruncated, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator HiddenDialogueKeepsOneInitializedScrollOwner()
+    {
+        DialogueManager.Instance.HideDialogue();
+        var owner = Text.GetComponentInParent<DialogueTextScroll>(true);
+        Assert.That(owner, Is.Not.Null);
+        Assert.That(typeof(DialogueManager).GetField("dialogueScroll", Private).GetValue(DialogueManager.Instance), Is.SameAs(owner));
+        DialogueTextScroll.Install(Text);
+        Assert.That(Text.GetComponentsInParent<DialogueTextScroll>(true).Length, Is.EqualTo(1), "Installing while hidden must not nest a second scroll area.");
+        Position(); Chat(); yield return null;
+        Assert.That(Text.GetComponentInParent<DialogueTextScroll>(), Is.SameAs(owner));
+    }
+
     static void AssertBottomReachable(ScrollRect scroll)
     {
         var content = new Vector3[4]; var viewport = new Vector3[4];

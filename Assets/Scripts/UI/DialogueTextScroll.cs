@@ -13,7 +13,7 @@ public sealed class DialogueTextScroll : MonoBehaviour
 
     public static void Install(TMP_Text target)
     {
-        if (target == null || target.GetComponentInParent<DialogueTextScroll>() != null) return;
+        if (target == null || target.GetComponentInParent<DialogueTextScroll>(true) != null) return;
         RectTransform original = target.rectTransform;
         var host = new GameObject("DialogueTextScroll", typeof(RectTransform), typeof(ScrollRect));
         host.layer = target.gameObject.layer;
@@ -67,6 +67,16 @@ public sealed class DialogueTextScroll : MonoBehaviour
 
     private void OnEnable() { previousText = null; }
     private void LateUpdate() { RefreshLayout(); }
+
+    public void ResetToTop()
+    {
+        // A synchronous local reply may replace the thinking text in the same
+        // frame with an identical transcript. Text equality is not a new-page signal.
+        previousText = null;
+        if (scroll == null) return;
+        scroll.StopMovement();
+        scroll.verticalNormalizedPosition = 1f;
+    }
 
     public void RefreshLayout()
     {

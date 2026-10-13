@@ -63,6 +63,7 @@ public class DialogueManager : MonoBehaviour
     private float chatRequestDeadline;
     private string pendingPlayerMessage;
     private EvidencePickerUI evidencePicker;
+    private DialogueTextScroll dialogueScroll;
     private string choiceCompletionFlag;
 
     // The emotion box: a small face card that pops up beside the text when a
@@ -129,7 +130,7 @@ public class DialogueManager : MonoBehaviour
         dialogueLines = new[] { result.Reply };
         currentLine = 0;
         activeDialogueContext = result.Reply;
-        dialogueText.text = EscapeRichText(result.Reply) + InsightFor(0, closenessBefore);
+        SetDialogueText(EscapeRichText(result.Reply) + InsightFor(0, closenessBefore));
         AnimateSpeakerForText(result.Reply);
         continueButton.gameObject.SetActive(activeChoices != null && activeChoices.Count > 0);
         SfxPlayer.Play(SfxPlayer.Cue.Talk);
@@ -470,6 +471,7 @@ public class DialogueManager : MonoBehaviour
         dialogueText.lineSpacing = 5f;
         dialogueText.color = new Color(1f, 1f, 1f, 1f);
         DialogueTextScroll.Install(dialogueText);
+        dialogueScroll = dialogueText.GetComponentInParent<DialogueTextScroll>(true);
 
         RectTransform continueRect =
             continueButton.GetComponent<RectTransform>();
@@ -1106,6 +1108,12 @@ public class DialogueManager : MonoBehaviour
     // Show Current Line
     // =========================================================
 
+    private void SetDialogueText(string value)
+    {
+        dialogueText.text = value;
+        if (dialogueScroll != null) dialogueScroll.ResetToTop();
+    }
+
     private void ShowCurrentLine()
     {
         if (dialogueLines == null || dialogueLines.Length == 0)
@@ -1120,7 +1128,7 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
-        dialogueText.text = ApplyLineTag(dialogueLines[currentLine]);
+        SetDialogueText(ApplyLineTag(dialogueLines[currentLine]));
         AnimateSpeakerForText(dialogueText.text);
         SfxPlayer.Play(SfxPlayer.Cue.Talk);
     }
@@ -1258,7 +1266,7 @@ public class DialogueManager : MonoBehaviour
             activeChoices[choiceIndex];
         activeChoices = null;
 
-        dialogueText.text = ApplyLineTag(selectedChoice.responseText);
+        SetDialogueText(ApplyLineTag(selectedChoice.responseText));
         AnimateSpeakerForText(dialogueText.text);
         SfxPlayer.Play(SfxPlayer.Cue.Talk);
 
@@ -1339,12 +1347,12 @@ public class DialogueManager : MonoBehaviour
         playerTalkingUntil = Time.unscaledTime +
                              Mathf.Clamp(playerMessage.Length * 0.025f, 0.5f, 2f);
 
-        dialogueText.text =
+        SetDialogueText(
             "<color=#69D0D8><b>คุณ:</b></color> " +
             EscapeRichText(playerMessage) +
             "\n\n<color=#E8B950><b>" +
             EscapeRichText(activeSpeakerName) +
-            ":</b></color> กำลังคิด...";
+            ":</b></color> กำลังคิด...");
 
         // Only an actual player send can start a bounded companion action.
         // Model output, prompt building and repeated callbacks cannot execute it.
@@ -1490,13 +1498,13 @@ public class DialogueManager : MonoBehaviour
                 ResponseInsights.KindPercent(judgedDelta),
                 state.GetRelationship(activeNpcId))
             : string.Empty;
-        dialogueText.text =
+        SetDialogueText(
             "<color=#69D0D8><b>คุณ:</b></color> " +
             EscapeRichText(playerMessage) +
             "\n\n<color=#E8B950><b>" +
             EscapeRichText(activeSpeakerName) +
             ":</b></color> " + EscapeRichText(reply.reply) +
-            insight + serviceNotice;
+            insight + serviceNotice);
         AnimateSpeakerForText(reply.reply);
         if (string.IsNullOrWhiteSpace(reply.emotion))
         {
