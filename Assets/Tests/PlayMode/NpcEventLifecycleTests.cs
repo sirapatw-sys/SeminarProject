@@ -248,4 +248,76 @@ public class NpcEventLifecycleTests
         Assert.That(provider.Calls, Is.EqualTo(1));
         Assert.That((bool)Field("generationInProgress"), Is.True);
     }
+
+    [UnityTest]
+    public IEnumerator ResetClearsPendingEventAndOldTimelineCooldowns()
+    {
+        provider.Mode = Behaviour.Immediate; Queue(ambient); AssertPending(ambient);
+        SetField("nextAmbientTime", Time.time + 100f);
+        ((Dictionary<string, float>)Field("cooldownUntil"))[ambient.eventId] = Time.time + 100f;
+        GameState.Instance.ResetState();
+        Assert.That(controller.HasPendingEvent, Is.False);
+        Assert.That(((Dictionary<string, float>)Field("cooldownUntil")).Count, Is.Zero);
+        Assert.That((float)Field("nextAmbientTime"), Is.LessThanOrEqualTo(Time.time));
+        Assert.That(GameState.Instance.HasFlag(ambient.CompletedFlag), Is.False);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ResetCancelsGenerationAndRejectsItsLateCallback()
+    {
+        provider.Mode = Behaviour.Hang; Queue(ambient); var old = provider.Callback;
+        GameState.Instance.ResetState();
+        Assert.That(provider.Disposals, Is.EqualTo(1));
+        Assert.That((bool)Field("generationInProgress"), Is.False);
+        old(Content("บทจากเกมก่อน")); Assert.That(controller.HasPendingEvent, Is.False);
+        provider.Mode = Behaviour.Immediate; Queue(ambient); AssertPending(ambient, "บทจาก AI");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator RestoringSnapshotRejectsThePreviousTimelineRequestAndPendingEvent()
+    {
+        string error;
+        provider.Mode = Behaviour.Hang; Queue(ambient); var old = provider.Callback;
+        var snapshot = GameState.Instance.CreateSnapshot();
+        Assert.That(GameState.Instance.TryRestoreSnapshot(snapshot, out error), Is.True, error);
+        old(Content("บทก่อนโหลดเซฟ")); Assert.That(controller.HasPendingEvent, Is.False);
+        Assert.That(provider.Disposals, Is.EqualTo(1));
+        provider.Mode = Behaviour.Immediate; Queue(ambient); AssertPending(ambient);
+        Assert.That(GameState.Instance.TryRestoreSnapshot(snapshot, out error), Is.True, error);
+        Assert.That(controller.HasPendingEvent, Is.False);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ModalCannotConsumePendingEventOrApplyItsCompletionFlag()
+    {
+        provider.Mode = Behaviour.Immediate; ambient.repeatable = false; Queue(ambient);
+        try
+        {
+            KeypadLockUI.Show("1234");
+            Assert.That(controller.TryStartPendingEvent(), Is.False);
+            AssertPending(ambient); Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+            KeypadLockUI.Close();
+            typeof(AiSettingsPanel).GetProperty("IsOpen").SetValue(null, true);
+            Assert.That(controller.TryStartPendingEvent(), Is.False); AssertPending(ambient);
+            typeof(AiSettingsPanel).GetProperty("IsOpen").SetValue(null, false);
+            typeof(JournalUI).GetProperty("IsOpen").SetValue(null, true);
+            Assert.That(controller.TryStartPendingEvent(), Is.False); AssertPending(ambient);
+            typeof(JournalUI).GetProperty("IsOpen").SetValue(null, false);
+            ItemPopupUI.ShowItem("test_event_note", "note", "description");
+            Assert.That(controller.TryStartPendingEvent(), Is.False); AssertPending(ambient);
+            ItemPopupUI.CancelAll();
+            Assert.That(controller.TryStartPendingEvent(), Is.True);
+            Assert.That(GameState.Instance.HasFlag(ambient.CompletedFlag), Is.True);
+            DialogueManager.Instance.HideDialogue(); controller.enabled = false;
+            Assert.That(controller.TryStartPendingEvent(), Is.False);
+            Queue(ambient);
+            Assert.That(Field("observedState"), Is.Null, "A disabled controller must not resubscribe or queue work through public calls.");
+            Assert.That(controller.HasPendingEvent, Is.False);
+        }
+        finally { RoomTransitionManager.CloseRoomOverlays(); }
+        yield return null;
+    }
 }

@@ -275,7 +275,7 @@ namespace MysteryGame.Companions
         private static bool CancelsActiveRequest(string text, NpcCompanionController actor)
         {
             if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text) || InformationClause.IsMatch(text) ||
-                ActionConfirmation.IsMatch(text) || Clauses.Split(text.TrimEnd('.', '!', '?', ' ')).Length != 1 ||
+                ActionConfirmation.IsMatch(text) || Clauses.Split(text.TrimEnd('.', '!', '?', '…', ',', ';', ':', ' ', '\t', '\r', '\n')).Length != 1 ||
                 !Decline.IsMatch(Comfort.Replace(Wait.Replace(text, " "), " "))) return false;
             CompanionStationData target;
             var command = ReadAction(Decline.Replace(text, " "), actor.Scenario, out target);

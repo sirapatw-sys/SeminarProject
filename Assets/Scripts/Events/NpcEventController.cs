@@ -39,6 +39,44 @@ public class NpcEventController : MonoBehaviour
     private float nextAmbientTime;
     private string lastAmbientEventId;
     private static float nextSharedAmbientTime;
+    private GameState observedState;
+
+    private void OnEnable() { BindState(); }
+    private void Start() { BindState(); } // GameState.Awake may run after this controller's OnEnable.
+
+    private void BindState()
+    {
+        if (observedState == GameState.Instance) return;
+        bool replacingState = !ReferenceEquals(observedState, null);
+        UnbindState();
+        observedState = GameState.Instance;
+        if (replacingState) ResetTimeline();
+        if (observedState == null) return;
+        observedState.StateReset += ResetTimeline;
+        observedState.StateRestored += ResetTimeline;
+    }
+
+    private void UnbindState()
+    {
+        if (observedState != null)
+        {
+            observedState.StateReset -= ResetTimeline;
+            observedState.StateRestored -= ResetTimeline;
+        }
+        observedState = null;
+    }
+
+    private void ResetTimeline()
+    {
+        // Pending speech, callbacks and pacing belong to the previous timeline,
+        // even when the restored state happens to satisfy the same conditions.
+        CancelGeneration();
+        ClearPendingEvent();
+        cooldownUntil.Clear();
+        nextCheckTime = nextStoryCheckTime = nextAmbientTime = 0f;
+        nextSharedAmbientTime = 0f;
+        lastAmbientEventId = null;
+    }
 
     private void Awake()
     {
@@ -69,6 +107,7 @@ public class NpcEventController : MonoBehaviour
 
     private void Update()
     {
+        BindState();
         // Independent of the provider's HTTP timeout, and of the game's time scale.
         if (generationInProgress && Time.realtimeSinceStartup >= generationDeadline)
         {
@@ -190,8 +229,10 @@ public class NpcEventController : MonoBehaviour
 
     public bool TryStartPendingEvent()
     {
-        if (pendingEvent == null || DialogueManager.Instance == null || DialogueManager.IsDialogueOpen ||
-            !InputGate.IsGameplayActive)
+        if (!isActiveAndEnabled) return false;
+        BindState();
+        if (pendingEvent == null || DialogueManager.Instance == null ||
+            InputGate.IsBlocked || ItemPopupUI.IsBusy)
         {
             return false;
         }
@@ -343,7 +384,8 @@ public class NpcEventController : MonoBehaviour
 
     private void QueueEvent(MiniEventData candidate)
     {
-        if (!InputGate.IsGameplayActive) return;
+        if (!isActiveAndEnabled || !InputGate.IsGameplayActive) return;
+        BindState();
         CancelGeneration();
         ClearPendingEvent();
         if (candidate == null || candidate.dialogue == null) return;
@@ -376,6 +418,7 @@ public class NpcEventController : MonoBehaviour
     private bool IsCurrentGeneration(MiniEventData candidate, int version)
     {
         return this != null && isActiveAndEnabled && generationInProgress &&
+            observedState != null && observedState == GameState.Instance &&
             version == generationVersion && candidate == generatingEvent;
     }
 
@@ -413,9 +456,10 @@ public class NpcEventController : MonoBehaviour
     {
         CancelGeneration();
         ClearPendingEvent();
+        UnbindState();
     }
 
-    private void OnDestroy() { CancelGeneration(); }
+    private void OnDestroy() { CancelGeneration(); UnbindState(); }
 
     // The offline topic each event used last, so the same one never plays twice in a row.
     private static readonly Dictionary<string, int> lastOfflineTopic = new Dictionary<string, int>();

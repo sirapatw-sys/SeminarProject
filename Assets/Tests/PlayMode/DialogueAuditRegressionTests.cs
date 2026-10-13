@@ -259,6 +259,37 @@ public class DialogueAuditRegressionTests
     }
 
     [UnityTest]
+    public IEnumerator TargetedRefusalWithPunctuationCancelsOnlyTheActiveRequest()
+    {
+        foreach (string end in new[] { ".", "!", "?", "…", ",", ";", ":" })
+        foreach (var mode in new[] { CompanionMode.Following, CompanionMode.Searching, CompanionMode.Helping })
+        {
+            RoomTransitionManager.CloseRoomOverlays(); State.ResetState(); Position();
+            string refusal;
+            if (mode == CompanionMode.Following) { Assert.That(actor.RequestFollow(), Is.True); refusal = "ไม่ต้องตามเรามาแล้ว"; }
+            else if (mode == CompanionMode.Searching)
+            { Chat(); Send("ช่วยหาหลักฐานหน่อย"); DialogueManager.Instance.HideDialogue(); refusal = "ไม่ต้องช่วยหาหลักฐานแล้ว"; }
+            else { Assert.That(actor.RequestHelp(actor.Scenario.stations[0]), Is.True); actor.Tick(0.05f); refusal = "ไม่ต้องช่วยเปิดกล่องสองมือแล้ว"; }
+            Chat(); Send(refusal + end); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), refusal + end);
+            Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.ActiveSearchSpot, Is.Null);
+        }
+        Assert.That(provider.Calls, Is.Zero);
+    }
+
+    [UnityTest]
+    public IEnumerator ReportedQuestionedOrDifferentTaskRefusalCannotCancelActiveHelp()
+    {
+        Position(); Assert.That(actor.RequestHelp(actor.Scenario.stations[0]), Is.True); actor.Tick(0.05f); Chat();
+        foreach (string message in new[] { "เขาบอกว่าไม่ต้องช่วยเปิดกล่องสองมือแล้ว,", "ไม่ต้องช่วยเปิดกล่องสองมือแล้ว, ใช่ไหม",
+            "ไม่ต้องช่วยหาหลักฐานแล้ว;", "ไม่ต้องช่วยเปิดกล่องสองมือแล้ว, ตามเรามาหน่อย" })
+        {
+            Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(message.EndsWith("ตามเรามาหน่อย") ? CompanionMode.Following : CompanionMode.Helping), message);
+        }
+    }
+
+    [UnityTest]
     public IEnumerator HiddenDialogueKeepsOneInitializedScrollOwner()
     {
         DialogueManager.Instance.HideDialogue();

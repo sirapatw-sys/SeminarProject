@@ -1,6 +1,32 @@
-# ส่งต่อ PR: Room01 Companion — 13 ตุลาคม 2026
+# ส่งต่อ PR: Room01 Companion — 14 ตุลาคม 2026
 
-## ล่าสุด: ตรวจซ้ำหลัง `97a931c`
+## ล่าสุด: ตรวจวงจรเหตุการณ์และถอนคำขอหลัง `578eff4`
+
+- แก้คำถอนที่ระบุงาน เช่น `ไม่ต้องช่วยหาหลักฐานแล้ว,` หรือ `ไม่ต้องช่วยเปิดกล่องสองมือแล้ว;` ให้หยุดเฉพาะงานนั้น รับเครื่องหมาย `. ! ? … , ; :` แต่ข้อความอ้างคำพูด คำถามยืนยัน และการปฏิเสธงานอื่นไม่หยุดงานปัจจุบัน หากมีคำขอใหม่ต่อท้ายจะประมวลผลคำขอใหม่ตามเดิม
+- NpcEventController ฟัง StateReset/StateRestored ยกเลิก request ทิ้งบทคุยรอเปิดและ cooldown จาก timeline เก่า แม้เกมใหม่/เซฟใหม่ยังเข้าเงื่อนไขเดิม callback เก่าก็กลับมาเปิดเหตุการณ์ไม่ได้ ตรวจการเปลี่ยน GameState และถอด subscription เมื่อปิด controller
+- TryStartPendingEvent ไม่เปิดทับ settings, journal, keypad หรือ item popup และไม่ใช้ completion flag จนกว่าจะเปิดบทคุยได้จริง controller ที่ปิดอยู่ไม่รับ request หรือกลับมาสมัครรับ state events ผ่านการเรียกโดยตรง
+- ปรับ FrameworkPlayModeTests ให้ปิด overlays ทั้งหมดใน setup/teardown แทนการซ่อนแค่ dialogue ป้องกันหน้าต่างไอเท็มจากเคสก่อนหน้าปนเคสถัดไป โดยไม่ลดกฎป้องกันหน้าต่างซ้อนของเกม
+
+ผลยืนยัน Unity 2021.3.16f1 จากโค้ดสุดท้าย: EditMode **1,087/1,087**, PlayMode **196/196**, รวม **1,283 ชื่อเคสไม่ซ้ำ** failed/skipped/inconclusive = 0; main/sample content validation ผ่าน เพิ่ม PlayMode 6 เคส รวม targeted refusal 21 สถานการณ์ พร้อมกรณีไม่ควรสั่งงาน reset/restore/late callback และ modals
+
+ก่อนแก้ `Audit14_BeforeFix.xml` ผ่าน 21/26 พบ 5 failures ที่ยืนยันบั๊ก รอบเต็มแรก `Audit14_PlayMode_Final.xml` ผ่าน 190/196 เพราะ fixture เดิมเหลือ item popup จากเคสก่อนหน้า จึงแก้การแยกสถานะใน fixture แล้วรันเต็มใหม่เป็น `Audit14_PlayMode_Verified.xml` 196/196 ไม่ใช้รอบที่ยังมี failure เป็นหลักฐานว่าผ่าน
+
+[Manifest รุ่น 14 ตุลาคม](verification/ROOM01_PR4_AUDIT_20261014.json) เก็บ hash source/test 13 ไฟล์, XML รอบยืนยัน และ runtime DLL; ผลต้นฉบับอยู่ใน `Logs/Pr4AuditFix_20261013/` ที่ ignore ไม่ติด clone
+
+Windows build ใหม่ **Succeeded, errors=0, warnings=2** ที่ `Logs/Pr4AuditFix_20261013/Audit14_Windows/MysteryGame.exe` ต้องย้ายทั้งโฟลเดอร์ Audit14_Windows เมื่อนำไปเล่นอีกเครื่อง main content validation ผ่านก่อน build คำเตือนเดิมคือ Dashboard project link และ Burst test-runner staging
+
+Runtime DLL SHA256: `6D1683C202FE8E49B459260582958DDF10E428C2850BBAE6AA335435D5CB4205`
+
+หลักฐานเป็น local Editor tests ใช้ provider จำลอง + Windows build ไม่ใช้ API จริง/โควตา ไม่ใช่ CI/tests บน player และยังไม่มี manual visual/audio QA ใหม่ ภาพกล่อง/แขนยัง placeholder; atomic save/backup ยังไม่ได้เพิ่ม คืนฟอนต์และ runInBackground และนำ helper build ออกจาก Assets แล้ว
+
+### ตรวจรับเพิ่มรอบนี้
+
+1. ระหว่างเดินตาม/ค้นหา/ช่วยจับ พิมพ์ถอนเฉพาะงานนั้นพร้อม `, ; : …` ต้องหยุดจริง แต่คำอ้าง/คำถามยืนยัน/ปฏิเสธคนละงานต้องไม่หยุดเอง
+2. ระหว่างรอบทคุย AI จำลองหรือมี “!” รออยู่ เริ่มเกมใหม่/คืน snapshot เดิม ทิ้งบทเก่าและไม่รับ callback เก่า โดยไม่ให้คะแนนหรือ completion flag
+3. ขณะเปิด settings/journal/keypad/item popup การเริ่ม pending event โดยตรงต้องปฏิเสธและเก็บไว้ เปิดได้หลังปิด modal เท่านั้น
+4. เล่น Room01–03 ด้วยคน ตรวจภาพ/เสียง/ไมค์จริงหลายความละเอียด และ provider จริงแยกเมื่อทีมอนุญาตโควตา
+
+## ประวัติ: ตรวจซ้ำหลัง `97a931c` (`578eff4`)
 
 - รับคำยกเลิกที่ลงท้ายด้วย `, ; :` เพิ่มจาก `. ! ? …` เช่น `ไม่ต้องแล้ว,`, `ยกเลิก;`, `อลิซ ไม่เอาแล้วค่ะ:` ผ่านช่องพิมพ์จริง หยุด Following/Searching/Helping โดยไม่เรียก provider และไม่เหลือ station/search ค้าง
 - บทตอบใหม่กลับด้านบนแม้ผู้เล่นส่งข้อความเดิมและได้คำตอบเหมือนเดิมทันทีในเฟรมเดียว ใช้สัญญาณแสดงข้อความใหม่จาก DialogueManager แทนการเทียบ string อย่างเดียว ครอบคลุมบทเปิด/หน้าถัดไป หลักฐาน ตัวเลือก ระหว่างคิดและคำตอบ

@@ -76,13 +76,15 @@ public class FrameworkPlayModeTests
         GameDefinition.Override = null;
         KnowledgeLibrary.ClearCache();
         DialogueProviders.Override = new OfflineProvider();
-        if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
+        // Earlier tests may have earned an item. Close its persistent popup as
+        // well as dialogue so event tests begin at an actual safe moment.
+        RoomTransitionManager.CloseRoomOverlays();
         if (GameState.Instance != null) GameState.Instance.ResetState();
     }
     [TearDown]
     public void Cleanup()
     {
-        if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
+        RoomTransitionManager.CloseRoomOverlays();
         if (puzzleNpc != null) puzzleNpc.StopAllCoroutines();
         if (puzzleDefinition != null) UnityEngine.Object.Destroy(puzzleDefinition);
         if (afterDialogue != null) UnityEngine.Object.Destroy(afterDialogue);
