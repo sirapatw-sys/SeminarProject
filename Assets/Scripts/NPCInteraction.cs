@@ -51,6 +51,7 @@ public class NPCInteraction : MonoBehaviour, IFocusable
 
     public void Interact()
     {
+        if (!isActiveAndEnabled || InputGate.IsBlocked) return;
         if (eventController != null &&
             eventController.TryStartPendingEvent())
         {

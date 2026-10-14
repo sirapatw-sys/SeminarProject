@@ -421,7 +421,8 @@ public class AiRequestLifecycleTests
         try
         {
             routine = (IEnumerator)typeof(AiDialogueGenerator).GetMethod("Post", Private).Invoke(generator,
-                new object[] { "{}", new Action<UnityWebRequest>(_ => Assert.Fail("Cancelled request must not complete.")) });
+                new object[] { "{}", typeof(AiDialogueGenerator).GetMethod("CaptureRequestSettings", Private).Invoke(generator, null),
+                    new Action<UnityWebRequest>(_ => Assert.Fail("Cancelled request must not complete.")) });
             Assert.That(routine.MoveNext(), Is.True); request = ((UnityWebRequestAsyncOperation)routine.Current).webRequest;
             Assert.That(Pointer(request), Is.Not.EqualTo(IntPtr.Zero));
             ((IDisposable)routine).Dispose(); Assert.That(Pointer(request), Is.EqualTo(IntPtr.Zero));
@@ -449,7 +450,8 @@ public class AiRequestLifecycleTests
         try
         {
             routine = (IEnumerator)typeof(AiDialogueGenerator).GetMethod("Post", Private).Invoke(generator,
-                new object[] { "{}", new Action<UnityWebRequest>(sent => handedOff = sent) });
+                new object[] { "{}", typeof(AiDialogueGenerator).GetMethod("CaptureRequestSettings", Private).Invoke(generator, null),
+                    new Action<UnityWebRequest>(sent => handedOff = sent) });
             Assert.That(routine.MoveNext(), Is.True);
             var pending = (UnityWebRequestAsyncOperation)routine.Current; request = pending.webRequest;
             yield return pending;

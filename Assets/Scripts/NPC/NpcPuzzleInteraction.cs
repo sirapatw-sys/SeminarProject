@@ -50,6 +50,7 @@ public class NpcPuzzleInteraction : MonoBehaviour, IFocusable
     }
     public void Interact()
     {
+        if (!isActiveAndEnabled || InputGate.IsBlocked) return;
         GameState state = GameState.Instance;
         if (!CanFocus || state == null || DialogueManager.Instance == null) return;
         if (IsSolved)

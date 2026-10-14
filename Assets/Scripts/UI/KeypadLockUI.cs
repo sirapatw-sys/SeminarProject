@@ -119,7 +119,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void Update()
     {
-        if (!IsOpen)
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard)
         {
             return;
         }
@@ -134,7 +134,7 @@ public class KeypadLockUI : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                Close();
+                HandleKey(KeyCode.Escape);
                 return;
             }
 
@@ -145,20 +145,20 @@ public class KeypadLockUI : MonoBehaviour
                 KeyCode keypadKey = KeyCode.Keypad0 + i;
                 if (Input.GetKeyDown(alphaKey) || Input.GetKeyDown(keypadKey))
                 {
-                    AppendDigit(i.ToString());
+                    HandleKey(alphaKey);
                     return;
                 }
             }
 
             if (Input.GetKeyDown(KeyCode.Backspace))
             {
-                DeleteDigit();
+                HandleKey(KeyCode.Backspace);
                 return;
             }
 
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                TrySubmit();
+                HandleKey(KeyCode.Return);
                 return;
             }
         }
@@ -166,6 +166,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void AppendDigit(string digit)
     {
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
         if (currentInput.Length < targetCode.Length)
         {
             currentInput += digit;
@@ -179,6 +180,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void DeleteDigit()
     {
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
         if (currentInput.Length > 0)
         {
             currentInput = currentInput.Substring(0, currentInput.Length - 1);
@@ -188,7 +190,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void TrySubmit()
     {
-        if (!IsOpen) return;
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
         if (currentInput.Length < targetCode.Length)
         {
             statusMessage = "กรุณาใส่รหัสให้ครบ " + targetCode.Length + " หลัก";
@@ -218,6 +220,16 @@ public class KeypadLockUI : MonoBehaviour
             // Keep the keypad open; cancel/incomplete input has no gameplay effect.
             onUnlockFailure?.Invoke(rejectedAnswer);
         }
+    }
+
+    private void HandleKey(KeyCode key)
+    {
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
+        if (key == KeyCode.Escape) Close();
+        else if (key == KeyCode.Backspace) DeleteDigit();
+        else if (key == KeyCode.Return || key == KeyCode.KeypadEnter) TrySubmit();
+        else if (key >= KeyCode.Alpha0 && key <= KeyCode.Alpha9) AppendDigit(((int)key - (int)KeyCode.Alpha0).ToString());
+        else if (key >= KeyCode.Keypad0 && key <= KeyCode.Keypad9) AppendDigit(((int)key - (int)KeyCode.Keypad0).ToString());
     }
 
     private void OnGUI()

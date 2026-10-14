@@ -21,6 +21,7 @@ public static class InputGate
                    AiSettingsPanel.IsOpen ||
                    KeypadLockUI.IsOpen ||
                    JournalUI.IsOpen ||
+                   ItemPopupUI.HoldsInput ||
                    RoomTransitionManager.IsBusy;
         }
     }

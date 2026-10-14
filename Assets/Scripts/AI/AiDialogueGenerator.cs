@@ -200,18 +200,35 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     /// because its quota is used up. Switches to the backup key if there is
     /// one; returns false (and changes nothing) otherwise.
     /// </summary>
-    private bool TrySwitchToBackupKey(string keyUsed)
+    private bool TrySwitchToBackupKey(RequestSettings settings, string keyUsed)
     {
-        string backup = GetBackupApiKey();
-        if (string.IsNullOrWhiteSpace(keyUsed) || keyUsed != GetPrimaryApiKey() ||
+        string backup = settings.BackupKey;
+        if (string.IsNullOrWhiteSpace(keyUsed) || keyUsed != settings.PrimaryKey ||
             string.IsNullOrWhiteSpace(backup) || backup == keyUsed)
         {
             return false;
         }
 
-        exhaustedApiKey = keyUsed;
+        // A finished request must not change the selected account's state.
+        if (provider == settings.Provider && GetPrimaryApiKey() == settings.PrimaryKey)
+            exhaustedApiKey = keyUsed;
         Debug.LogWarning("โควตาของ API key หลักหมดแล้ว — เปลี่ยนไปใช้ key สำรองจนกว่าจะปิดเกม");
         return true;
+    }
+
+    private sealed class RequestSettings
+    {
+        public AiProviderType Provider;
+        public string Url, PrimaryKey, BackupKey, InitialKey;
+        public int Timeout;
+        public bool ResponsesApi { get { return Provider == AiProviderType.OpenAiResponses; } }
+    }
+
+    private RequestSettings CaptureRequestSettings()
+    {
+        string primary = GetPrimaryApiKey(), backup = GetBackupApiKey();
+        return new RequestSettings { Provider = provider, Url = apiUrl, Timeout = timeoutSeconds,
+            PrimaryKey = primary, BackupKey = backup, InitialKey = ChooseKey(primary, backup, exhaustedApiKey) };
     }
 
     private string GetPrimaryApiKey()
@@ -387,6 +404,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             yield break;
         }
 
+        var settings = CaptureRequestSettings();
         string prompt = BuildPrompt(eventData);
         string requestJson = provider == AiProviderType.OpenAiResponses
             ? BuildRequestJson(prompt, eventData.dialogue.choices.Count)
@@ -396,13 +414,13 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         GeneratedDialogueContent result = null;
         try
         {
-            yield return Post(requestJson, sent => request = sent);
+            yield return Post(requestJson, settings, sent => request = sent);
 
             if (string.IsNullOrEmpty(request.error))
             {
                 result = AiResponseParser.ParseDialogue(
                     request.downloadHandler.text,
-                    provider == AiProviderType.OpenAiResponses,
+                    settings.ResponsesApi,
                     eventData.dialogue.choices.Count
                 );
                 ScrubGateWord(result);
@@ -460,6 +478,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             yield break;
         }
 
+        var settings = CaptureRequestSettings();
         string prompt = BuildReplyPrompt(
             npcId,
             speakerName,
@@ -476,13 +495,13 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         GeneratedChatReply result = null;
         try
         {
-            yield return Post(requestJson, sent => request = sent);
+            yield return Post(requestJson, settings, sent => request = sent);
 
             if (string.IsNullOrEmpty(request.error))
             {
                 result = AiResponseParser.ParseReply(
                     request.downloadHandler.text,
-                    provider == AiProviderType.OpenAiResponses
+                    settings.ResponsesApi
                 );
                 if (result == null)
                 {
@@ -521,7 +540,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     /// backup key exists, the same request is sent once more with the backup.
     /// No other failure ever touches the backup key.
     /// </summary>
-    private IEnumerator Post(string requestJson, Action<UnityWebRequest> onDone)
+    private IEnumerator Post(string requestJson, RequestSettings settings, Action<UnityWebRequest> onDone)
     {
         for (int attempt = 0; ; attempt++)
         {
@@ -529,11 +548,11 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             bool handedOff = false;
             try
             {
-                string key = GetApiKey();
-                request = new UnityWebRequest(apiUrl, "POST");
+                string key = attempt == 0 ? settings.InitialKey : settings.BackupKey;
+                request = new UnityWebRequest(settings.Url, "POST");
                 request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(requestJson));
                 request.downloadHandler = new DownloadHandlerBuffer();
-                request.timeout = timeoutSeconds;
+                request.timeout = settings.Timeout;
                 request.SetRequestHeader("Content-Type", "application/json");
                 request.SetRequestHeader("Authorization", "Bearer " + key);
                 yield return request.SendWebRequest();
@@ -541,7 +560,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 
                 if (attempt == 0 && !string.IsNullOrEmpty(request.error) &&
                     ClassifyFailure(request) == AiFailureKind.DailyLimitReached &&
-                    TrySwitchToBackupKey(key))
+                    TrySwitchToBackupKey(settings, key))
                     continue; // finally releases the failed attempt before retrying.
 
                 onDone(request);

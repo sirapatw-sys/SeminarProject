@@ -1,6 +1,40 @@
 # ส่งต่อ PR: Room01 Companion — 14 ตุลาคม 2026
 
-## ล่าสุด: ตรวจวงจรเหตุการณ์และถอนคำขอหลัง `578eff4`
+## ล่าสุด: แก้ผลตรวจภาพรวมหลัง `3e68e42`
+
+- Item popup ถือ input ส่วนกลางตั้งแต่รอแสดงจนถึงเฟรมที่ผู้เล่นปิด เดิน/โต้ตอบไม่ได้ระหว่างนั้น และ E/Enter ที่ปิดการ์ดไม่ทำงานอื่นในเฟรมเดียว PlayerMovement ตรวจซ้ำก่อน physics step; NPC/Object/NpcPuzzle ตรวจ gate ก่อนเริ่ม interaction
+- Settings ถือ keyboard เหนือ keypad/journal/popup รวมเฟรมที่ปิด จึงไม่ส่งเลข/Backspace/Enter/Esc/J ไปยังหน้าต่างด้านล่าง Update และ handler ของปุ่มใช้ guard เดียวกัน
+- คำขอ AI เก็บ provider/schema/endpoint/timeout/primary/backup key ตอนส่ง รวม retry; model อยู่ใน payload ที่สร้างก่อนรอเครือข่าย คำตอบเก่าอ่านตาม schema เดิมและไม่เปลี่ยน exhausted-key ของบัญชีใหม่ ยืนยัน typed reply, event และ quota retry ด้วย UnityWebRequest ไปยัง 127.0.0.1 และคีย์ dummy เท่านั้น
+- เซฟคง JSON/version/path เดิม แต่ validate ก่อนเขียน .tmp + flush แล้ว atomic replace เก็บ .bak เฉพาะ primary ที่อ่านได้ ไฟล์หลักเสีย/หายจึงอ่าน backup ที่ผ่าน validation; ไม่อ่าน .tmp ที่ยังไม่ commit และไม่ทับ backup ดีด้วย primary เสีย เมื่อเริ่มใหม่ลบทั้ง primary/backup/tmp หาก atomic replace ไม่รองรับหรือล้มเหลว จะรายงานไม่สำเร็จและไม่ใช้วิธีลบไฟล์หลักแล้วเขียนใหม่
+- ปรับเคสถวายของเดิมให้ปิดการ์ดไอเท็มหลังใส่ inventory ก่อนคุยกับ Sena และเพิ่ม Room02 regression ว่ารอจนพ้นเฟรมปิดแล้วจึงรับของ ไม่ลดความเข้มของ input gate
+
+### ผลยืนยัน
+
+Unity 2021.3.16f1: EditMode **1,094/1,094**, PlayMode **206/206**, รวม **1,300 ชื่อเคสไม่ซ้ำ** failed/skipped/inconclusive=0; Main/Sample content validation ผ่าน เพิ่ม 17 เคส (7 Editor + 10 PlayMode)
+
+Atomic-save tests ใช้โฟลเดอร์ GUID ใต้ Logs ที่สร้างใหม่และลบทิ้งเท่านั้น ตรวจ first/repeated commit, corrupt/missing primary, backup retention หลัง recovery, invalid JSON, locked-file replacement failure, delete และ production JSON read path ไม่แตะเซฟจริง ไม่ได้จำลองไฟดับ/ฮาร์ดดิสก์จริง
+
+Modal tests เรียก handler ที่ Update ใช้จริง และตรวจ gate/physics step ไม่ใช่การกดคีย์ด้วยคนบน Windows ส่วน HTTP เป็น local transport จริงกับ response จำลอง ไม่ใช่ provider/โมเดลจริง
+
+รอบแรก SaveFocused ผ่าน 6/7 เพราะใช้ player build availability ตรวจ JSON ใน EditMode จึงแยกการตรวจ room membership ออกจากการเช็ค scene โหลดได้จริงที่ TryLoadSnapshot รอบ PlayMode แรกผ่าน 199/205 เพราะ fixture ถวายของเดิมข้ามการปิดการ์ดไอเท็ม แก้ setup ของสถานการณ์และเพิ่ม Room02 test ก่อนรันเต็มใหม่จนผ่าน ไม่ใช้รอบที่มี failure อ้างว่าผ่าน
+
+[Manifest รุ่นแก้ภาพรวม](verification/ROOM01_PR4_FULL_FIX_20261014.json) เก็บ source/test 26 hashes, XML สุดท้าย และ runtime DLL; ผล/log/build อยู่ใน `Logs/Pr4AuditFix_20261013/` ที่ ignore ไม่ติด clone
+
+Windows build ใหม่ **Succeeded, errors=0, warnings=2** ที่ `Logs/Pr4AuditFix_20261013/FixAll14_Windows/MysteryGame.exe` ต้องย้ายทั้งโฟลเดอร์ FixAll14_Windows เมื่อนำไปเล่นอีกเครื่อง Main validation ผ่านก่อน build คำเตือนเดิมคือ Dashboard project link และ Burst test-runner staging
+
+Runtime DLL SHA256: `E2D38E2F82B645AF63914FEB881FAE3ECDC1AC4B42ADF0B972B51D4F8AF468AC`
+
+คืน font/runInBackground และนำ build helper ออกจาก Assets แล้ว ไม่มี live API/quota, CI, manual visual/audio QA หรือ tests บน Windows player ใหม่ ภาพกล่อง/แขนยังเป็น placeholder
+
+### ตรวจรับเพิ่ม
+
+1. รับไอเท็มแล้วปิดบทคุย การ์ดต้องล็อกการเดิน/กด E ปิดการ์ดแล้วปุ่มเดียวกันไม่เปิดบทคุย/ใช้วัตถุทันที ลองถวายหนังสือกับ Sena หลังปิดการ์ด
+2. เปิด F10 ทับ keypad/journal/item card พิมพ์เลข Backspace Enter Esc/J ต้องไม่เปลี่ยนหน้าต่างด้านล่างและไม่ submit รหัสโดยไม่ตั้งใจ
+3. ใช้ mock server เปลี่ยน provider ระหว่างรอ typed/event และตอบ quota ครั้งแรก ต้องอ่าน response เดิมได้และ retry ด้วย endpoint/payload/backup ของคำขอเดิม ไม่ใช้บัญชีที่เพิ่งเลือก
+4. ทดสอบ primary เสีย/หายและ backup ในพื้นที่เซฟทิ้งได้เท่านั้น; อย่าแก้/ลบเซฟจริงเพื่อทดสอบ
+5. เล่นจริง Room01–03 หลายความละเอียด ตรวจภาพ/เสียง/ไมค์และความสนุก แยกทดสอบ provider จริงเมื่อทีมอนุญาตโควตา ก่อนพิจารณา merge
+
+## ประวัติ: ตรวจวงจรเหตุการณ์และถอนคำขอหลัง `578eff4` (`3e68e42`)
 
 - แก้คำถอนที่ระบุงาน เช่น `ไม่ต้องช่วยหาหลักฐานแล้ว,` หรือ `ไม่ต้องช่วยเปิดกล่องสองมือแล้ว;` ให้หยุดเฉพาะงานนั้น รับเครื่องหมาย `. ! ? … , ; :` แต่ข้อความอ้างคำพูด คำถามยืนยัน และการปฏิเสธงานอื่นไม่หยุดงานปัจจุบัน หากมีคำขอใหม่ต่อท้ายจะประมวลผลคำขอใหม่ตามเดิม
 - NpcEventController ฟัง StateReset/StateRestored ยกเลิก request ทิ้งบทคุยรอเปิดและ cooldown จาก timeline เก่า แม้เกมใหม่/เซฟใหม่ยังเข้าเงื่อนไขเดิม callback เก่าก็กลับมาเปิดเหตุการณ์ไม่ได้ ตรวจการเปลี่ยน GameState และถอด subscription เมื่อปิด controller

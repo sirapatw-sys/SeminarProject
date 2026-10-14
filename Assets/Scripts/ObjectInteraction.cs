@@ -111,6 +111,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
 
     private void TryInteract()
     {
+        if (!isActiveAndEnabled || InputGate.IsBlocked) return;
         InteractionData data = ActiveData;
         if (data == null)
         {

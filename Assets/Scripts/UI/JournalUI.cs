@@ -54,17 +54,17 @@ public class JournalUI : MonoBehaviour
 
     private void Update()
     {
+        if (AiSettingsPanel.HoldsKeyboard) return;
+        if (Input.GetKeyDown(ToggleKey)) HandleKey(ToggleKey);
+        else if (Input.GetKeyDown(KeyCode.Escape)) HandleKey(KeyCode.Escape);
+    }
+
+    private void HandleKey(KeyCode key)
+    {
+        if (AiSettingsPanel.HoldsKeyboard) return;
         if (IsOpen)
-        {
-            if (Input.GetKeyDown(ToggleKey) || Input.GetKeyDown(KeyCode.Escape))
-            {
-                IsOpen = false;
-            }
-
-            return;
-        }
-
-        if (Input.GetKeyDown(ToggleKey) && !InputGate.IsBlocked && !ItemPopupUI.IsBusy)
+        { if (key == ToggleKey || key == KeyCode.Escape) IsOpen = false; return; }
+        if (key == ToggleKey && !InputGate.IsBlocked)
         {
             IsOpen = true;
             scroll = Vector2.zero;

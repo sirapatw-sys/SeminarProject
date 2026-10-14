@@ -45,10 +45,18 @@ public class ItemPopupUI : MonoBehaviour
         get { return (_instance != null && _instance.isShowing) || pendingItems.Count > 0; }
     }
 
+    private static int closedOnFrame = -1;
+    private static readonly KeyCode[] DismissKeys = { KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter, KeyCode.Escape, KeyCode.E };
+    public static bool HoldsInput { get { return IsBusy || closedOnFrame == Time.frameCount; } }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetInputFrame() { closedOnFrame = -1; }
+
     public static void CancelAll()
     {
         pendingItems.Clear();
-        if (_instance != null) _instance.ClosePopup();
+        if (_instance != null) _instance.ClosePopup(false);
+        closedOnFrame = -1; // Programmatic cleanup is not a player key press.
     }
     private ItemInfo currentItem;
     private Sprite[] currentFrames;
@@ -179,10 +187,11 @@ public class ItemPopupUI : MonoBehaviour
 
     private void Update()
     {
+        if (AiSettingsPanel.HoldsKeyboard) return;
         // If not showing and have pending items, wait until dialogue closes
         if (!isShowing && pendingItems.Count > 0)
         {
-            if (!DialogueManager.IsDialogueOpen && !AiSettingsPanel.IsOpen && !KeypadLockUI.IsOpen)
+            if (InputGate.IsGameplayActive && !DialogueManager.IsDialogueOpen && !KeypadLockUI.IsOpen && !JournalUI.IsOpen)
             {
                 DisplayNextItem();
             }
@@ -191,16 +200,16 @@ public class ItemPopupUI : MonoBehaviour
         // Close on keyboard input
         if (isShowing)
         {
-            if (Time.unscaledTime - popupOpenedTime > 0.25f &&
-                (Input.GetKeyDown(KeyCode.Space) ||
-                 Input.GetKeyDown(KeyCode.Return) ||
-                 Input.GetKeyDown(KeyCode.KeypadEnter) ||
-                 Input.GetKeyDown(KeyCode.Escape) ||
-                 Input.GetKeyDown(KeyCode.E)))
-            {
-                ClosePopup();
-            }
+            foreach (var key in DismissKeys)
+                if (Input.GetKeyDown(key)) { HandleKey(key); break; }
         }
+    }
+
+    private void HandleKey(KeyCode key)
+    {
+        if (AiSettingsPanel.HoldsKeyboard || !isShowing || Time.unscaledTime - popupOpenedTime <= 0.25f) return;
+        if (key == KeyCode.Space || key == KeyCode.Return || key == KeyCode.KeypadEnter || key == KeyCode.Escape || key == KeyCode.E)
+            ClosePopup();
     }
 
     private void DisplayNextItem()
@@ -216,8 +225,9 @@ public class ItemPopupUI : MonoBehaviour
         popupOpenedTime = Time.unscaledTime;
     }
 
-    private void ClosePopup()
+    private void ClosePopup(bool consumeInput = true)
     {
+        if (consumeInput && isShowing) closedOnFrame = Time.frameCount;
         isShowing = false;
         currentFrames = null;
     }

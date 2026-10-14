@@ -454,7 +454,9 @@ public class FrameworkPlayModeTests
         Assert.That(state.HasFlag("sena_wants_tome"), Is.True);
         Type("tomorrow");
         Assert.That(state.HasFlag("room02_door_unlocked"), Is.False, "No offering yet.");
-        DialogueManager.Instance.HideDialogue(); state.AddItem("tome"); npc.Interact();
+        DialogueManager.Instance.HideDialogue(); state.AddItem("tome");
+        ItemPopupUI.CancelAll(); // Inventory setup: the player has already dismissed its card.
+        npc.Interact();
         Assert.That(state.HasItem("tome"), Is.False);
         Assert.That(state.HasFlag("sena_offering_given"), Is.True);
         Type("tomorrow");
@@ -531,7 +533,7 @@ public class FrameworkPlayModeTests
     }
     private void SolvePuzzle()
     {
-        GameState.Instance.AddItem("tome"); puzzleNpc.Interact(); Type("tomorrow");
+        GameState.Instance.AddItem("tome"); ItemPopupUI.CancelAll(); puzzleNpc.Interact(); Type("tomorrow");
         Assert.That(GameState.Instance.HasFlag("sena_passed"), Is.True);
         Assert.That(GameState.Instance.HasFlag("room02_door_unlocked"), Is.True);
     }
@@ -593,6 +595,7 @@ public class FrameworkPlayModeTests
         Assert.That(puzzleNpc.GetComponent<Collider2D>().enabled, Is.True);
         Assert.That(InteractionFocus.PickNearest(new IFocusable[] { puzzleNpc }, puzzleNpc.FocusPoint), Is.SameAs(puzzleNpc));
         DialogueManager.Instance.HideDialogue(); GameState.Instance.AddItem("tome");
+        ItemPopupUI.CancelAll();
         puzzleNpc.Interact();
         Assert.That(DialogueManager.IsDialogueOpen, Is.True);
         Assert.That(GameState.Instance.HasItem("tome"), Is.True);
