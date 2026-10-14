@@ -85,6 +85,19 @@ namespace MysteryGame.Companions
             playerArea = playerObject != null ? playerObject.GetComponent<Collider2D>() : null;
             var talkArea = GetComponent<Collider2D>();
             feetOffset = talkArea != null ? (Vector2)talkArea.bounds.center - (Vector2)transform.position : Vector2.zero;
+            // Authored NPCs have only static colliders. A static trigger moved by
+            // its transform does not wake a sleeping player body, so walking up
+            // to (or away from) a player who stands still never raised the
+            // talk prompt's Enter/Exit. A never-sleeping kinematic body keeps
+            // those contacts live without changing how the companion moves.
+            Rigidbody2D body;
+            if (!TryGetComponent(out body))
+            {
+                body = gameObject.AddComponent<Rigidbody2D>();
+                body.bodyType = RigidbodyType2D.Kinematic;
+                body.sleepMode = RigidbodySleepMode2D.NeverSleep;
+                body.interpolation = RigidbodyInterpolation2D.None;
+            }
             state = GameState.Instance;
             if (state != null) { state.StateReset += ResetActivity; state.StateRestored += ResetActivity; }
             InteractionSignals.Completed += Observe;
@@ -183,13 +196,17 @@ namespace MysteryGame.Companions
         }
         public bool CanHelp(CompanionStationData station)
         {
-            return CanCommand && StationAvailable(station);
+            return CanCommand && StationAvailable(station, false);
         }
-        private bool StationAvailable(CompanionStationData station)
+        // A request is made face to face (CanCommand), and the companion walks to
+        // the station herself, so starting one no longer needs the player to be
+        // standing near it already; that refused "ช่วยจับโต๊ะหน่อย" asked from
+        // across the room. The unprompted "?" invitation still needs proximity.
+        private bool StationAvailable(CompanionStationData station, bool playerNearby = true)
         {
             return station != null && Scenario.stations.Contains(station) && !IsCompleted(station) &&
                 ConditionRule.AllHold(station.conditions, state) &&
-                Vector2.Distance(PlayerFeet, station.playerPoint) <= Scenario.commandDistance;
+                (!playerNearby || Vector2.Distance(PlayerFeet, station.playerPoint) <= Scenario.commandDistance);
         }
         public bool RequestHelp(CompanionStationData station)
         {
@@ -258,8 +275,8 @@ namespace MysteryGame.Companions
                     { reply = "บอกสิ่งที่อยากให้ฉันช่วยให้ชัดอีกครั้งนะ"; return false; }
                     if (IsCompleted(station)) { reply = !string.IsNullOrWhiteSpace(station.completedStatusLine) ? station.completedStatusLine :
                         "เราเคยทำตรงนั้นสำเร็จด้วยกันแล้วนะ"; return false; }
-                    if (!StationAvailable(station))
-                    { reply = "ตอนนี้ฉันยังช่วยตรงนั้นไม่ได้ ลองเข้าไปใกล้และดูว่าพร้อมแล้วหรือยังนะ"; return false; }
+                    if (!StationAvailable(station, false))
+                    { reply = "ตอนนี้ยังไม่มีอะไรตรงนั้นให้ฉันช่วยนะ ถ้ามีอะไรให้ช่วยค่อยบอกฉันอีกที"; return false; }
                     HelpCore(station);
                     reply = (Mode == CompanionMode.Helping ? station.holdingLine : RequestLineFor(station)) +
                         (string.IsNullOrWhiteSpace(station.instructions) ? "" : "\n" + station.instructions);
@@ -330,7 +347,11 @@ namespace MysteryGame.Companions
                 { ResetActivity(); return; }
                 elapsedTask += seconds;
                 if (elapsedTask > Scenario.taskTimeoutSeconds)
-                { string failedTask = ActiveStation.id; ResetActivity(); LastTaskId = failedTask; TaskPhase = CompanionTaskPhase.Failed; Say(Scenario.blockedLine); return; }
+                {
+                    // Standing at the station already: "I can't get there" would be untrue.
+                    string line = Mode == CompanionMode.Helping && !string.IsNullOrWhiteSpace(Scenario.releaseLine) ? Scenario.releaseLine : Scenario.blockedLine;
+                    string failedTask = ActiveStation.id; ResetActivity(); LastTaskId = failedTask; TaskPhase = CompanionTaskPhase.Failed; Say(line); return;
+                }
                 if (Vector2.Distance(Feet, ActiveStation.companionPoint) > 0.12f)
                 {
                     Progress = 0f; Mode = CompanionMode.GoingToHelp; TaskPhase = CompanionTaskPhase.Moving;

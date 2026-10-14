@@ -487,9 +487,10 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             customPersonality,
             knowledge
         );
+        List<string> actionIds = CompanionActionIds(knowledge);
         string requestJson = provider == AiProviderType.OpenAiResponses
-            ? BuildReplyRequestJson(prompt)
-            : BuildCompatibleReplyRequestJson(prompt);
+            ? BuildReplyRequestJson(prompt, actionIds)
+            : BuildCompatibleReplyRequestJson(prompt, actionIds);
 
         UnityWebRequest request = null;
         GeneratedChatReply result = null;
@@ -510,6 +511,9 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                 else
                 {
                     result.reply = ScrubGateWord(result.reply);
+                    // Only an id the prompt offered survives; anything else is "none".
+                    if (actionIds == null || !actionIds.Contains(result.companionAction))
+                        result.companionAction = null;
                 }
 
                 string offendingFactId = null;
@@ -519,7 +523,11 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                         result, out ignored, out offendingFactId))
                 {
                     Debug.LogWarning("AI reply rejected by knowledge policy: " + offendingFactId);
-                    result = null;
+                    // The wording is unusable, but a proposed action is still the
+                    // model's reading of the request. The dialogue manager re-checks
+                    // it and answers with the companion's authored line instead.
+                    if (string.IsNullOrEmpty(result.companionAction) ||
+                        result.companionAction == CompanionActionOption.None) result = null;
                 }
             }
             else
@@ -854,6 +862,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 
         if (knowledge != null)
         {
+            prompt.Append(knowledge.ToCompanionActionSection());
             prompt.Append(knowledge.ToHistorySection());
         }
 
@@ -1087,7 +1096,53 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                "\"temperature\":0.85}";
     }
 
-    private string BuildReplyRequestJson(string prompt)
+    /// <summary>
+    /// The ids a reply may put in companionAction (including "none"), or null
+    /// when this NPC has nothing to offer here — then the field is not asked for.
+    /// </summary>
+    public static List<string> CompanionActionIds(NpcKnowledgeContext knowledge)
+    {
+        if (knowledge == null || knowledge.PlayerAskedForHint || knowledge.CompanionActions.Count == 0) return null;
+        var ids = new List<string>();
+        foreach (CompanionActionOption option in knowledge.CompanionActions)
+            if (option != null && !string.IsNullOrWhiteSpace(option.Id) && !ids.Contains(option.Id)) ids.Add(option.Id);
+        ids.Add(CompanionActionOption.None);
+        return ids;
+    }
+
+    /// <summary>The strict json_schema for a typed reply; companionAction only when ids are offered.</summary>
+    public static string ReplySchemaJson(IList<string> actionIds)
+    {
+        bool actions = actionIds != null && actionIds.Count > 0;
+        var enumValues = new StringBuilder();
+        if (actions)
+            foreach (string id in actionIds)
+                enumValues.Append(enumValues.Length == 0 ? "" : ",").Append("\"").Append(EscapeJson(id)).Append("\"");
+        return "{" +
+               "\"type\":\"object\",\"properties\":{" +
+               "\"reply\":{\"type\":\"string\"}," +
+               "\"relationshipDelta\":{\"type\":\"integer\"," +
+               "\"minimum\":-15,\"maximum\":10}," +
+               "\"referencedFactIds\":{\"type\":\"array\"," +
+               "\"items\":{\"type\":\"string\"}}," +
+               "\"emotion\":{\"type\":\"string\"}," +
+               "\"playerTone\":{\"type\":\"string\",\"enum\":[\"hostile\",\"cold\",\"neutral\",\"friendly\",\"kind\"]}" +
+               (actions ? ",\"companionAction\":{\"type\":\"string\",\"enum\":[" + enumValues + "]}" : "") + "}," +
+               "\"required\":[\"reply\",\"relationshipDelta\"," +
+               "\"referencedFactIds\",\"emotion\",\"playerTone\"" + (actions ? ",\"companionAction\"" : "") + "]," +
+               "\"additionalProperties\":false}";
+    }
+
+    /// <summary>The system instruction for chat-completions providers, which get no schema.</summary>
+    public static string CompatibleReplyFormat(IList<string> actionIds)
+    {
+        string format = "Return only JSON with reply, relationshipDelta (-15 to 10), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string) and playerTone (hostile, cold, neutral, friendly or kind)";
+        if (actionIds != null && actionIds.Count > 0)
+            format += " and companionAction (exactly one of: " + string.Join(", ", actionIds) + ")";
+        return format + ".";
+    }
+
+    private string BuildReplyRequestJson(string prompt, IList<string> actionIds)
     {
         return "{" +
                "\"model\":\"" + EscapeJson(model) + "\"," +
@@ -1102,27 +1157,16 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                "\"text\":{\"format\":{" +
                "\"type\":\"json_schema\"," +
                "\"name\":\"npc_typed_reply\",\"strict\":true," +
-               "\"schema\":{" +
-               "\"type\":\"object\",\"properties\":{" +
-               "\"reply\":{\"type\":\"string\"}," +
-               "\"relationshipDelta\":{\"type\":\"integer\"," +
-               "\"minimum\":-15,\"maximum\":10}," +
-               "\"referencedFactIds\":{\"type\":\"array\"," +
-               "\"items\":{\"type\":\"string\"}}," +
-               "\"emotion\":{\"type\":\"string\"}," +
-               "\"playerTone\":{\"type\":\"string\",\"enum\":[\"hostile\",\"cold\",\"neutral\",\"friendly\",\"kind\"]}}," +
-               "\"required\":[\"reply\",\"relationshipDelta\"," +
-               "\"referencedFactIds\",\"emotion\",\"playerTone\"]," +
-               "\"additionalProperties\":false}}}}";
+               "\"schema\":" + ReplySchemaJson(actionIds) + "}}}";
     }
 
-    private string BuildCompatibleReplyRequestJson(string prompt)
+    private string BuildCompatibleReplyRequestJson(string prompt, IList<string> actionIds)
     {
         return "{" +
                "\"model\":" + FormatCompatibleModel(model) + "," +
                "\"messages\":[{" +
                "\"role\":\"system\",\"content\":\"" +
-               "Return only JSON with reply, relationshipDelta (-15 to 10), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string) and playerTone (hostile, cold, neutral, friendly or kind).\"}," +
+               EscapeJson(CompatibleReplyFormat(actionIds)) + "\"}," +
                "{\"role\":\"user\",\"content\":\"" +
                EscapeJson(prompt) + "\"}],\"temperature\":0.8}";
     }
@@ -1135,14 +1179,28 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             : "\"" + EscapeJson(modelId) + "\"";
     }
 
-    private static string EscapeJson(string value)
+    public static string EscapeJson(string value)
     {
-        return (value ?? string.Empty)
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n")
-            .Replace("\t", "\\t");
+        var escaped = new StringBuilder((value ?? string.Empty).Length + 16);
+        foreach (char c in value ?? string.Empty)
+        {
+            switch (c)
+            {
+                case '\\': escaped.Append("\\\\"); break;
+                case '"': escaped.Append("\\\""); break;
+                case '\r': escaped.Append("\\r"); break;
+                case '\n': escaped.Append("\\n"); break;
+                case '\t': escaped.Append("\\t"); break;
+                default:
+                    // JSON forbids raw control characters; a pasted message or
+                    // authored text containing one would make the provider reject
+                    // the whole request (HTTP 400) and drop to the offline reply.
+                    if (c < ' ' || c == (char)0x2028 || c == (char)0x2029) escaped.Append("\\u").Append(((int)c).ToString("x4"));
+                    else escaped.Append(c);
+                    break;
+            }
+        }
+        return escaped.ToString();
     }
 
     [Serializable]
@@ -1187,6 +1245,13 @@ public class GeneratedChatReply
     /// friendly or kind. Keeps relationshipDelta to that tone's range.
     /// </summary>
     public string playerTone;
+
+    /// <summary>
+    /// A companion action the model read from the player's message: one of
+    /// the ids the prompt offered, or "none". Only a proposal; the dialogue
+    /// manager validates it against live game state before anything happens.
+    /// </summary>
+    public string companionAction;
 
     public bool IsValid()
     {

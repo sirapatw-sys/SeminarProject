@@ -41,6 +41,7 @@ namespace MysteryGame.Core
 
         private readonly List<string> playerHistory =
             new List<string>();
+        public const int MaxHistoryEntries = 300;
 
         // =====================================================
         // Relationships
@@ -292,6 +293,11 @@ namespace MysteryGame.Core
             }
 
             playerHistory.Add(entry);
+            // Every dialogue and relationship change appends here and it is
+            // saved on every room entry; keep the newest entries only so a long
+            // session does not grow the save (and each atomic write) forever.
+            if (playerHistory.Count > MaxHistoryEntries)
+                playerHistory.RemoveRange(0, playerHistory.Count - MaxHistoryEntries);
 
             Debug.Log("[History] " + entry);
         }

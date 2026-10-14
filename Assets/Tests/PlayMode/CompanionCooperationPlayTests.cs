@@ -350,6 +350,8 @@ public class CompanionCooperationPlayTests
         for (int i = 0; i < 1000; i++) Step(0.05f);
         Assert.That(actor.TaskPhase, Is.EqualTo(CompanionTaskPhase.Failed));
         Assert.That(actor.LastTaskId, Is.EqualTo(DeskStation.id));
+        // She was holding the desk, so "I can't get there" would be untrue.
+        Assert.That(actor.Bubble, Is.EqualTo(actor.Scenario.releaseLine));
         Assert.That(State.HasFlag("found_note"), Is.False);
     }
     [UnityTest]

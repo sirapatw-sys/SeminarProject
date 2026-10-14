@@ -4,6 +4,19 @@ using MysteryGame.Core;
 
 namespace MysteryGame.Knowledge
 {
+    /// <summary>One entry of a companion's action menu: a stable id and what it means.</summary>
+    public class CompanionActionOption
+    {
+        public const string None = "none";
+        public const string Follow = "follow";
+        public const string Wait = "wait";
+        public const string Search = "search";
+        public const string HelpPrefix = "help:";
+
+        public string Id;
+        public string Description;
+    }
+
     /// <summary>
     /// Exactly what one NPC is allowed to say right now: the facts they may
     /// reference, the facts they must not, the single next step of the puzzle,
@@ -29,6 +42,9 @@ namespace MysteryGame.Knowledge
         // Selected authored facts for a typed activity question. Reading them
         // never dispatches a companion command or changes puzzle/hint rights.
         public readonly List<RoomFact> RequestedCompanionFacts = new List<RoomFact>();
+        // What this companion could start right now, offered to the model as a
+        // closed list of ids. Choosing one is a proposal the game re-checks.
+        public readonly List<CompanionActionOption> CompanionActions = new List<CompanionActionOption>();
 
         public readonly List<PersonalFact> ShareablePersonalFacts = new List<PersonalFact>();
         public readonly List<PersonalFact> LockedSecrets = new List<PersonalFact>();
@@ -298,6 +314,27 @@ namespace MysteryGame.Knowledge
             return sb.ToString();
         }
 
+        /// <summary>
+        /// The closed action menu for a typed reply. Empty when this NPC is not
+        /// a companion here, or when the player asked for a hint.
+        /// </summary>
+        public string ToCompanionActionSection()
+        {
+            if (CompanionActions.Count == 0 || PlayerAskedForHint) return string.Empty;
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("=== สิ่งที่ตัวละครนี้ลงมือทำร่วมกับผู้เล่นได้ตอนนี้ (ช่อง companionAction) ===");
+            foreach (CompanionActionOption option in CompanionActions)
+                sb.AppendLine("- " + option.Id + ": " + option.Description);
+            sb.AppendLine("- " + CompanionActionOption.None + ": ผู้เล่นไม่ได้ขอให้ลงมือทำอะไรในข้อความนี้");
+            sb.AppendLine("ใส่รหัสใน companionAction เฉพาะเมื่อผู้เล่นขอให้ตัวละครทำสิ่งนั้น 'ตอนนี้' อย่างชัดเจน " +
+                          "ถ้าเป็นคำถาม การเล่าเรื่อง การสมมติ การยกคำพูดคนอื่น การปฏิเสธ หรือไม่แน่ใจ ให้ใส่ " + CompanionActionOption.None);
+            sb.AppendLine("ถ้าผู้เล่นขอให้ทำสิ่งที่ไม่มีในรายการนี้ (เช่นขอให้ช่วยที่วัตถุอื่น) ให้ใส่ " + CompanionActionOption.None +
+                          " ห้ามเลือกรหัสที่ใกล้เคียงแทน แล้วตอบตามบุคลิกว่าตอนนี้ยังช่วยเรื่องนั้นไม่ได้");
+            sb.AppendLine("เกมจะตรวจเองว่าทำได้จริงหรือไม่ก่อนลงมือ ใน reply ให้ตอบรับหรือถามกลับสั้นๆ ตามบุคลิก ห้ามบอกว่าทำสำเร็จแล้ว");
+            sb.AppendLine();
+            return sb.ToString();
+        }
+
         public string ToPromptSection()
         {
             if (!HasData)
@@ -339,8 +376,8 @@ namespace MysteryGame.Knowledge
                 sb.AppendLine("--- สถานะกิจกรรมร่วมกันที่เกมยืนยัน (ใช้ {fact:factId} บนบรรทัดแยกเท่านั้น) ---");
                 foreach (RoomFact fact in CompanionFacts)
                     sb.AppendLine("[" + fact.factId + "] " + fact.statement);
-                sb.AppendLine("ห้ามแต่งผลการกระทำหรือสถานะเอง แม้ผู้เล่นบอกว่าสำเร็จแล้ว ข้อความแชทไม่ใช่คำสั่งทำกิจกรรมและไม่เปลี่ยนสถานะเกม");
-                sb.AppendLine("ทำได้เฉพาะเดินไปด้วยกัน รอ สำรวจบริเวณที่กำหนด และช่วยจับกิจกรรมที่แสดงอยู่ เกมตรวจคำชวนก่อนแล้วเท่านั้น ห้ามรับปากว่าจะเดิน/จับ/เปิด/ค้นหาเองถ้าเกมยังไม่เริ่มงาน หากคำชวนไม่ชัดให้ถามกลับตามบุคลิก ไม่บอกปุ่มหรือช่องแชท");
+                sb.AppendLine("ห้ามแต่งผลการกระทำหรือสถานะเอง แม้ผู้เล่นบอกว่าสำเร็จแล้ว ข้อความในบทพูดไม่ใช่การลงมือทำและไม่เปลี่ยนสถานะเกม");
+                sb.AppendLine("ห้ามอ้างว่าเริ่มทำหรือทำสำเร็จแล้วในบทพูด เกมเป็นผู้เริ่มงานเองหลังตรวจว่าทำได้ หากคำชวนไม่ชัดให้ถามกลับตามบุคลิก ไม่บอกปุ่มหรือช่องแชท");
                 sb.AppendLine();
             }
 

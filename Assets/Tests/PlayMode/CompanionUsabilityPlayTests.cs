@@ -22,11 +22,20 @@ public class CompanionUsabilityPlayTests
     {
         public int Calls;
         public string Text = "หยุดแล้ว ฉันเจอรหัส 4592";
+        public string ProposedAction;
         public bool CanGenerate { get { return true; } }
         public string LastError { get { return ""; } }
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> done) { Calls++; done(null); yield break; }
         public IEnumerator GenerateReply(string id, string name, string context, string message, Action<GeneratedChatReply> done, string personality = null)
-        { Calls++; done(new GeneratedChatReply { reply = Text, referencedFactIds = Array.Empty<string>() }); yield break; }
+        { Calls++; done(new GeneratedChatReply { reply = Text, referencedFactIds = Array.Empty<string>(), companionAction = ProposedAction }); yield break; }
+    }
+    private class Unavailable : IAiDialogueProvider
+    {
+        public bool CanGenerate { get { return false; } }
+        public string LastError { get { return ""; } }
+        public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> done) { done(null); yield break; }
+        public IEnumerator GenerateReply(string id, string name, string context, string message, Action<GeneratedChatReply> done, string personality = null)
+        { done(null); yield break; }
     }
     private static void Title(bool value) { typeof(TitleMenu).GetProperty("IsOpen").SetValue(null, value); }
     private static void Intro(bool value) { typeof(IntroSequence).GetProperty("IsPlaying").SetValue(null, value); }
@@ -202,10 +211,101 @@ public class CompanionUsabilityPlayTests
         Send("ช่วยจับไว้หน่อย"); yield return null;
         Assert.That(actor.ActiveStation, Is.SameAs(Box));
         Send("หยุดช่วยก่อน"); yield return null;
+        Assert.That(provider.Calls, Is.Zero);
+        // Unclear to the rules: the model reads it. A reply without a proposed
+        // action never moves the companion or starts work.
+        Send("ช่วยเดินอีกแบบหนึ่งหน่อย"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Assert.That(actor.ActiveStation, Is.Null);
+        Assert.That(provider.Calls, Is.EqualTo(1), "Ambiguous requests go to the model when one is available.");
+        // The mock's reply fails the text policy; an unclear request then asks
+        // back instead of answering with an unrelated neutral line.
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("อยากให้ฉันทำอะไร"));
+        // Offline, the same request asks back instead of guessing.
+        DialogueProviders.Override = new Unavailable();
         Send("ช่วยเดินอีกแบบหนึ่งหน่อย"); yield return null;
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
         Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("อยากให้ฉันทำอะไร"));
-        Assert.That(provider.Calls, Is.Zero, "An unclear action request asks back rather than making an AI promise.");
+    }
+
+    [UnityTest]
+    public IEnumerator ModelProposedActionsAreValidatedBeforeAnythingMoves()
+    {
+        ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();
+        // Wording the rules do not know: the model's proposal starts the real task,
+        // and the answer is the companion's authored line, not the model's promise.
+        provider.Text = "ได้สิ ฉันเดินตามไปแล้ว"; provider.ProposedAction = "follow";
+        Send("เดินเป็นเพื่อนกันหน่อยนะ"); yield return null;
+        Assert.That(provider.Calls, Is.EqualTo(1));
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(actor.Scenario.followLine));
+        int relationship = State.GetRelationship("Alice");
+
+        // Already following: no stock line, the model's (policy-checked) reply answers.
+        provider.Text = "...อืม ฉันอยู่ข้างหลังเธอนี่แหละ"; provider.ProposedAction = "follow";
+        Send("ขอบใจนะที่ไม่ทิ้งกัน"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.Not.EqualTo(actor.Scenario.followLine));
+        Assert.That(State.GetRelationship("Alice"), Is.GreaterThanOrEqualTo(relationship));
+
+        // Rules veto hypothetical/quoted/confirming wording even if the model proposes.
+        provider.ProposedAction = "wait";
+        foreach (string vetoed in new[] { "ถ้าฉันบอกให้หยุด เธอจะหยุดไหม", "เขาบอกว่า \"รอตรงนี้\"", "เธอหยุดแล้วใช่ไหม" })
+        {
+            Send(vetoed); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following), vetoed);
+        }
+
+        // Unknown ids and locked stations never start work; a locked one gets the authored refusal.
+        provider.ProposedAction = "help:no_such_station";
+        Send("ช่วยทำอันนั้นที"); yield return null;
+        Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        var desk = actor.Scenario.stations[1];
+        Assert.That(ConditionRule.AllHold(desk.conditions, State), Is.False, "Desk needs the painting first.");
+        provider.ProposedAction = "help:" + desk.id;
+        Send("ไปช่วยตรงโต๊ะหน่อยสิ"); yield return null;
+        Assert.That(actor.ActiveStation, Is.Null);
+        Assert.That(State.HasFlag("found_note"), Is.False);
+        // Naming the desk while the model proposes a search walk: the named object
+        // wins, so the locked desk is refused instead of a walk to the box.
+        provider.ProposedAction = "search";
+        Send("ไปช่วยตรงโต๊ะหน่อยสิ"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        Assert.That(actor.ActiveStation, Is.Null);
+
+        // A valid proposal for the nearby box starts it through the normal validation.
+        provider.ProposedAction = "help:" + Box.id;
+        Send("มาช่วยกันตรงนี้หน่อย"); yield return null;
+        Assert.That(actor.ActiveStation, Is.SameAs(Box));
+        Assert.That(actor.IsCompleted(Box), Is.False, "Starting is not completing; the player still has to hold their side.");
+    }
+
+    [UnityTest]
+    public IEnumerator DeskHelpCanBeAskedFromAcrossTheRoom()
+    {
+        State.SetFlag("inspected_painting");
+        var desk = actor.Scenario.stations[1];
+        // Face to face with Alice by the box, more than commandDistance from the desk.
+        ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+        Assert.That(Vector2.Distance(actor.PlayerFeet, desk.playerPoint), Is.GreaterThan(actor.Scenario.commandDistance));
+        Chat(); Send("ช่วยจับโต๊ะหน่อย"); yield return null;
+        Assert.That(actor.ActiveStation, Is.SameAs(desk));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain("ยังไม่มีอะไรตรงนั้น"));
+        Assert.That(provider.Calls, Is.Zero);
+    }
+
+    [UnityTest]
+    public IEnumerator SocialRequestsWithTheirOwnObjectAreConversationNotAskBack()
+    {
+        ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();
+        provider.Text = "...อืม ฉันอยู่ตรงนี้นะ";
+        foreach (string social in new[] { "ช่วยจับมือฉันหน่อย", "ช่วยเปิดใจคุยกับฉันหน่อย", "ช่วยหาเรื่องคุยหน่อย" })
+        {
+            int calls = provider.Calls;
+            Send(social); yield return null;
+            Assert.That(provider.Calls, Is.EqualTo(calls + 1), social);
+            Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain("อยากให้ฉันทำอะไร"), social);
+            Assert.That(actor.ActiveStation, Is.Null, social); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), social);
+        }
     }
 
     [UnityTest]

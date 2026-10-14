@@ -55,8 +55,11 @@ namespace MysteryGame.Companions
             @"^\s*(?:ถ้าว่าง|ถ้าไม่ยุ่ง)" + CourtesyParticles + @"\s*" +
             @"(?:ก็\s*|(?=\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้|ตาม|เดิน|มา|ไป|รอ|หยุด|ค้น|หา|ลอง|พัก|พอ)))\s*|" +
             @"\s*(?:ถ้าไม่ลำบาก|ถ้าสะดวก)" + CourtesyParticles + SentenceEnd);
-        private static readonly Regex TargetFirstHelp = R(@"^\s*(?:มันโยกนะ|โยกนะ|นี้|มันโยก|โยก)?\s*ช่วย(?:จับ|ถือ|ประคอง)?(?:ได้ไหม|หน่อย|ที)(?:นะ|ครับ|ค่ะ|คะ)*\s*$");
-        private static readonly Regex IncompleteActionRequest = R(@"^\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้)\s*(?:(?:เรา|ฉัน|ผม|มา|ไป)\s*)?(?:จับ|ถือ|เปิด|ประคอง|เดิน|ค้น|หา|สำรวจ)");
+        private static readonly Regex TargetFirstHelp = R(@"^\s*(?:มันโยกนะ|โยกนะ|นี้|มันโยก|โยก)?\s*ช่วย(?:จับ|ถือ|ประคอง|ยก)?(?:ไว้|ให้)?(?:ได้ไหม|หน่อย|ที)(?:นะ|ครับ|ค่ะ|คะ)*\s*$");
+        // An unclear activity verb asks back, but a social object is ordinary
+        // talk for the AI: "ช่วยจับมือฉันหน่อย", "ช่วยเปิดใจ", "ช่วยหาเรื่องคุย".
+        private static readonly Regex IncompleteActionRequest = R(@"^\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้)\s*(?:(?:เรา|ฉัน|ผม|มา|ไป|กัน)\s*)?(?:จับ|ถือ|เปิด|ประคอง|ยก|เดิน|ค้น|หา|สำรวจ|ตรวจ)" +
+            @"(?!\s*(?:มือ|แขน|ไหล่|ใจ|เพลง|เรื่อง|ความ|คำ|ข้าว|น้ำ))");
         // Only split coordinated actions after classifying the enclosing
         // clause. A question about two actions must not execute its first half.
         private static readonly Regex ActionJoiner = R(
@@ -66,9 +69,11 @@ namespace MysteryGame.Companions
             @"(?:please|do|you\s+(?:should|must)|(?:can|could|would|will)\s+you)\s+){0,6}$");
         private const string HelpRequestPhrase =
             @"(?:(?:เธอ|คุณ|กรุณา|โปรด|ขอให้|อยากให้|มา)\s*){0,4}" +
-            @"(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?(?:(?:มา|ไป)\s*)?(?:(?:เปิด|จับ|ถือ|ประคอง|ทำกิจกรรม|เรื่อง|กับ)\s*)?|(?:เปิด|จับ|ถือ|ประคอง)\s*)|" +
+            @"(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?(?:(?:มา|ไป)\s*)?(?:(?:เปิด|จับ|ถือ|ประคอง|ยก|ทำกิจกรรม|เรื่อง|กับ)\s*)?|(?:เปิด|จับ|ถือ|ประคอง|ยก)\s*)" +
+            // "ช่วยจับอีกด้านของกล่อง": the side names the companion's half, not another target.
+            @"(?:อีก\s*(?:ด้าน|ฝั่ง|ข้าง)(?:หนึ่ง)?\s*(?:ของ\s*)?)?|" +
             @"(?:(?:please|(?:can|could|would|will)\s+you|you\s+should)\s+){0,4}" +
-            @"(?:help(?:\s+(?:me|us))?(?:\s+(?:with|open|hold))?|open|hold)\s+(?:(?:the|a)\s+)?";
+            @"(?:help(?:\s+(?:me|us))?(?:\s+(?:with|open|hold|lift))?|open|hold|lift)\s+(?:(?:the|a)\s+)?";
         private static readonly Regex HelpToTarget = R(@"^\s*(?:" + HelpRequestPhrase + @")$");
         private static readonly Regex HelpMentionToTarget = R(@"(?:" + HelpRequestPhrase + @")$");
         private static readonly Regex StandaloneRefusal = R(@"^\s*(?:อย่า(?:เพิ่ง)?|ไม่ต้อง|ไม่เอา|don't|dont|do\s+not|never|not)\s*(?:นะ|please)?\s*$");
@@ -76,15 +81,22 @@ namespace MysteryGame.Companions
             @"อย่า|ห้าม|ไม่(?:ต้อง|อยาก|เอา|ขอ|ต้องการ|ได้|ควร|จำเป็น|พร้อม|ตกลง|ใช่)|\b(?:don't|dont|do\s+not|never|not)\b");
         private static readonly Regex Follow = R(
             @"(?:เดิน|ไป|มา)(?:สำรวจ)?(?:ไป|มา)?ด้วยกัน|มากับ(?:เรา|ฉัน|ผม)|ไปกันเถอะ|มาทางนี้|(?:เดิน)?ตาม(?:เรา|ฉัน|ผม|มา)|" +
+            // Short spoken invitations; the lookahead keeps idioms such as "ไปกันใหญ่" out.
+            @"มา(?:นี่|ตรงนี้)(?=\s*(?:สิ|ซิ|หน่อย|เร็ว|นะ|ที)*\s*$)|ไปกัน(?:เลย|ต่อ)?(?=\s*(?:นะ|สิ|ซิ|เถอะ)*\s*$)|" +
+            @"(?:มา|ไป)ด้วย(?=\s*(?:นะ|สิ|ซิ|หน่อย|ครับ|ค่ะ|คะ)*\s*$)|" +
             @"\b(?:follow\s+(?:me|us)|(?:come|walk|go)\s+with\s+(?:me|us))\b");
         private static readonly Regex Wait = R(
             @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ|เดี๋ยว)|อยู่(?:ตรงนี้|ที่นี่)|ยืนรอ|อยู่นิ่ง(?:ๆ)?|หยุด(?:เดิน(?:ตาม)?|ตาม|เคลื่อนที่|สำรวจ|ค้นหา|หา(?:หลักฐาน|เบาะแส))|หยุด(?=\s*(?:ก่อน|หน่อย|นะ|ครับ|ค่ะ|คะ|$))|" +
             @"พักก่อน|พอแล้ว|ไม่ต้อง(?:เดิน)?ตาม(?:มา|เรา|ฉัน|ผม)?(?:แล้ว|ก่อน|(?=\s*$))|ไม่ต้องเดิน(?:แล้ว|ก่อน)|" +
             @"\b(?:wait\s+(?:here|for\s+(?:me|us))|wait(?=\s*(?:please|a\s+moment|$))|stay\s+here|stop\s+(?:following|walking|moving)(?:\s+(?:me|us))?|stop(?=\s*(?:please|here|$)))\b");
         private static readonly Regex Search = R(
-            @"ช่วยค้นห้อง|ช่วยดูรอบ\s*ๆ?\s*ห้อง|ลองหาดูหน่อย|(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?)?(?:(?:ลองไป|ไป|ลอง)\s*)?(?:ค้นหา|หา|ค้น)\s*(?:หลักฐาน|เบาะแส)|ช่วย\s*(?:เรา\s*)?สำรวจ(?:ห้อง|แถวนี้)|" +
+            @"ช่วยค้นห้อง|ช่วยดูรอบ\s*ๆ?\s*ห้อง|ลองหาดูหน่อย|(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?)?(?:(?:ลองไป|ไป|ลอง)\s*)?(?:ค้นหา|หา|ค้น)\s*(?:หลักฐาน|เบาะแส)|" +
+            @"ช่วย\s*(?:(?:เรา|กัน)\s*)?(?:สำรวจ|ตรวจ)(?:ดู)?\s*(?:ห้อง|แถวนี้|รอบ\s*ๆ?)|" +
+            // A bare "help me look" in this room means the authored search walk.
+            @"ช่วย\s*(?:(?:เรา|ฉัน|ผม|กัน)\s*)?(?:ค้นหา|หา|ค้น)(?:ดู)?(?=\s*(?:หน่อย|ที|สิ|ซิ|นะ|ด้วย|ได้ไหม|ครับ|ค่ะ|คะ)*\s*$)|" +
+            @"(?:ช่วย|ลอง)\s*(?:(?:เรา|กัน)\s*)?(?:ค้นหา|หา|ค้น)\s*(?:ดู\s*)?(?:อะไร|ของ)\s*(?:ที่\s*)?(?:แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย)|" +
             @"\b(?:search(?:\s+(?:the\s+)?room)?(?:\s+for\s+(?:clues|evidence))?|look\s+for\s+(?:clues|evidence)|help\s+(?:me\s+)?(?:find|search\s+for)\s+(?:clues|evidence))\b");
-        private static readonly Regex ContextHelp = R(@"^\s*(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม)\s*)?)?(?:จับ|ถือ|เปิด|ประคอง)(?:ไว้|ให้)?(?:\s*(?:หน่อย|ที|ก่อน|ได้ไหม|นะ|ครับ|ค่ะ|คะ))*[.!?]*$");
+        private static readonly Regex ContextHelp = R(@"^\s*(?:ช่วย\s*(?:(?:เรา|ฉัน|ผม)\s*)?)?(?:จับ|ถือ|เปิด|ประคอง|ยก)(?:ไว้|ให้)?(?:\s*(?:หน่อย|ที|ก่อน|ได้ไหม|นะ|ครับ|ค่ะ|คะ))*[.!?]*$");
         private static readonly Regex Comfort = R(
             @"ไม่ต้อง(?:กลัว|ห่วง)|ไม่เป็นไรนะ|(?:เรา|ฉัน|ผม)อยู่(?:ตรงนี้|นี่|ด้วย)|อยู่ด้วยกันนะ|" +
             @"\b(?:don't\s+worry|do\s+not\s+worry|i(?:'m|\s+am)\s+here\s+for\s+you|you(?:'re|\s+are)\s+not\s+alone)\b");
@@ -316,6 +328,10 @@ namespace MysteryGame.Companions
             var knowledge = AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message);
             CompanionStationData station;
             CompanionCommand command = Parse(message, actor.Scenario, out station);
+            // Rules act when they are sure. When they are merely unsure and a
+            // model is available, the model reads the request instead (its
+            // proposal is validated by TryApplyProposedAction); offline, ask back.
+            bool modelCanRead = DialogueProviders.Current != null && DialogueProviders.Current.CanGenerate;
             if (command == CompanionCommand.None && ContextHelp.IsMatch(normalized))
             {
                 int matches = 0;
@@ -323,18 +339,109 @@ namespace MysteryGame.Companions
                     if (!actor.IsCompleted(candidate) && ConditionRule.AllHold(candidate.conditions, GameState.Instance) &&
                         UnityEngine.Vector2.Distance(actor.PlayerFeet, (candidate.playerPoint + candidate.companionPoint) * 0.5f) <= actor.Scenario.activityLabelDistance)
                     { station = candidate; matches++; }
-                command = matches == 1 ? CompanionCommand.Help : CompanionCommand.Clarify;
+                command = matches == 1 ? CompanionCommand.Help : modelCanRead ? CompanionCommand.None : CompanionCommand.Clarify;
+                if (command != CompanionCommand.Help) station = null;
             }
-            if (command == CompanionCommand.None && !knowledge.PlayerAskedForHint &&
-                IncompleteActionRequest.IsMatch(normalized) && !Quoted.IsMatch(normalized) &&
-                !NonDirectContext.IsMatch(normalized) && !InformationClause.IsMatch(normalized) &&
-                !InformationRequest.IsMatch(normalized) && !ActionConfirmation.IsMatch(normalized) && !Decline.IsMatch(normalized))
+            if (command == CompanionCommand.None && !modelCanRead && !knowledge.PlayerAskedForHint && IsUnclearActionRequest(normalized))
                 command = CompanionCommand.Clarify;
             if (knowledge.PlayerAskedForHint && command != CompanionCommand.Wait && command != CompanionCommand.Search && !ContextHelp.IsMatch(normalized)) return false;
             if (command == CompanionCommand.None) return false;
             string text;
             actor.ApplyDialogueCommand(dialogue, command, station, out text);
             reply = new GeneratedChatReply { reply = text, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
+            return true;
+        }
+
+        private static bool IsUnclearActionRequest(string normalized)
+        {
+            return IncompleteActionRequest.IsMatch(normalized) && !Quoted.IsMatch(normalized) &&
+                !NonDirectContext.IsMatch(normalized) && !InformationClause.IsMatch(normalized) &&
+                !InformationRequest.IsMatch(normalized) && !ActionConfirmation.IsMatch(normalized) && !Decline.IsMatch(normalized);
+        }
+
+        /// <summary>
+        /// The model was asked about an unclear request ("ช่วยเดินอีกแบบหนึ่งหน่อย") but
+        /// produced nothing usable. Ask back, as offline play does, rather than
+        /// answering with an unrelated neutral line.
+        /// </summary>
+        public static bool TryAskBack(DialogueManager dialogue, string message, out GeneratedChatReply reply)
+        {
+            reply = null;
+            if (dialogue == null || dialogue != DialogueManager.Instance || !DialogueManager.IsDialogueOpen || GameState.Instance == null) return false;
+            var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
+            if (actor == null || actor.Scenario == null) return false;
+            string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
+            if (!IsUnclearActionRequest(normalized) ||
+                AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message).PlayerAskedForHint) return false;
+            string line;
+            actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out line);
+            if (string.IsNullOrWhiteSpace(line)) return false;
+            reply = new GeneratedChatReply { reply = line, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
+            return true;
+        }
+
+        /// <summary>
+        /// The model's reading of a message the rules could not classify. The
+        /// rules can only veto (quoted, hypothetical, confirming questions,
+        /// refusals); the controller then checks range, conditions and modals
+        /// exactly as for a parsed command. Returns false to keep the model's
+        /// own reply (no proposal, a veto, an unknown id, or a no-op).
+        /// </summary>
+        public static bool TryApplyProposedAction(DialogueManager dialogue, string message, string actionId, out GeneratedChatReply reply)
+        {
+            reply = null;
+            if (string.IsNullOrWhiteSpace(actionId) || actionId == CompanionActionOption.None ||
+                dialogue == null || dialogue != DialogueManager.Instance || !DialogueManager.IsDialogueOpen || GameState.Instance == null) return false;
+            var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
+            if (actor == null || actor.Scenario == null) return false;
+
+            CompanionCommand command = CompanionCommand.None;
+            CompanionStationData station = null;
+            if (actionId == CompanionActionOption.Follow) command = CompanionCommand.Follow;
+            else if (actionId == CompanionActionOption.Wait) command = CompanionCommand.Wait;
+            else if (actionId == CompanionActionOption.Search) command = CompanionCommand.Search;
+            else if (actionId.StartsWith(CompanionActionOption.HelpPrefix, StringComparison.Ordinal))
+            {
+                string id = actionId.Substring(CompanionActionOption.HelpPrefix.Length);
+                if (actor.Scenario.stations != null)
+                    foreach (var candidate in actor.Scenario.stations)
+                        if (candidate != null && candidate.id == id) { station = candidate; break; }
+                if (station != null) command = CompanionCommand.Help;
+            }
+            if (command == CompanionCommand.None) return false;
+
+            string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
+            if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text) || ActionConfirmation.IsMatch(text)) return false;
+            // A refusal can be the request itself only for stopping ("อย่าเพิ่งไป").
+            if (command != CompanionCommand.Wait && Decline.IsMatch(Comfort.Replace(text, " "))) return false;
+            if (AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message).PlayerAskedForHint &&
+                command != CompanionCommand.Wait && command != CompanionCommand.Search) return false;
+
+            // The player named an activity's object ("ไปช่วยตรงโต๊ะหน่อยสิ"). The model
+            // may only judge that it is a request; it must not swap in a different
+            // task (a search walk) when that object's activity is locked or done.
+            if (command == CompanionCommand.Search || command == CompanionCommand.Help)
+            {
+                var named = new List<CompanionStationData>();
+                if (actor.Scenario.stations != null)
+                    foreach (var candidate in actor.Scenario.stations)
+                        if (candidate != null && Mentions(text, candidate)) named.Add(candidate);
+                if (named.Count > 1 && (command == CompanionCommand.Search || !named.Contains(station))) return false;
+                if (named.Count == 1 && station != named[0]) { command = CompanionCommand.Help; station = named[0]; }
+            }
+
+            // Already doing it: let the model's reply answer instead of a stock line.
+            if ((command == CompanionCommand.Wait && actor.Mode == CompanionMode.Waiting) ||
+                (command == CompanionCommand.Follow && actor.Mode == CompanionMode.Following) ||
+                (command == CompanionCommand.Search && actor.Mode == CompanionMode.Searching) ||
+                (command == CompanionCommand.Help && actor.ActiveStation == station)) return false;
+
+            string line;
+            actor.ApplyDialogueCommand(dialogue, command, station, out line);
+            if (string.IsNullOrWhiteSpace(line)) return false;
+            // Started or refused, the answer is the companion's authored line,
+            // never a model promise about something the game did not do.
+            reply = new GeneratedChatReply { reply = line, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
             return true;
         }
     }

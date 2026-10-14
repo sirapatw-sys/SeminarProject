@@ -42,6 +42,8 @@ namespace MysteryGame.Companions
         public List<string> questionAliases = new List<string>();
         [Tooltip("Authored optional-activity instructions, not main-puzzle hints or a claim that work has started.")]
         [TextArea] public string instructions;
+        [Tooltip("How the AI action menu describes helping here (e.g. 'hold the box from the other side'). Empty = generic wording from the title.")]
+        public string actionDescription;
         public Vector2 companionPoint;
         public Vector2 playerPoint;
         [Min(0.2f)] public float radius = 0.5f;
@@ -83,6 +85,8 @@ namespace MysteryGame.Companions
         [TextArea] public string followLine;
         [TextArea] public string waitLine;
         [TextArea] public string blockedLine;
+        [Tooltip("Said when a held station times out after the companion already reached it (blockedLine means 'cannot get there').")]
+        [TextArea] public string releaseLine = "ฉันขอปล่อยมือก่อนนะ ถ้าจะลองอีกครั้งก็ชวนฉันได้";
         [TextArea] public string comfortLine;
         [TextArea] public string comfortRepeatLine;
         [TextArea] public string comfortMemory;
@@ -134,6 +138,9 @@ namespace MysteryGame.Companions
                     errors.Add("Companion station positions/timing are invalid: " + station.id);
                 if (string.IsNullOrWhiteSpace(station.memory) || string.IsNullOrWhiteSpace(station.journalText))
                     errors.Add("Companion station needs a shared memory and journal: " + station.id);
+                // The AI action menu shows this text to the model as the NPC's own ability.
+                if (MysteryGame.Knowledge.NpcReplyPolicy.MentionsGameControls(station.actionDescription))
+                    errors.Add("Companion action description mentions game controls: " + station.id);
                 if (station.relationshipReward < 0 || station.relationshipReward > 6)
                     errors.Add("Companion reward must be between 0 and 6: " + station.id);
             }
@@ -159,7 +166,7 @@ namespace MysteryGame.Companions
         // UI-only labels/prop descriptions and journal entries are deliberately separate.
         public IEnumerable<string> SpokenLines()
         {
-            foreach (string line in new[] { welcomeLine, followLine, waitLine, blockedLine, comfortLine,
+            foreach (string line in new[] { welcomeLine, followLine, waitLine, blockedLine, releaseLine, comfortLine,
                 comfortRepeatLine, searchRequestLine, searchFinishedLine }) yield return line;
             if (stations != null) foreach (var station in stations) if (station != null)
                 foreach (string line in new[] { station.instructions, station.requestLine, station.holdingLine,

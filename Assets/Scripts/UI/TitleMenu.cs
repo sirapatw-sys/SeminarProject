@@ -162,21 +162,12 @@ public class TitleMenu : MonoBehaviour
 
         SaveSystem.Delete();
 
-        if (SceneManager.GetActiveScene().name != FirstScene)
-        {
-            pendingIntroPlay = true;
-            SceneManager.LoadScene(FirstScene);
-        }
-        else
-        {
-            // Reset player position in Room01
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
-            {
-                player.transform.position = new Vector3(0f, -2f, 0f);
-            }
-            IntroSequence.Play(force: true);
-        }
+        // Always start from a freshly loaded first scene: it puts the player
+        // (and anything that moves, like a companion NPC) at the positions the
+        // scene authors, for whichever game definition is running. The old
+        // fixed (0,-2) teleport was Room01's spawn and wrong for other games.
+        pendingIntroPlay = true;
+        SceneManager.LoadScene(FirstScene);
     }
 
     private bool IsButtonClicked(Rect rect, string text, GUIStyle style, bool enabled = true)

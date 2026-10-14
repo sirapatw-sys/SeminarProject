@@ -1427,6 +1427,18 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        // The model may have read a companion request the rules missed. It is
+        // applied only through the same validation as a parsed command, and the
+        // answer then becomes the companion's authored line.
+        GeneratedChatReply proposedAction;
+        if (companionCommand == null && generated != null &&
+            MysteryGame.Companions.CompanionDialogueCommands.TryApplyProposedAction(
+                this, playerMessage, generated.companionAction, out proposedAction))
+        {
+            companionCommand = proposedAction;
+            generated = null;
+        }
+
         var knowledge = AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
         string policyReason = null;
         var answerReply = companionCommand ?? NpcReplyPolicy.CompanionReply(knowledge) ??
@@ -1439,7 +1451,16 @@ public class DialogueManager : MonoBehaviour
                 ? grounded : null;
         }
         bool usedFallback = generated == null && hintReply == null;
-        GeneratedChatReply reply = answerReply ?? generated ?? hintReply ?? BuildFallbackReply(playerMessage);
+        GeneratedChatReply reply = answerReply ?? generated ?? hintReply;
+        if (reply == null)
+        {
+            // An unclear request to a companion asks back instead of getting an
+            // unrelated neutral line when the model's answer was unusable.
+            GeneratedChatReply askBack;
+            if (MysteryGame.Companions.CompanionDialogueCommands.TryAskBack(this, playerMessage, out askBack))
+            { reply = askBack; companionCommand = askBack; }
+            else reply = BuildFallbackReply(playerMessage);
+        }
         // Offline replies author small gains (+1 to +4), so they count double.
         // The AI's reading and the rules' reading are combined there; a rude
         // or distancing message never raises the relationship.

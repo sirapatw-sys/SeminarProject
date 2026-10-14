@@ -38,6 +38,7 @@ MonoBehaviour:
   followLine: "...ก็ได้ ฉันเดินไปด้วย อย่าวิ่งทิ้งกันก็แล้วกัน"
   waitLine: "อืม ฉันรอตรงนี้ ถ้าต้องการให้ช่วยก็เรียกนะ"
   blockedLine: "ฉันไปไม่ถึงตรงนั้น... ขยับมาหากันแล้วลองใหม่ได้ไหม?"
+  releaseLine: "...ฉันขอปล่อยมือก่อนนะ จับไว้นานแล้ว ถ้าจะลองอีกครั้งก็ชวนฉันได้"
   comfortLine: "...ขอบใจ ฉันไม่ได้กลัวหรอก แค่โล่งใจที่ไม่ได้อยู่คนเดียว"
   comfortRepeatLine: "อืม ฉันรู้ว่าเธอยังอยู่ตรงนี้ ไปต่อกันเถอะ"
   comfortMemory: "ผู้เล่นบอกว่าจะอยู่ด้วยกันและให้กำลังใจระหว่างสำรวจห้องแรก"
@@ -55,6 +56,7 @@ MonoBehaviour:
     requestAliases: ["กล่องนี้", "กล่อง", "box"]
     questionAliases: ["กล่องนี้", "the box", "this box"]
     instructions: "เราต้องจับกล่องคนละด้านนะ ฉันอยู่ฝั่งนี้ ส่วนเธอไปอีกฝั่ง แล้วเราค่อยลองยกพร้อมกัน ไม่ต้องรีบหรอก"
+    actionDescription: "ไปจับ/ยกกล่องสองมือกลางห้องอีกฝั่งหนึ่ง เพื่อช่วยกันเปิดกล่อง"
     companionPoint: {x: -0.9, y: -2.65}
     playerPoint: {x: 0.9, y: -2.65}
     radius: 0.5
@@ -80,6 +82,7 @@ MonoBehaviour:
     - "desk edge"
     requestAliases: ["โต๊ะ", "โต๊ะทำงาน", "desk", "table"]
     instructions: "ฉันจับฝั่งนี้ไว้ให้ เธอไปอีกฝั่งแล้วลองสำรวจดู อ่านสิ่งที่เจอด้วยตัวเองนะ อยากให้ปล่อยเมื่อไหร่ก็บอก"
+    actionDescription: "ไปจับประคองขอบโต๊ะที่โยกไว้ให้ ผู้เล่นจะได้ใช้สองมือสำรวจโต๊ะ"
     companionPoint: {x: -5.7, y: -1.15}
     playerPoint: {x: -4.1, y: -1.15}
     radius: 0.65
@@ -120,7 +123,10 @@ MonoBehaviour:
     inspectSeconds: 2
     factId: companion_box_marks
     inspectingLine: "ขอดูรอยบนกล่องนี้สักครู่..."
-    conditions: []
+    conditions:
+    - type: 1
+      targetId: companion.room01_alice.two_hands_box.completed
+      amount: 0
   - id: discovered_desk_note
     point: {x: -4.1, y: -1.15}
     inspectSeconds: 2

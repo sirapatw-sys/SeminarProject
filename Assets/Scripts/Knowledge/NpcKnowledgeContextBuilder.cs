@@ -140,6 +140,34 @@ namespace MysteryGame.Knowledge
             context.CompanionFacts.Add(new RoomFact {
                 factId = scenario.Flag("mode." + actor.Mode), statement = scenario.displayName + " " + status
             });
+            FillCompanionActions(context, scenario, state);
+        }
+
+        // Only what could start now: locked or finished stations stay out of
+        // the menu, exactly as they stay out of the prompt's activity facts.
+        private static void FillCompanionActions(NpcKnowledgeContext context,
+            MysteryGame.Companions.CompanionScenarioData scenario, GameState state)
+        {
+            context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Follow,
+                Description = "เดินตามผู้เล่นไปด้วยกัน" });
+            context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Wait,
+                Description = "หยุดรออยู่ตรงนี้ หรือเลิกทำสิ่งที่กำลังทำอยู่" });
+            if (scenario.searchSpots != null)
+                foreach (var spot in scenario.searchSpots)
+                    if (spot != null && ConditionRule.AllHold(spot.conditions, state))
+                    {
+                        context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Search,
+                            Description = "เดินสำรวจรอบห้องเพื่อช่วยหาหลักฐาน" });
+                        break;
+                    }
+            foreach (var station in scenario.stations)
+            {
+                if (station == null || string.IsNullOrWhiteSpace(station.id) || state.HasFlag(scenario.CompletedFlag(station)) ||
+                    !ConditionRule.AllHold(station.conditions, state)) continue;
+                context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.HelpPrefix + station.id,
+                    Description = !string.IsNullOrWhiteSpace(station.actionDescription) ? station.actionDescription
+                        : "ช่วยกันทำ «" + station.title + "»" });
+            }
         }
 
         /// <summary>How many memory notes go into one prompt.</summary>

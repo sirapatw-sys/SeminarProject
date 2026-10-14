@@ -42,11 +42,31 @@ public static class SaveSystem
         get { return File.Exists(SavePath) || File.Exists(SavePath + ".bak"); }
     }
 
-    /// <summary>When the save on disk was written, for the title menu.</summary>
+    private static string cachedSavedAtKey;
+    private static string cachedSavedAt = string.Empty;
+
+    /// <summary>
+    /// When the save on disk was written, for the title menu. The menu asks on
+    /// every GUI event, so the parsed value is cached until the files change
+    /// instead of reading and validating the whole save several times a frame.
+    /// </summary>
     public static string LastSavedAt()
     {
+        string path = SavePath;
+        string key;
+        try
+        {
+            key = path + "|" + (File.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0) +
+                  "|" + (File.Exists(path + ".bak") ? File.GetLastWriteTimeUtc(path + ".bak").Ticks : 0);
+        }
+        catch (Exception) { key = null; }
+        if (key != null && key == cachedSavedAtKey) return cachedSavedAt;
+        string previousError = LastError;
         SaveFile file = Read();
-        return file != null ? file.savedAt : string.Empty;
+        LastError = previousError; // Reading for a label is not a failed load.
+        cachedSavedAt = file != null ? file.savedAt ?? string.Empty : string.Empty;
+        cachedSavedAtKey = key;
+        return cachedSavedAt;
     }
 
     public static bool Save()
