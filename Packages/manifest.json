@@ -1,5 +1,7 @@
 {
+  "testables": ["com.mysterygame.companion-reasoning"],
   "dependencies": {
+    "com.mysterygame.companion-reasoning": "file:../FrameworkPackages/com.mysterygame.companion-reasoning",
     "com.unity.collab-proxy": "1.17.7",
     "com.unity.feature.2d": "1.0.0",
     "com.unity.ide.rider": "3.0.16",

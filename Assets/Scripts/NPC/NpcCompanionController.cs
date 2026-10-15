@@ -445,6 +445,17 @@ namespace MysteryGame.Companions
             var station = ActiveStation;
             if (station == null || IsCompleted(station)) return;
             state.SetFlag(Scenario.CompletedFlag(station));
+            if (station.completionActions != null)
+                foreach (var action in station.completionActions) action?.Execute(state);
+            var room = KnowledgeLibrary.GetRoom(RoomId);
+            var profile = KnowledgeLibrary.GetNpc(Scenario.npcId);
+            if (station.discoveredFactIds != null) foreach (string id in station.discoveredFactIds)
+            {
+                var fact = room != null ? room.FindFact(id) : null;
+                if (fact != null && fact.IsRevealed(state) && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance &&
+                    (profile == null || !profile.IsForbidden(id)))
+                    state.SetFlag(NpcObservation.Flag(Scenario.npcId, RoomId, id));
+            }
             state.ChangeRelationship(Scenario.npcId, Mathf.Clamp(station.relationshipReward, 0, 6));
             state.AddNpcMemory(Scenario.npcId, station.memory);
             state.AddJournalEntry(Scenario.CompletedFlag(station), station.title, station.journalText);

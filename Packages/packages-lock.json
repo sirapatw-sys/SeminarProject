@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.mysterygame.companion-reasoning": {
+      "version": "file:../FrameworkPackages/com.mysterygame.companion-reasoning",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {}
+    },
     "com.unity.2d.animation": {
       "version": "7.0.9",
       "depth": 1,

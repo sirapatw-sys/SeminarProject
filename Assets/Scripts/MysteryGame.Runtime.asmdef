@@ -2,6 +2,7 @@
     "name": "MysteryGame.Runtime",
     "rootNamespace": "",
     "references": [
+        "CompanionFramework.Reasoning",
         "Unity.TextMeshPro",
         "UnityEngine.UI"
     ],

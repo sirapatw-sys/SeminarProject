@@ -55,6 +55,10 @@ namespace MysteryGame.Companions
         [TextArea] public string memory;
         [TextArea] public string journalText;
         [Range(0, 6)] public int relationshipReward = 3;
+        [Tooltip("Trusted content effects applied once, only after verified completion.")]
+        public List<ActionCommand> completionActions = new List<ActionCommand>();
+        [Tooltip("Facts actually inspected during this completed task; reveal conditions still apply.")]
+        public List<string> discoveredFactIds = new List<string>();
     }
 
     // Content, positions and dialogue belong to the asset, never NPC-specific scripts.
@@ -94,6 +98,8 @@ namespace MysteryGame.Companions
         public List<CompanionStationData> stations = new List<CompanionStationData>();
         public List<CompanionObservation> observations = new List<CompanionObservation>();
         public List<CompanionDiscussion> discussions = new List<CompanionDiscussion>();
+        public CompanionFramework.ReasoningProfile reasoningProfile;
+        [TextArea] public string noEvidenceLine = "ฉันยังไม่มีหลักฐานที่ตรวจสอบได้ เอาสิ่งที่เธอพบมาให้ดู หรือชวนฉันไปสำรวจด้วยกันได้นะ";
         public List<CompanionSearchSpot> searchSpots = new List<CompanionSearchSpot>();
         [TextArea] public string searchRequestLine = "ฉันจะสำรวจบริเวณที่เดินถึงและตรวจสิ่งที่เห็น ถ้าเจอหลักฐานจะบอกนะ";
         [TextArea] public string searchFinishedLine = "สำรวจรอบนี้เสร็จแล้ว หลักฐานที่ยืนยันได้อยู่ในสมุด เราคุยทบทวนกันต่อได้";
@@ -160,6 +166,18 @@ namespace MysteryGame.Companions
                 if (discussion == null || string.IsNullOrWhiteSpace(discussion.id) || !ids.Add(discussion.id) ||
                     string.IsNullOrWhiteSpace(discussion.line) || discussion.requiredFacts == null || discussion.requiredFacts.Count == 0)
                     errors.Add("Companion discussion needs a unique identity, evidence and authored line.");
+            if (reasoningProfile != null)
+            {
+                if (reasoningProfile.npcId != npcId) errors.Add("Reasoning profile belongs to another NPC.");
+                ids.Clear();
+                if (reasoningProfile.rules == null) errors.Add("Reasoning rules list is missing.");
+                else foreach (var rule in reasoningProfile.rules)
+                    if (rule == null || string.IsNullOrWhiteSpace(rule.id) || !ids.Add(rule.id) ||
+                        rule.requiredFacts == null || rule.requiredFacts.Count == 0 ||
+                        rule.phrases == null || rule.phrases.Count == 0 ||
+                        string.IsNullOrWhiteSpace(rule.cautiousLine) || string.IsNullOrWhiteSpace(rule.insufficientLine))
+                        errors.Add("Reasoning rule needs identity, evidence, phrases and safe fallback lines.");
+            }
             return errors;
         }
 

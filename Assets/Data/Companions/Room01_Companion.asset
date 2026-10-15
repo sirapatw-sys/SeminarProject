@@ -43,6 +43,7 @@ MonoBehaviour:
   comfortRepeatLine: "อืม ฉันรู้ว่าเธอยังอยู่ตรงนี้ ไปต่อกันเถอะ"
   comfortMemory: "ผู้เล่นบอกว่าจะอยู่ด้วยกันและให้กำลังใจระหว่างสำรวจห้องแรก"
   comfortEmotion: homesickness
+  reasoningProfile: {fileID: 11400000, guid: 67e2af4cbdb94250ad954f791c100002, type: 2}
   stations:
   - id: two_hands_box
     title: "กล่องสองมือ"
@@ -96,13 +97,27 @@ MonoBehaviour:
       amount: 0
     requestLine: "...ได้ ฉันจะไปประคองขอบโต๊ะ เธอเป็นคนสำรวจนะ"
     holdingLine: "จับไว้แล้ว เธอลองสำรวจได้เลย ฉันจะไม่ปล่อยจนกว่าเธอจะเสร็จ"
-    completedLine: "เจอแล้วสินะ... คราวนี้เราแบ่งหน้าที่กันได้ดี"
+    completedLine: "เจอแล้วสินะ... ตอนประคองฉันเห็นรอยลูกศรเล็กชี้ซ้ายบนขอบกระดาษด้วย เอาตัวเลขที่เธออ่านมาให้ดู แล้วเราค่อยคิดด้วยกัน"
     memory: "Alice ประคองขอบโต๊ะให้ผู้เล่นใช้สองมือสำรวจ จนผู้เล่นพบกระดาษโน้ตด้วยตัวเอง"
-    journalText: "Alice ประคองขอบโต๊ะ ส่วนเราเป็นคนสำรวจและพบกระดาษโน้ต เราแบ่งหน้าที่กันโดยไม่ได้ให้เธอบอกคำตอบแทน"
+    journalText: "Alice ประคองขอบโต๊ะ ส่วนเราเป็นคนพบกระดาษโน้ต ระหว่างช่วยเธอสังเกตเห็นลูกศรบนขอบกระดาษชี้จากขวาไปซ้าย เราต้องแลกสิ่งที่เห็นกันก่อนสรุป"
     relationshipReward: 2
+    completionActions:
+    - type: 0
+      targetId: companion.room01_alice.search.note_direction.found
+      amount: 0
+    discoveredFactIds: [note_direction]
   searchRequestLine: "...ได้ ฉันจะเดินตรวจบริเวณรอบ ๆ แล้วบอกหลักฐานที่พบ เธอสำรวจส่วนของเธอได้ ถ้าอยากให้หยุดก็บอกนะ"
   searchFinishedLine: "สำรวจรอบนี้เสร็จแล้ว หลักฐานที่พบอยู่ในสมุด เราทบทวนด้วยกันต่อได้"
   searchSpots:
+  - id: note_margin
+    point: {x: -4.1, y: -1.15}
+    inspectSeconds: 2
+    factId: note_direction
+    inspectingLine: "...ฉันขอตรวจรอยจางบนขอบกระดาษตรงนี้ก่อน"
+    conditions:
+    - type: 0
+      targetId: found_note
+      amount: 0
   - id: discovered_painting
     point: {x: 0, y: 1.3}
     inspectSeconds: 1.5

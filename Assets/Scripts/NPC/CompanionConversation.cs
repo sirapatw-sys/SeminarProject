@@ -22,6 +22,7 @@ namespace MysteryGame.Companions
             reply = null;
             if (actor == null || !actor.CanConverse(DialogueManager.Instance)) return false;
             var state = GameState.Instance;
+            if (CompanionReasoning.TryReply(actor.Scenario, state, actor.RoomId, message, out reply)) return true;
             var share = Share.Match(message.Trim());
             string line = null;
             if (share.Success)
@@ -29,7 +30,9 @@ namespace MysteryGame.Companions
                 string target = (share.Groups[1].Success ? share.Groups[1].Value : share.Groups[2].Value).Trim();
                 var candidates = EvidenceSharing.Available(state, actor.Scenario.npcId)
                     .Where(f => string.Equals(Key(f.EvidenceTitle), target, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(f.factId, target, StringComparison.OrdinalIgnoreCase)).ToList();
+                        string.Equals(f.factId, target, StringComparison.OrdinalIgnoreCase) ||
+                        (f.evidenceAliases != null && f.evidenceAliases.Any(a => !string.IsNullOrWhiteSpace(a) &&
+                            string.Equals(Key(a), target, StringComparison.OrdinalIgnoreCase)))).ToList();
                 EvidenceShareResult result;
                 if (candidates.Count == 1 && EvidenceSharing.TryShare(state, actor.Scenario.npcId, candidates[0].factId, out result, false))
                     line = result.Reply;
@@ -53,7 +56,8 @@ namespace MysteryGame.Companions
                 string topic = (match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value).Trim();
                 var memories = state.GetNpcMemory(actor.Scenario.npcId);
                 foreach (var station in actor.Scenario.stations)
-                    if ((topic == Key(station.title) || (station.gameplayTerms != null && station.gameplayTerms.Any(t => Key(t) == topic))) && memories.Contains(station.memory))
+                    if ((topic == Key(station.title) || (station.gameplayTerms != null && station.gameplayTerms.Any(t => Key(t) == topic))) &&
+                        (state.HasFlag(actor.Scenario.CompletedFlag(station)) || memories.Contains(station.memory)))
                     { line = "จำได้... " + station.memory; break; }
                 if (line == null && actor.Scenario.observations != null) foreach (var observation in actor.Scenario.observations)
                     if (observation != null && observation.recallTerms != null && observation.recallTerms.Any(t => Key(t) == topic) && memories.Contains(observation.memory))

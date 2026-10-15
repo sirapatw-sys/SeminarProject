@@ -3629,6 +3629,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   interactionData: {fileID: 11400000, guid: a9721c4aa5d5c7d48bb513a874a485de, type: 2}
+  followUpInteraction: {fileID: 11400000, guid: 67e2af4cbdb94250ad954f791c100003, type: 2}
+  followUpWhenFlag: found_note
 --- !u!1 &2107482506
 GameObject:
   m_ObjectHideFlags: 0
