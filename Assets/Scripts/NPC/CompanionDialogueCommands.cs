@@ -58,8 +58,22 @@ namespace MysteryGame.Companions
         private static readonly Regex TargetFirstHelp = R(@"^\s*(?:มันโยกนะ|โยกนะ|นี้|มันโยก|โยก)?\s*ช่วย(?:จับ|ถือ|ประคอง|ยก)?(?:ไว้|ให้)?(?:ได้ไหม|หน่อย|ที)(?:นะ|ครับ|ค่ะ|คะ)*\s*$");
         // An unclear activity verb asks back, but a social object is ordinary
         // talk for the AI: "ช่วยจับมือฉันหน่อย", "ช่วยเปิดใจ", "ช่วยหาเรื่องคุย".
+        private const string SocialObjects = @"มือ|แขน|ไหล่|ใจ|เพลง|เรื่อง|ความ|คำ|ข้าว|น้ำ";
+        private static readonly Regex SocialObject = R(@"(?:" + SocialObjects + @")");
         private static readonly Regex IncompleteActionRequest = R(@"^\s*(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้)\s*(?:(?:เรา|ฉัน|ผม|มา|ไป|กัน)\s*)?(?:จับ|ถือ|เปิด|ประคอง|ยก|เดิน|ค้น|หา|สำรวจ|ตรวจ)" +
-            @"(?!\s*(?:มือ|แขน|ไหล่|ใจ|เพลง|เรื่อง|ความ|คำ|ข้าว|น้ำ))");
+            @"(?!\s*(?:" + SocialObjects + @"))");
+        // Words a target-less request may contain. Whatever is left after
+        // removing them names a different object ("ช่วยยกเก้าอี้หน่อย").
+        private const string RequestFiller =
+            // Longer Thai words first: "ที่นี่" must not be eaten as "ที" + a stray mark.
+            @"ที่นี่|ที่นั่น|ตรง(?:นี้|นั้น|โน้น)|อัน(?:นี้|นั้น)|ได้ไหม|ได้มั้ย|ขอให้|อยากให้|กรุณา|โปรด|" +
+            @"ช่วย|กัน|มา|ไป|ลอง|เธอ|คุณ|เรา|ฉัน|ผม|ให้|ไว้|ด้วย|หน่อย|ที|สิ|ซิ|นะ|ครับ|ค่ะ|คะ|จ้ะ|จ้า|ไหม|มั้ย|เลย|ก่อน|นี่|นั่น|" +
+            // R() lower-cases patterns, so no \p{..} or \W classes here: list punctuation.
+            @"\b(?:please|help|me|us|you|can|could|would|will|the|a|this|that|it|here|there|with|and|for|to)\b|[\s.,!?;:…'""()/~\-]+";
+        private static readonly Regex HelpFiller = R(@"(?:จับ|ถือ|ยก|เปิด|ประคอง|ทำ|ประจำ|ยืน|อีก\s*(?:ด้าน|ฝั่ง|ข้าง)(?:หนึ่ง)?|(?:ฝั่ง|ด้าน|ข้าง)(?:นี้|นั้น|โน้น)?|" +
+            @"\b(?:hold|lift|open|side|other)\b|" + RequestFiller + @")");
+        private static readonly Regex SearchFiller = R(@"(?:ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
+            @"\b(?:search|look|find|clues?|evidence|room|around)\b|" + RequestFiller + @")");
         // Only split coordinated actions after classifying the enclosing
         // clause. A question about two actions must not execute its first half.
         private static readonly Regex ActionJoiner = R(
@@ -306,6 +320,43 @@ namespace MysteryGame.Companions
             return result.ToString().ToLowerInvariant();
         }
 
+        /// <summary>
+        /// The parser's speech-act rules applied to a model proposal. They can
+        /// only say no: quoted, hypothetical or reported speech, questions,
+        /// confirmations, information requests, withdrawn requests ("follow me,
+        /// scratch that") and refusals ("อย่าหยุดเดิน"). For a stop request the
+        /// negative stop phrases themselves ("ไม่ต้องตามแล้ว") are not refusals.
+        /// </summary>
+        public static bool RulesVeto(string text, CompanionCommand command)
+        {
+            text = Normalize(text);
+            if (string.IsNullOrWhiteSpace(text) || Quoted.IsMatch(text) || NonDirectContext.IsMatch(text)) return true;
+            foreach (string clause in Clauses.Split(text))
+            {
+                if (string.IsNullOrWhiteSpace(clause)) continue;
+                if (Withdrawal.IsMatch(clause) || StandaloneRefusal.IsMatch(clause) || ConfirmationTag.IsMatch(clause) ||
+                    InformationClause.IsMatch(clause) || InformationRequest.IsMatch(clause) || ActionConfirmation.IsMatch(clause))
+                    return true;
+                // A withdrawal typed without punctuation still ends the request ("ตามมา ยกเลิก").
+                for (int i = 1; i < clause.Length; i++)
+                    if (char.IsWhiteSpace(clause[i - 1]) && !char.IsWhiteSpace(clause[i]) && Withdrawal.IsMatch(clause.Substring(i)))
+                        return true;
+            }
+            string withoutAllowed = Comfort.Replace(command == CompanionCommand.Wait ? Wait.Replace(text, " ") : text, " ");
+            return Decline.IsMatch(withoutAllowed);
+        }
+
+        /// <summary>True when a help/search request names something other than
+        /// a companion activity, e.g. "ช่วยยกเก้าอี้หน่อย" or "ช่วยจับมือฉันหน่อย".</summary>
+        public static bool NamesOtherObject(string text, CompanionCommand command)
+        {
+            Regex filler = command == CompanionCommand.Help ? HelpFiller : command == CompanionCommand.Search ? SearchFiller : null;
+            if (filler == null) return false;
+            string residue = filler.Replace(Normalize(text), string.Empty);
+            // A tone mark left from a split word is not an object.
+            return Regex.Replace(residue, @"\p{M}", string.Empty).Length > 0;
+        }
+
         // Called only from the trusted player-send path, never from a provider,
         // policy validator, prompt builder, timeout or repeated callback.
         public static bool TryReply(DialogueManager dialogue, string message, out GeneratedChatReply reply)
@@ -411,9 +462,7 @@ namespace MysteryGame.Companions
             if (command == CompanionCommand.None) return false;
 
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
-            if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text) || ActionConfirmation.IsMatch(text)) return false;
-            // A refusal can be the request itself only for stopping ("อย่าเพิ่งไป").
-            if (command != CompanionCommand.Wait && Decline.IsMatch(Comfort.Replace(text, " "))) return false;
+            if (RulesVeto(text, command)) return false;
             if (AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message).PlayerAskedForHint &&
                 command != CompanionCommand.Wait && command != CompanionCommand.Search) return false;
 
@@ -428,6 +477,18 @@ namespace MysteryGame.Companions
                         if (candidate != null && Mentions(text, candidate)) named.Add(candidate);
                 if (named.Count > 1 && (command == CompanionCommand.Search || !named.Contains(station))) return false;
                 if (named.Count == 1 && station != named[0]) { command = CompanionCommand.Help; station = named[0]; }
+                // No activity named: the request must not name some other object
+                // either ("ช่วยยกเก้าอี้หน่อย" proposed as the box). A social object
+                // stays conversation; anything else is asked about, not guessed.
+                if (named.Count == 0 && NamesOtherObject(text, command))
+                {
+                    if (SocialObject.IsMatch(text)) return false;
+                    string clarify;
+                    actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out clarify);
+                    if (string.IsNullOrWhiteSpace(clarify)) return false;
+                    reply = new GeneratedChatReply { reply = clarify, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
+                    return true;
+                }
             }
 
             // Already doing it: let the model's reply answer instead of a stock line.

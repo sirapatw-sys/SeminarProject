@@ -280,6 +280,35 @@ public class CompanionUsabilityPlayTests
     }
 
     [UnityTest]
+    public IEnumerator ProposalsCannotOverrideThePlayersWordsOrSwapTheTarget()
+    {
+        ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();
+        provider.Text = "...อืม";
+        Send("ตามมา"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        // "Don't stop" proposed as wait.
+        provider.ProposedAction = "wait";
+        Send("อย่าหยุดเดิน"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+
+        Send("หยุดเดิน"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        // A withdrawn request proposed as follow.
+        provider.ProposedAction = "follow";
+        Send("follow me, scratch that"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+
+        // Social talk and another object proposed as the box.
+        provider.ProposedAction = "help:" + Box.id;
+        Send("ช่วยจับมือฉันหน่อย"); yield return null;
+        Assert.That(actor.ActiveStation, Is.Null);
+        Send("ช่วยยกเก้าอี้หน่อย"); yield return null;
+        Assert.That(actor.ActiveStation, Is.Null);
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("อยากให้ฉันทำอะไร"));
+        Assert.That(actor.IsCompleted(Box), Is.False);
+    }
+
+    [UnityTest]
     public IEnumerator DeskHelpCanBeAskedFromAcrossTheRoom()
     {
         State.SetFlag("inspected_painting");

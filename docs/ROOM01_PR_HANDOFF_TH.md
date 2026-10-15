@@ -1,6 +1,19 @@
 # ส่งต่อ PR: Room01 Companion — 14 ตุลาคม 2026
 
-## ล่าสุด: ต่อยอดโดย tanapoom หลัง `da04989` (`8b794c7`)
+## ล่าสุด: แก้ตามรีวิว PR #5 (4 จุด P2)
+
+ทุกข้ออยู่ที่ตัวตรวจ action ที่ AI เสนอ (`TryApplyProposedAction`) ตอนนี้ใช้ `CompanionDialogueCommands.RulesVeto` ซึ่งเป็นกฎชุดเดียวกับ parser:
+
+1. **"อย่าหยุดเดิน" ทำให้หยุด** — คำปฏิเสธตรวจกับ `wait` ด้วย โดยยกเว้นเฉพาะวลีหยุดที่เป็นคำขอเอง เช่น "ไม่ต้องตามแล้ว"
+2. **คำขอที่ถอนแล้วถูกทำต่อ** (`follow me, scratch that`, `ตามมา ยกเลิก`) — clause ที่ถอนคำขอ ปฏิเสธลอย ๆ หรือถามยืนยัน ปัดตกข้อเสนอ AI ทุกครั้ง รวมคำถอนท้ายประโยคที่ไม่มีเครื่องหมายคั่น
+3. **บทคุย/คำถามกลายเป็นคำสั่ง** (`ช่วยบอกวิธีจับกล่องหน่อย`) — clause ที่เป็นคำถาม ขอข้อมูล หรือยืนยัน ปัดตกเหมือน parser
+4. **ขอสิ่งหนึ่งแต่ทำอีกสิ่ง** (`ช่วยยกเก้าอี้หน่อย` → กล่อง) — `NamesOtherObject` ตรวจว่าข้อความเอ่ยวัตถุอื่นไหม ถ้าเป็นเรื่องทางสังคม ("จับมือ") ให้ AI คุยต่อ ถ้าเป็นวัตถุอื่นให้ Alice ถามกลับ
+
+เจอเพิ่มระหว่างแก้: `R()` แปลง pattern เป็นตัวพิมพ์เล็ก ทำให้ `\p{P}` กลายเป็น `\p{p}` และ type initializer พัง จึงห้ามใช้ class แบบ `\p{..}`/`\W` ใน pattern ที่ผ่าน `R()` (ใส่หมายเหตุไว้ในโค้ดแล้ว)
+
+เทสต์: `CompanionProposalVetoTests` (EditMode) + `ProposalsCannotOverrideThePlayersWordsOrSwapTheTarget` (PlayMode) ครอบทั้ง 4 จุด; veto probe 26/26, parser 212/212 นอก Unity; compile 0 error/0 warning — ยังไม่ได้รัน Unity Test Runner รอบนี้
+
+## ต่อยอดโดย tanapoom หลัง `da04989` (`8b794c7`)
 
 ทำบน branch `tanapoom/room01-companion-adjustment` ต่อจากงานของ `codex/room01-companion` ครบทุก commit
 
