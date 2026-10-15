@@ -442,4 +442,43 @@ public class CompanionCooperationPlayTests
         Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ลูกศร"));
         Assert.That(State.HasFlag("drawer_opened"), Is.False);
     }
+
+    [UnityTest]
+    public IEnumerator SharedOutcomeOnlyCelebratesAfterWitnessingRealSuccess()
+    {
+        ActorAt(DeskStation.companionPoint); PlayerAt(DeskStation.playerPoint);
+        Chat(); Send("เราทำได้แล้วค่ะ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(actor.Scenario.unverifiedOutcomeLine));
+        Assert.That(State.HasFlag("drawer_opened"), Is.False);
+        DialogueManager.Instance.HideDialogue(); State.SetFlag("found_note");
+        var drawer = UnityEngine.Resources.FindObjectsOfTypeAll<InteractionData>().First(d => d.interactionId == "open_drawer");
+        string response;
+        Assert.That(InteractionSystem.Instance.TryExecute(drawer, out response, "4592"), Is.True);
+        Assert.That(State.HasFlag(actor.Scenario.Flag("observed.drawer_seen")), Is.True);
+        // The player dismisses the key's item card before opening NPC chat.
+        RoomTransitionManager.CloseRoomOverlays();
+        Chat(); int score = State.GetRelationship("Alice");
+        Send("เราทำได้แล้วค่ะ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("เธอทำได้แล้ว"));
+        Send("เราทำได้แล้วค่ะ"); yield return null;
+        Assert.That(State.GetRelationship("Alice"), Is.EqualTo(score));
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator CompletedHypothesisAndCourtesyStillRespectLowTrust()
+    {
+        State.SetFlag("found_note"); State.SetFlag(actor.Scenario.SearchFlag("note_direction"));
+        State.SetFlag(NpcObservation.Flag("Alice", "Room01", "note_direction"));
+        EvidenceSharing.TryShare(State, "Alice", "desk_note", out _, false);
+        State.SetRelationship("Alice", 10); ActorAt(DeskStation.companionPoint); PlayerAt(DeskStation.playerPoint); Chat();
+        Send("อ่านจากขวาไปซ้ายใช่ไหมคะ"); yield return null;
+        string first = State.GetConversationLog("Alice").Last().Text;
+        Assert.That(first, Is.EqualTo(actor.Scenario.reasoningProfile.cautiousLine));
+        Send("เราคิดว่าอ่านจากซ้ายไปขวา เธอว่าไงนะครับ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(first));
+        State.SetFlag("drawer_opened");
+        Send("อ่านจากขวาไปซ้ายใช่ไหมคะ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(actor.Scenario.reasoningProfile.unavailableLine));
+    }
 }

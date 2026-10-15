@@ -26,11 +26,26 @@ namespace MysteryGame.Core
                 {
                     errors.AddRange(room.companionScenario.ValidateConfiguration());
                     if (!npcIds.Contains(room.companionScenario.npcId)) errors.Add(room.roomId + ": companion NPC is missing.");
+                    var reasoning = room.companionScenario.reasoningProfile;
+                    var companionNpc = game.npcs.FirstOrDefault(n => n != null && n.npcId == room.companionScenario.npcId);
+                    if (reasoning != null) errors.AddRange(reasoning.ValidateConfiguration(id => {
+                        var fact = room.FindFact(id);
+                        return fact != null && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance &&
+                            (companionNpc == null || !companionNpc.IsForbidden(id));
+                    }));
                     if (room.companionScenario.stations != null)
                         foreach (var station in room.companionScenario.stations)
                             if (station != null)
                             {
                                 Rules(station.conditions, itemIds, npcIds, errors, roomIds);
+                                Actions(station.completionActions, itemIds, npcIds, errors);
+                                if (station.discoveredFactIds != null) foreach (string id in station.discoveredFactIds)
+                                {
+                                    var discovered = room.FindFact(id);
+                                    if (discovered == null || discovered.isPuzzleAnswer || discovered.isPuzzleGuidance ||
+                                        (companionNpc != null && companionNpc.IsForbidden(id)))
+                                        errors.Add(room.roomId + ": completed station references a missing or unsafe fact " + id);
+                                }
                                 if (!string.IsNullOrWhiteSpace(station.holdForInteractionId) && !interactionIds.Contains(station.holdForInteractionId))
                                     errors.Add(room.roomId + ": unknown held interaction " + station.holdForInteractionId);
                             }

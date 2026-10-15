@@ -28,7 +28,7 @@ public class FreshProjectSmokeTests
             Assert.That(actor.RepairDevice(), Is.True);
             Assert.That(actor.RepairDevice(), Is.False);
             Assert.That(actor.repairedDevices, Is.EqualTo(1));
-            Assert.That(actor.Reply("maybe the cable is loose"), Is.EqualTo(actor.profile.insufficientEvidenceLine));
+            Assert.That(actor.Reply("maybe the cable is loose"), Is.EqualTo(actor.profile.unavailableLine));
             yield return null;
         }
         finally { Object.DestroyImmediate(go); }

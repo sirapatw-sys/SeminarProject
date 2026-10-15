@@ -28,11 +28,11 @@ namespace CompanionFramework.Samples
         public string Reply(string text)
         {
             if (profile == null) return "Assign a Reasoning Profile in the Inspector.";
-            var rules = profile.rules.Where(r => r != null && r.phrases != null &&
-                r.phrases.Any(p => !string.IsNullOrWhiteSpace(p) && string.Equals(p.Trim(), (text ?? "").Trim(), StringComparison.OrdinalIgnoreCase))).ToList();
+            var rules = ReasoningQueryMatcher.Read(profile, text).Rules;
             if (rules.Count != 1) return profile.clarifyLine;
-            var result = ReasoningEngine.Evaluate(rules[0], this);
-            return string.IsNullOrWhiteSpace(result.Line) ? profile.insufficientEvidenceLine : result.Line;
+            var result = profile.Evaluate(rules[0], this);
+            return result.Outcome == ReasoningOutcome.Unavailable ? profile.unavailableLine :
+                string.IsNullOrWhiteSpace(result.Line) ? profile.insufficientEvidenceLine : result.Line;
         }
         // Host-owned physical interaction, separate from any dialogue response.
         public bool RepairDevice() => effects.TryExecute("repair-device");

@@ -8,6 +8,8 @@ Baseline EditMode: Unity 2021.3.16f1, 1159 ผ่าน, 0 ล้มเหลว
 
 สถานะงานและหลักฐานหลังเปลี่ยนแปลงจะบันทึกด้านล่าง ไม่ใช้ baseline แทน regression
 
+รอบตรวจและพัฒนาต่อพร้อมผลล่าสุดอยู่ใน [NPC_REVIEW_AND_NEXT_STEPS_TH.md](NPC_REVIEW_AND_NEXT_STEPS_TH.md) ตัวเลขด้านล่างเป็นประวัติของ commit แรก
+
 ## สิ่งที่ทำแล้ว
 
 - Room01 เปลี่ยนจากอ่านรหัสตรง ๆ เป็นอ่านตัวเลขร่วมกับทิศลูกศร ผู้เล่นยังเป็นคนเลือกและทดสอบคำตอบ
@@ -21,7 +23,7 @@ Baseline EditMode: Unity 2021.3.16f1, 1159 ผ่าน, 0 ล้มเหลว
 - เพิ่ม local Unity package สำหรับโมดูลร่วมคิดพร้อม IReasoningWorld และตัวเชื่อม effect แบบลงทะเบียน ID
 - มี sample ต่างธีม Mika ในห้องซ่อม พร้อม profile ที่แก้ใน Inspector ได้ และ script ตรวจการติดตั้งในโปรเจกต์ใหม่ที่เพื่อนรันซ้ำได้
 
-## ผลตรวจชุดสุดท้าย
+## ผลตรวจรอบแรก (88c8b55)
 
 | ขอบเขต | ผล |
 | --- | --- |
@@ -58,8 +60,10 @@ PlayMode ใหม่ครอบคลุมเดินไปจับโต�
 
 ยังไม่ push, เปิด PR, merge หรือส่ง comment ไปหาเพื่อน ใช้ branch local ที่มีคู่มือพร้อมส่งต่อ
 
-## หลักฐาน SHA256
-+
+## หลักฐาน SHA256 รอบแรก
+
+ไฟล์ main FinalEdit/FinalPlay ยังเก็บรอบแรกไว้ ส่วน Logs/CompanionSmoke เป็นตำแหน่งผลล่าสุดที่ script เขียนทับเมื่อทดสอบซ้ำ hash ของแพ็กเกจด้านล่างจึงเป็นบันทึกประวัติ ให้ตรวจไฟล์ปัจจุบันกับ hash ในรายงานรอบล่าสุด
+
 - Logs/NpcFramework/FinalEdit.xml: B1D0C2C845E8BD0757A04D8EEB22A56E61C2203AF5AECC6D87B175F4CB56F981
 
 - Logs/NpcFramework/FinalPlay.xml: CEA26400BA09507BD9EE22C694D8CFBBF39E478C27E18607473BB2BCAB34BED0

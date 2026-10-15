@@ -175,6 +175,8 @@ MonoBehaviour:
     memory: "Alice อยู่ใกล้และเห็นผู้เล่นสำรวจภาพวาดในห้องแรก"
     conditions: []
   - id: desk_seen
+    followUpPhrases: ["เจอโน้ตแล้ว", "เราพบโน้ตแล้ว", "we found the note"]
+    followUpLine: "...ดีแล้วที่เธอไม่มองข้ามมัน ถ้าอยากคิดด้วยกันก็เอาสิ่งที่พบมาให้ฉันดูนะ ฉันจะไม่เดาแทนเธอ"
     recallTerms: ["โต๊ะ", "กระดาษ", "desk", "note"]
     interactionId: inspect_desk
     success: 1
@@ -182,13 +184,20 @@ MonoBehaviour:
     memory: "Alice อยู่ใกล้ขณะผู้เล่นสำรวจโต๊ะสำเร็จและชวนกันทบทวนสิ่งที่พบ"
     conditions: []
   - id: drawer_failed
+    followUpPhrases: ["ยังเปิดไม่ออกเลย", "ลองแล้วไม่สำเร็จ", "it did not work"]
+    followUpLine: "...ฉันเห็นแล้วว่าครั้งนี้ยังไม่สำเร็จ ไม่เป็นไร เราค่อยแยกหลักฐานกับสิ่งที่เดาแล้วลองกันใหม่ ฉันยังอยู่ตรงนี้"
     recallTerms: ["ลิ้นชัก", "ไม่สำเร็จ", "drawer", "failed"]
     interactionId: open_drawer
     success: 0
     line: "ยังไม่ได้ก็ไม่เป็นไร... พักหายใจนิดหนึ่ง ฉันยังอยู่ตรงนี้"
     memory: "Alice เห็นผู้เล่นลองเปิดลิ้นชักไม่สำเร็จและให้กำลังใจโดยไม่บอกเฉลย"
-    conditions: []
+    conditions:
+    - type: 1
+      targetId: drawer_opened
+      amount: 0
   - id: drawer_seen
+    followUpPhrases: ["เราทำได้แล้ว", "เปิดลิ้นชักได้แล้ว", "we did it"]
+    followUpLine: "...เธอทำได้แล้ว! เมื่อกี้ฉันก็ลุ้นอยู่เหมือนกัน ขอบใจที่ไม่ยอมแพ้นะ เธอเป็นคนเลือกและลองจนสำเร็จจริง ๆ"
     recallTerms: ["ลิ้นชัก", "drawer"]
     interactionId: open_drawer
     success: 1

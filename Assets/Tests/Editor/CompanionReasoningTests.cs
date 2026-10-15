@@ -83,7 +83,7 @@ namespace MysteryGame.Tests
         {
             BothKnown(); State.SetFlag("drawer_opened");
             Assert.That(Ask("เราคิดว่าอ่านจากขวาไปซ้าย").reply,
-                Is.EqualTo(Scenario.reasoningProfile.insufficientEvidenceLine));
+                Is.EqualTo(Scenario.reasoningProfile.unavailableLine));
         }
         [Test]
         public void ReportContainsOnlyKnownEvidenceAndNeverProtectedAnswer()

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using MysteryGame.Knowledge;
@@ -50,6 +51,12 @@ namespace MysteryGame.Companions
             CourtesyParticles + SentenceEnd);
         private static readonly Regex StopWork = R(@"^\s*(?:หยุดช่วย(?:ก่อน|แล้ว)?|หยุดงาน(?:ก่อน)?|ยกเลิกงาน(?:นี้|ก่อน)?|stop\s+(?:helping|working)|cancel\s+(?:the\s+)?task)" + CourtesyParticles + SentenceEnd);
         private static readonly Regex AmbiguousStop = R(@"^\s*(?:หยุด|พักก่อน|พอแล้ว)" + CourtesyParticles + SentenceEnd);
+        private static readonly Regex StayRequest = R(
+            @"^\s*(?:(?:please|ช่วย|กรุณา)\s*)?(?:อย่า(?:เพิ่ง)?(?:ไป(?:ไหน)?|เดินไปไหน)|" +
+            @"(?:don't|dont|do\s+not)\s+(?:go\s+away|leave(?:\s+yet)?))" + CourtesyParticles + SentenceEnd);
+        private static readonly Regex FollowProposalVerb = R(
+            @"เดิน|ตาม|มา(?:กับ|ด้วย|นี่|ตรงนี้)|ไป(?:กับ|ด้วย|กัน)|\b(?:walk|follow|come|go)\b");
+        private static readonly Regex WaitProposalVerb = R(@"รอ|หยุด|พัก|อยู่|ยืน|\b(?:wait|stay|stop|pause|stand)\b");
         // Remove only courtesy conditions, not arbitrary if/hypothetical clauses.
         private static readonly Regex CourtesyCondition = R(
             @"^\s*(?:ถ้าว่าง|ถ้าไม่ยุ่ง)" + CourtesyParticles + @"\s*" +
@@ -70,7 +77,7 @@ namespace MysteryGame.Companions
             @"ช่วย|กัน|มา|ไป|ลอง|เธอ|คุณ|เรา|ฉัน|ผม|ให้|ไว้|ด้วย|หน่อย|ที|สิ|ซิ|นะ|ครับ|ค่ะ|คะ|จ้ะ|จ้า|ไหม|มั้ย|เลย|ก่อน|นี่|นั่น|" +
             // R() lower-cases patterns, so no \p{..} or \W classes here: list punctuation.
             @"\b(?:please|help|me|us|you|can|could|would|will|the|a|this|that|it|here|there|with|and|for|to)\b|[\s.,!?;:…'""()/~\-]+";
-        private static readonly Regex HelpFiller = R(@"(?:จับ|ถือ|ยก|เปิด|ประคอง|ทำ|ประจำ|ยืน|อีก\s*(?:ด้าน|ฝั่ง|ข้าง)(?:หนึ่ง)?|(?:ฝั่ง|ด้าน|ข้าง)(?:นี้|นั้น|โน้น)?|" +
+        private static readonly Regex HelpFiller = R(@"(?:จับ|ถือ|ยก|เปิด|ประคอง|ทำ|ประจำ|ยืน|ตรง(?:นี้|นั้น|โน้น)?|ที่|กับ|อีก\s*(?:ด้าน|ฝั่ง|ข้าง)(?:หนึ่ง)?|(?:ฝั่ง|ด้าน|ข้าง)(?:นี้|นั้น|โน้น)?|" +
             @"\b(?:hold|lift|open|side|other)\b|" + RequestFiller + @")");
         private static readonly Regex SearchFiller = R(@"(?:ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
             @"\b(?:search|look|find|clues?|evidence|room|around)\b|" + RequestFiller + @")");
@@ -131,6 +138,7 @@ namespace MysteryGame.Companions
             if (scenario == null || string.IsNullOrWhiteSpace(message) || message.Length > 1000) return CompanionCommand.None;
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), scenario), " ");
             if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text)) return CompanionCommand.None;
+            if (StayRequest.IsMatch(text)) return CompanionCommand.Wait;
             string[] clauses = Clauses.Split(text);
             foreach (string clause in clauses)
                 if (StandaloneRefusal.IsMatch(clause)) return CompanionCommand.None;
@@ -331,6 +339,9 @@ namespace MysteryGame.Companions
         {
             text = Normalize(text);
             if (string.IsNullOrWhiteSpace(text) || Quoted.IsMatch(text) || NonDirectContext.IsMatch(text)) return true;
+            if (command == CompanionCommand.Wait && StayRequest.IsMatch(text)) return false;
+            text = AfterLastWithdrawal(text);
+            if (string.IsNullOrWhiteSpace(text)) return true;
             foreach (string clause in Clauses.Split(text))
             {
                 if (string.IsNullOrWhiteSpace(clause)) continue;
@@ -344,6 +355,16 @@ namespace MysteryGame.Companions
             }
             string withoutAllowed = Comfort.Replace(command == CompanionCommand.Wait ? Wait.Replace(text, " ") : text, " ");
             return Decline.IsMatch(withoutAllowed);
+        }
+
+        // A standalone withdrawal cancels earlier clauses, not a new request
+        // spoken afterwards. Quotes/hypotheticals still veto the whole message.
+        private static string AfterLastWithdrawal(string text)
+        {
+            string[] clauses = Clauses.Split(text);
+            int last = -1;
+            for (int i = 0; i < clauses.Length; i++) if (Withdrawal.IsMatch(clauses[i])) last = i;
+            return last < 0 ? text : string.Join(", ", clauses, last + 1, clauses.Length - last - 1).Trim();
         }
 
         /// <summary>True when a help/search request names something other than
@@ -463,6 +484,12 @@ namespace MysteryGame.Companions
 
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
             if (RulesVeto(text, command)) return false;
+            text = AfterLastWithdrawal(text);
+            // A model's movement proposal needs a direct movement request.
+            // Greetings, hand-holding and other social talk do not authorize it.
+            if (command == CompanionCommand.Follow && !IsDirectAction(text, FollowProposalVerb, actor.Scenario) ||
+                command == CompanionCommand.Wait && !StayRequest.IsMatch(text) && !IsDirectAction(text, WaitProposalVerb, actor.Scenario))
+                return false;
             if (AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message).PlayerAskedForHint &&
                 command != CompanionCommand.Wait && command != CompanionCommand.Search) return false;
 
@@ -475,12 +502,22 @@ namespace MysteryGame.Companions
                 if (actor.Scenario.stations != null)
                     foreach (var candidate in actor.Scenario.stations)
                         if (candidate != null && Mentions(text, candidate)) named.Add(candidate);
-                if (named.Count > 1 && (command == CompanionCommand.Search || !named.Contains(station))) return false;
+                if (named.Count > 1)
+                {
+                    string ambiguous;
+                    actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out ambiguous);
+                    reply = new GeneratedChatReply { reply = ambiguous, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
+                    return true;
+                }
                 if (named.Count == 1 && station != named[0]) { command = CompanionCommand.Help; station = named[0]; }
                 // No activity named: the request must not name some other object
                 // either ("ช่วยยกเก้าอี้หน่อย" proposed as the box). A social object
                 // stays conversation; anything else is asked about, not guessed.
-                if (named.Count == 0 && NamesOtherObject(text, command))
+                string remaining = text;
+                if (named.Count == 1)
+                    foreach (string name in MatchingNames(text, named[0]).OrderByDescending(n => n.Length))
+                        remaining = remaining.Replace(Normalize(name), " ");
+                if (NamesOtherObject(remaining, command))
                 {
                     if (SocialObject.IsMatch(text)) return false;
                     string clarify;

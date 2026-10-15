@@ -15,6 +15,9 @@ namespace MysteryGame.Companions
         [TextArea] public string memory;
         public List<string> recallTerms = new List<string>();
         public List<ConditionRule> conditions = new List<ConditionRule>();
+        [Tooltip("Exact player follow-ups about this outcome, answered only after the NPC witnessed it.")]
+        public List<string> followUpPhrases = new List<string>();
+        [TextArea] public string followUpLine;
     }
 
     [Serializable]
@@ -100,6 +103,7 @@ namespace MysteryGame.Companions
         public List<CompanionDiscussion> discussions = new List<CompanionDiscussion>();
         public CompanionFramework.ReasoningProfile reasoningProfile;
         [TextArea] public string noEvidenceLine = "ฉันยังไม่มีหลักฐานที่ตรวจสอบได้ เอาสิ่งที่เธอพบมาให้ดู หรือชวนฉันไปสำรวจด้วยกันได้นะ";
+        [TextArea] public string unverifiedOutcomeLine = "...ฉันยังไม่ได้เห็นว่าเกิดอะไรขึ้น เล่าให้ฟังหน่อย หรือไปลองดูด้วยกันก่อนนะ";
         public List<CompanionSearchSpot> searchSpots = new List<CompanionSearchSpot>();
         [TextArea] public string searchRequestLine = "ฉันจะสำรวจบริเวณที่เดินถึงและตรวจสิ่งที่เห็น ถ้าเจอหลักฐานจะบอกนะ";
         [TextArea] public string searchFinishedLine = "สำรวจรอบนี้เสร็จแล้ว หลักฐานที่ยืนยันได้อยู่ในสมุด เราคุยทบทวนกันต่อได้";
@@ -152,9 +156,14 @@ namespace MysteryGame.Companions
             }
             ids.Clear();
             if (observations != null) foreach (var observation in observations)
+            {
                 if (observation == null || string.IsNullOrWhiteSpace(observation.id) ||
                     !ids.Add(observation.id) || string.IsNullOrWhiteSpace(observation.interactionId))
                     errors.Add("Companion observation identity is empty/duplicate.");
+                if (observation != null && observation.followUpPhrases != null && observation.followUpPhrases.Count > 0 &&
+                    (string.IsNullOrWhiteSpace(observation.followUpLine) || observation.followUpPhrases.Exists(string.IsNullOrWhiteSpace)))
+                    errors.Add("Observation follow-up needs phrases and a line.");
+            }
             ids.Clear();
             if (searchSpots != null) foreach (var spot in searchSpots)
                 if (spot == null || string.IsNullOrWhiteSpace(spot.id) || !ids.Add(spot.id) ||
@@ -169,14 +178,7 @@ namespace MysteryGame.Companions
             if (reasoningProfile != null)
             {
                 if (reasoningProfile.npcId != npcId) errors.Add("Reasoning profile belongs to another NPC.");
-                ids.Clear();
-                if (reasoningProfile.rules == null) errors.Add("Reasoning rules list is missing.");
-                else foreach (var rule in reasoningProfile.rules)
-                    if (rule == null || string.IsNullOrWhiteSpace(rule.id) || !ids.Add(rule.id) ||
-                        rule.requiredFacts == null || rule.requiredFacts.Count == 0 ||
-                        rule.phrases == null || rule.phrases.Count == 0 ||
-                        string.IsNullOrWhiteSpace(rule.cautiousLine) || string.IsNullOrWhiteSpace(rule.insufficientLine))
-                        errors.Add("Reasoning rule needs identity, evidence, phrases and safe fallback lines.");
+                errors.AddRange(reasoningProfile.ValidateConfiguration());
             }
             return errors;
         }
@@ -185,14 +187,16 @@ namespace MysteryGame.Companions
         public IEnumerable<string> SpokenLines()
         {
             foreach (string line in new[] { welcomeLine, followLine, waitLine, blockedLine, releaseLine, comfortLine,
-                comfortRepeatLine, searchRequestLine, searchFinishedLine }) yield return line;
+                comfortRepeatLine, searchRequestLine, searchFinishedLine, noEvidenceLine, unverifiedOutcomeLine }) yield return line;
+            if (reasoningProfile != null) foreach (string line in reasoningProfile.SpokenLines()) yield return line;
             if (stations != null) foreach (var station in stations) if (station != null)
                 foreach (string line in new[] { station.instructions, station.requestLine, station.holdingLine,
                     station.completedLine, station.invitationLine, station.trustedInvitationLine,
                     station.cautiousRequestLine, station.pendingLine, station.completedStatusLine }) yield return line;
             if (stations != null) foreach (var station in stations) if (station != null && station.completedRecallPhrases != null)
                 foreach (string line in station.completedRecallPhrases) yield return line;
-            if (observations != null) foreach (var observation in observations) if (observation != null) yield return observation.line;
+            if (observations != null) foreach (var observation in observations) if (observation != null)
+            { yield return observation.line; yield return observation.followUpLine; }
             if (searchSpots != null) foreach (var spot in searchSpots) if (spot != null) yield return spot.inspectingLine;
             if (discussions != null) foreach (var discussion in discussions) if (discussion != null) yield return discussion.line;
         }

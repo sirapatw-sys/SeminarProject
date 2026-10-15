@@ -34,10 +34,10 @@ namespace CompanionFramework
     }
     public static class ReasoningEngine
     {
-        public static ReasoningResult Evaluate(ReasoningRule rule, IReasoningWorld world)
+        public static ReasoningResult Evaluate(ReasoningRule rule, IReasoningWorld world, string cautiousOverride = null)
         {
             var result = new ReasoningResult { Outcome = ReasoningOutcome.Unavailable };
-            if (world == null || rule == null || string.IsNullOrWhiteSpace(rule.id) ||
+            if (world == null || world.AllowedDetail <= 0 || rule == null || string.IsNullOrWhiteSpace(rule.id) ||
                 rule.requiredFacts == null || rule.requiredFacts.Count == 0 ||
                 rule.requiredFacts.Any(string.IsNullOrWhiteSpace) ||
                 (rule.requiredFlags != null && rule.requiredFlags.Any(f => string.IsNullOrWhiteSpace(f) || !world.HasFlag(f))) ||
@@ -49,10 +49,9 @@ namespace CompanionFramework
                 result.Line = rule.insufficientLine;
                 return result;
             }
-            if (world.AllowedDetail <= 0) return result;
             result.Line = world.AllowedDetail >= 3 && !string.IsNullOrWhiteSpace(rule.detailedLine)
                 ? rule.detailedLine : world.AllowedDetail >= 2 && !string.IsNullOrWhiteSpace(rule.normalLine)
-                    ? rule.normalLine : rule.cautiousLine;
+                    ? rule.normalLine : cautiousOverride ?? rule.cautiousLine;
             if (string.IsNullOrWhiteSpace(result.Line)) return result;
             result.Outcome = ReasoningOutcome.Consideration;
             result.ReferencedFacts = rule.requiredFacts.ToArray();

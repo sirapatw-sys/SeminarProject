@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using CompanionFramework;
 using MysteryGame.Core;
 using MysteryGame.Knowledge;
@@ -13,12 +11,6 @@ namespace MysteryGame.Companions
     // invokes this in gameplay; evaluating a hypothesis never solves a puzzle.
     public static class CompanionReasoning
     {
-        private static readonly Regex Report = new Regex(
-            @"^(?:เธอเจออะไรบ้าง|เธอพบอะไรบ้าง|เจออะไรไหม|เธอรู้อะไรบ้าง|what did you find|what do you know)[?.!]*$",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        private static readonly Regex Hypothesis = new Regex(
-            @"^(?:เราคิดว่า|ฉันคิดว่า|คิดว่า|ถ้า|i think\s+|maybe\s+)(.+?)(?:\s*(?:เธอว่าไง|เธอคิดว่าไง|ใช่ไหม|ดีไหม|what do you think))?[?.!]*$",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private sealed class World : IReasoningWorld
         {
             private readonly HashSet<string> known;
@@ -39,9 +31,11 @@ namespace MysteryGame.Companions
             reply = null;
             if (scenario == null || scenario.reasoningProfile == null || state == null ||
                 state.GetCurrentScene() != roomId || string.IsNullOrWhiteSpace(message)) return false;
-            string text = message.Normalize(NormalizationForm.FormKC).Trim();
+            var profile = scenario.reasoningProfile;
+            var query = ReasoningQueryMatcher.Read(profile, message);
+            if (query.Kind == ReasoningQueryKind.None) return false;
             var context = NpcKnowledgeContextBuilder.Build(scenario.npcId, roomId, state, true);
-            if (Report.IsMatch(text))
+            if (query.Kind == ReasoningQueryKind.Report)
             {
                 var facts = context.KnownFacts.Where(f => f.canShareAsEvidence && !f.isPuzzleAnswer && !f.isPuzzleGuidance).Take(3).ToList();
                 reply = Reply(facts.Count == 0 ? scenario.noEvidenceLine :
@@ -49,19 +43,14 @@ namespace MysteryGame.Companions
                     facts.Select(f => f.factId).ToArray());
                 return true;
             }
-            var match = Hypothesis.Match(text);
-            if (!match.Success) return false;
-            string topic = match.Groups[1].Value.Trim().TrimEnd('?', '.', '!', ' ');
-            var profile = scenario.reasoningProfile;
-            if (profile.rules == null) { reply = Reply(profile.insufficientEvidenceLine); return true; }
-            var rules = profile.rules.Where(r => r != null && r.phrases != null && r.phrases.Any(p =>
-                !string.IsNullOrWhiteSpace(p) && string.Equals(p.Normalize(NormalizationForm.FormKC).Trim(), topic, StringComparison.OrdinalIgnoreCase))).ToList();
+            var rules = query.Rules;
             // Ambiguous or unknown hypotheses ask back; never guess the intended rule.
             if (rules.Count != 1) { reply = Reply(profile.clarifyLine); return true; }
             if (context.Npc != null && !context.Npc.givesHints)
             { reply = Reply(context.Npc.refuseHintLine ?? profile.insufficientEvidenceLine); return true; }
-            var result = ReasoningEngine.Evaluate(rules[0], new World(context, state));
-            reply = Reply(string.IsNullOrWhiteSpace(result.Line) ? profile.insufficientEvidenceLine : result.Line, result.ReferencedFacts);
+            var result = profile.Evaluate(rules[0], new World(context, state));
+            reply = Reply(result.Outcome == ReasoningOutcome.Unavailable ? profile.unavailableLine :
+                string.IsNullOrWhiteSpace(result.Line) ? profile.insufficientEvidenceLine : result.Line, result.ReferencedFacts);
             return true;
         }
         private static GeneratedChatReply Reply(string line, string[] facts = null) =>
