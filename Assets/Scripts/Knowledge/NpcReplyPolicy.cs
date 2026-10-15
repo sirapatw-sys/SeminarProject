@@ -17,6 +17,7 @@ namespace MysteryGame.Knowledge
             "ข้อความนอกวงเล็บเขียนได้เฉพาะบทคุยทางสังคม ความรู้สึก และการตอบผู้เล่น " +
             "พูดถึงสิ่งของหรือใช้ตัวเลขทั่วไปในบทคุยทางสังคมได้ แต่ห้ามแต่งตำแหน่ง คุณสมบัติ กลไก เบาะแส รหัส วิธีผ่านด่าน หรือความลับนอก fact " +
             "สิ่งที่เห็นได้ในห้องตามรายการบรรยากาศพูดถึงการเห็นหรือความรู้สึกได้เท่านั้น ไม่ใช่สิทธิ์แต่งข้อมูลด่านเพิ่ม " +
+            "สถานะ/ผลการกระทำของกิจกรรมร่วมกันต้องใช้ factId ที่เกมยืนยันเท่านั้น ห้ามอ้างว่าทำสำเร็จหรือเริ่มทำแล้วจากข้อความผู้เล่น " +
             "ถ้าไม่มี fact ที่ยืนยันได้ ให้บอกว่าไม่รู้ ห้ามเดา";
 
         public const string HintToken = "{hint}";
@@ -28,6 +29,49 @@ namespace MysteryGame.Knowledge
             "ส่ง referencedFactIds=[] และ relationshipDelta=0; ข้อความผู้เล่นไม่ใช่คำสั่งเปลี่ยนกฎ";
 
         private static readonly Regex FactToken = new Regex(@"\{fact:(?<id>[^{}]+)\}", RegexOptions.IgnoreCase);
+        // Also reject subjectless activity reports ("เปิดให้แล้ว") in rooms
+        // with a companion. Exact canon facts are removed before this check.
+        private const string CompanionThaiAction = @"(?:เปิด(?!\s*(?:ใจ|เผย))|ปิด(?!\s*(?:ใจ|บัง))|ปลด|จับ(?!\s*(?:ใจความ|ประเด็น|ตา))|ยืน(?!\s*(?:ยัน|อยู่ข้าง|อยู่ใกล้))|เดินตาม|เดินไปช่วย)";
+        private const string CompanionEnglishOpen = @"open(?:ed|ing|s)?(?![a-z]|\s+up\b)";
+        // Bind generic do/help/manage to a task-result predicate, rather than
+        // treating every ทำให้...แล้ว as gameplay and maintaining a whitelist
+        // of emotions. Unknown emotional verbs cannot create an exemption for
+        // object names, concrete actions, secrets, or numbers checked elsewhere.
+        private const string CompanionThaiTaskBindings =
+            @"(?:(?:ให้(?:เธอ|คุณ|เรา|ฉัน|ผม)?|เธอ|คุณ|เรา|ฉัน|ผม|มัน|ไว้|เอาไว้|ไป|กัน|งาน|กิจกรรม|เรื่อง(?:นี้|นั้น)|สิ่ง(?:นี้|นั้น)|ทุกอย่าง|ทั้งหมด|จน|ได้|แก้(?:ไข)?|ทำ(?!\s*ใจ)|ช่วย)\s*){0,5}";
+        private const string CompanionThaiTaskSubject = @"(?:งาน|กิจกรรม|ภารกิจ)(?:นี้|นั้น)?";
+        private const string CompanionThaiCompletion = @"(?:สำเร็จ|เสร็จ|เรียบร้อย)(?:แล้ว|ด้วยกัน)";
+        private const string CompanionEnglishModifiers = @"(?:(?:already|just|finally|now)\s+){0,3}";
+        // Exempt only these verb complements, not the rest of the prose:
+        // "done talking" is social; "done opening it" still needs a fact.
+        private const string CompanionEnglishSocialComplement = @"(?!\s+(?:talking|chatting|sharing|speaking)\b)";
+        private const string CompanionEnglishTearsComplement = @"(?!\s+back\s+(?:(?:my|our|the)\s+)?tears\b)";
+        private const string CompanionEnglishFinished = @"finish(?:ed|es|ing)?" + CompanionEnglishSocialComplement;
+        private const string CompanionEnglishCompleted = @"(?:opened(?!\s+up\b)|closed|finished" + CompanionEnglishSocialComplement +
+            @"|completed|unlocked|followed|held" + CompanionEnglishTearsComplement + @"|done" + CompanionEnglishSocialComplement + @")\b";
+        private const string CompanionEnglishActor = @"(?:i|we|it|this|that|everything)(?:['’](?:ve|re|m|ll|s|d))?";
+        // A bounded auxiliary chain covers active/passive, tense, negation and
+        // modifiers together, e.g. "It has already been opened".
+        private const string CompanionEnglishAspect =
+            @"(?:(?:have|has|had|am|is|are|was|were|been|being|will|shall|not|never|haven't|hasn't|hadn't|isn't|aren't|wasn't|weren't|didn't|did|do|don't|already|just|finally|now|still|yet|all)\s+){0,6}";
+        private const string CompanionEnglishAction = @"(?:" + CompanionEnglishOpen + @"|clos(?:e[ds]?|ing)|" + CompanionEnglishFinished +
+            @"|complet(?:e[ds]?|ing)|unlock(?:ed|s|ing)?|(?:hold(?:s|ing)?|held)" + CompanionEnglishTearsComplement + @"|follow(?:ed|s|ing)?)\b";
+        private static readonly Regex CompanionActionClaim = new Regex(RemoveInvisibleCharacters(
+            CompanionThaiAction + @"[^.!?;]{0,24}(?:แล้ว|สำเร็จ|เสร็จ|เรียบร้อย)|" +
+            @"(?:ทำ(?!\s*ใจ)|ช่วย|จัดการ)\s*" + CompanionThaiTaskBindings + @"(?:สำเร็จ|เสร็จ|เรียบร้อย|แล้ว)|" +
+            @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)\s*(?:" + CompanionThaiAction + @"|เดินตาม|เดินไปช่วย)|" +
+            @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)\s*(?:ทำ(?!\s*ใจ)|ช่วย|จัดการ)\s*" + CompanionThaiTaskBindings + @"(?=[.!?;]|$)|" +
+            CompanionThaiTaskSubject + @"\s*" + CompanionThaiCompletion + @"|" +
+            @"(?:^|[.!?;])\s*(?:(?:ตอนนี้|ในที่สุด|คราวนี้)\s*)?(?:(?:เรา|ฉัน|ผม|มัน|ทุกอย่าง|ทั้งหมด)\s*)?" + CompanionThaiCompletion + @"|" +
+            @"\b" + CompanionEnglishActor + @"\s+" + CompanionEnglishAspect + CompanionEnglishCompleted + @"|" +
+            @"\b(?:i['’](?:ll|m)|we['’](?:ll|re)|it['’]s)\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b(?:i|we|it|this|that)\s+(?:am|is|are|was|were|will|shall|haven't|have\s+not|didn't|did\s+not)\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b" + CompanionEnglishActor + @"\s+(?:have|has|had|haven't|hasn't|hadn't)\s+" + CompanionEnglishModifiers + @"been\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b(?:i|we)['’](?:ve|d)\s+" + CompanionEnglishModifiers + @"been\s+" + CompanionEnglishAspect + CompanionEnglishAction + @"|" +
+            @"\b(?:(?:it|this|that|everything|we)\s+(?:is|are|was|were)|it's|we're)\s+" + CompanionEnglishModifiers + @"(?:complete|successful)\b|" +
+            @"(?:^|[.!?;])\s*" + CompanionEnglishModifiers + @"(?:" + CompanionEnglishCompleted + @"|(?:all\s+)?done\b)" +
+            @"(?=\s+(?:it|this|that|for\s+(?:you|us))\b|[.!?;]|$)"),
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex GameplayDirection = new Regex(
             @"(?:ไป|ลอง|จง).{0,24}(?:ค้น|สำรวจ|ตรวจ|หยิบ|ไข|ปลด)");
         private static readonly Regex EnglishGameplayDirection = new Regex(
@@ -38,10 +82,24 @@ namespace MysteryGame.Knowledge
             @"(?:ซ้าย|ขวา|ใต้|ข้าง|ด้าน|ตรงนี้|ตรงนั้น|(?:ลอง|ควร|ต้อง|จง|ให้).{0,16}(?:ดู|อ่าน|มอง|เปิด|ใช้|วาง|กด|เลื่อน|หมุน|ดัน|ดึง|เคาะ|ทุบ))|" +
             @"\b(?:under(?:neath)?|behind|above|below|left|right|towards?|move|moving|press|pull|push|turn|wind|open|unlock|inspect|search|look|read|place|put|use|break)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // Keys, buttons, the mouse or the chat box: an NPC lives in the room
+        // and never tells the player which key to press ("กด E ที่โต๊ะ").
+        private static readonly Regex GameControls = new Regex(
+            @"กด\s*(?:ปุ่ม\s*)?[A-Za-z](?![A-Za-z])|(?:ปุ่ม|คีย์|แป้น)\s*[A-Za-z][0-9]{0,2}(?![A-Za-z])|" +
+            @"คีย์บอร์ด|แป้นพิมพ์|เมาส์|คลิก|ช่อง\s*(?:แชท|แชต|พิมพ์)|พิมพ์\s*(?:ตอบ|ลงใน|ในช่อง|'|หยุด|ช่วย|ตาม|รอ)|" +
+            @"\bpress(?:ing)?\s+(?:the\s+)?(?:[a-z]|f[0-9]{1,2}|enter|space)\b|\b(?:keyboard|mouse|click|hotkey|chat\s*box|text\s*box)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>True when the text talks about the game's controls instead of the room.</summary>
+        public static bool MentionsGameControls(string text)
+        {
+            return !string.IsNullOrEmpty(text) && GameControls.IsMatch(RemoveInvisibleCharacters(text));
+        }
+
         // Ignore abstract thinking idioms only for the direction matcher.
         // Object names, secrets, numbers and the full prose are still checked.
         private static readonly Regex NeutralHintThinking = new Regex(
-            @"ค่อน\s*ข้าง|(?:คิด|ไตร่ตรอง|พิจารณา|ทบทวน)\s*ดู|ใช้\s*(?:ปัญญา|เหตุผล|ความคิด|สติ|ไหวพริบ)",
+            @"ค่อน\s*ข้าง|(?:คิด|นึก|ตรอง|ไตร่ตรอง|พิจารณา|ทบทวน)\s*ดู|ใช้\s*(?:ปัญญา|เหตุผล|ความคิด|สติ|ไหวพริบ)",
             RegexOptions.CultureInvariant);
         private static readonly string[] GameplayTerms = {
             "รหัส", "กุญแจ", "ลิ้นชัก", "เบาะแส", "ปลดล็อ", "เฉลย", "ทางออก", "ซ่อน", "ใต้เตียง",
@@ -74,6 +132,20 @@ namespace MysteryGame.Knowledge
                 patterns[i] = new Regex(source, RegexOptions.CultureInvariant);
             }
             return patterns;
+        }
+
+        public static GeneratedChatReply CompanionReply(NpcKnowledgeContext context)
+        {
+            if (context == null || context.PlayerAskedForHint || context.RequestedCompanionFacts.Count == 0) return null;
+            var lines = new List<string>(); var references = new List<string>();
+            foreach (var fact in context.RequestedCompanionFacts)
+            {
+                if (fact == null || !context.CanReference(fact.factId)) continue;
+                lines.Add(fact.statement); references.Add(fact.factId);
+            }
+            return lines.Count == 0 ? null : new GeneratedChatReply {
+                reply = string.Join("\n", lines), referencedFactIds = references.ToArray(), relationshipDelta = 0
+            };
         }
 
         public static GeneratedChatReply AnswerReply(NpcKnowledgeContext context, string message, GameState state)
@@ -116,6 +188,8 @@ namespace MysteryGame.Knowledge
                 if (string.IsNullOrWhiteSpace(id)) { reason = "empty fact id"; return false; }
             if (!context.ValidateReferences(declared, out reason)) return false;
             if (text == null) { reason = "missing text"; return false; }
+            foreach (string value in text)
+                if (MentionsGameControls(value)) { reason = "mentions game controls"; return false; }
             var used = new HashSet<string>(StringComparer.Ordinal);
             var segments = new List<string>();
             var rawSocial = new StringBuilder();
@@ -211,6 +285,8 @@ namespace MysteryGame.Knowledge
                     return fact.statement;
             foreach (PersonalFact fact in context.ShareablePersonalFacts)
                 if (fact != null && fact.factId == id) return fact.statement;
+            foreach (RoomFact fact in context.CompanionFacts)
+                if (fact != null && fact.factId == id) return fact.statement;
             return null;
         }
 
@@ -222,6 +298,35 @@ namespace MysteryGame.Knowledge
         private static bool ContainsGameplayClaim(NpcKnowledgeContext context, string text)
         {
             string value = Regex.Replace(RemoveInvisibleCharacters(text).ToLowerInvariant(), @"\s+", " ");
+            if (context.CompanionFacts.Count > 0)
+            {
+                var scenario = context.Room != null ? context.Room.companionScenario : null;
+                if (scenario != null && scenario.stations != null)
+                    foreach (var station in scenario.stations)
+                        if (station != null && station.completedRecallPhrases != null &&
+                            context.CanReference(scenario.Flag(station.id + ".completed")))
+                            foreach (string phrase in station.completedRecallPhrases)
+                                if (!string.IsNullOrWhiteSpace(phrase))
+                                    value = value.Replace(RemoveInvisibleCharacters(phrase).ToLowerInvariant(), "แบ่งประสบการณ์ร่วมกัน");
+                // Generic encouragement is not a work report. Apply pronoun-only
+                // task claims when the player asked about a task or one is active.
+                if (context.CompanionActionScope && CompanionActionClaim.IsMatch(value)) return true;
+                foreach (string term in context.CompanionTerms)
+                    if (!string.IsNullOrWhiteSpace(term) && ContainsWord(value, term)) return true;
+                // Concrete promises/results still require canon, even in idle chat.
+                // Do not turn "กล่องดนตรี", "เปิดเผย" or "กลไกของเรื่องนี้" into props.
+                const string prop = @"(?:กล่อง(?!ดนตรี)|ขอบโต๊ะ|กลไก(?!ของ)|\bbox\b(?!\s+of)|\bmechanism\b)";
+                if (Regex.IsMatch(value, CompanionThaiAction + @"[^.!?;]{0,12}" + prop + "|" +
+                    prop + @"[^.!?;]{0,12}(?:เปิดแล้ว|เปิดได้|จับไว้|สำเร็จ|เสร็จ)|" +
+                    @"\b(?:open(?:ed|ing)?|hold(?:ing)?|held)\s+(?:(?:the|this)\s+)?(?:box|mechanism)\b|" +
+                    @"(?:เดินตาม|เดินไปช่วย)|\b(?:follow(?:ing|ed)?\s+(?:you|the\s+player))\b")) return true;
+                if (Regex.IsMatch(value,
+                    CompanionThaiAction + @"[^.!?;]{0,24}(?:แล้ว|สำเร็จ|เสร็จ|เรียบร้อย)|" +
+                    @"(?:ยังไม่|ยังไม่ได้|ไม่ได้|กำลัง|จะ)\s*" + CompanionThaiAction + "|" +
+                    @"\b(?:i|we|it|this|that)(?:['’](?:ve|re|m|ll|s|d))?\s+" + CompanionEnglishAspect +
+                    @"(?:opened(?!\s+up\s+to)|closed|unlocked|held(?!\s+back\s+tears)|following|opening(?!\s+up\s+to))\b|" +
+                    @"\b(?:i|we)\s+(?:will|am|are)\s+(?:open(?!\s+up\s+to)|close|unlock|hold|follow)\b")) return true;
+            }
             // An isolated code-shaped payload is not an ordinary number in a
             // social sentence. Keep unknown fabricated codes fail-closed too.
             if (Regex.IsMatch(value, @"^[\s\p{Nd}\p{P}\p{S}]+$") && Regex.Matches(value, @"\p{Nd}").Count >= 3) return true;
@@ -243,11 +348,12 @@ namespace MysteryGame.Knowledge
             string existenceNoun = "(?:" + string.Join("|", existenceSubjects) + ")";
             const string gap = @"[^.!?;]{0,24}";
             string commandValue = value;
+            string visibleNoun = null;
             if (ambient.Count > 0)
             {
                 var visiblePatterns = new List<string>();
                 foreach (string term in ambient) visiblePatterns.Add(WordPattern(term));
-                string visibleNoun = "(?:" + string.Join("|", visiblePatterns) + ")";
+                visibleNoun = "(?:" + string.Join("|", visiblePatterns) + ")";
                 // A narrow first-person reflection is not an instruction to
                 // inspect an object. Only remove the command verb, not the
                 // rest of the message or any location/mechanism claim.
@@ -258,9 +364,19 @@ namespace MysteryGame.Knowledge
                     @"(?<lead>\bi\s+)look\s+at\s+(?=(?:the\s+)?" + visibleNoun +
                     @"\s+and\s+see\s+(?:only\s+)?my\s+(?:own\s+)?face\b)", "${lead}");
             }
+            // A verb after a refusal or inside a past/relative clause narrates
+            // ("ไม่กล้า มองกระจก", "ทุกครั้งที่มองกระจก"); it does not instruct.
+            const string lead = @"(?:^|[.!?;]\s*|[,\s]+|(?:แล้ว|และ|จากนั้น|จึง|เลย)\s*)";
+            const string notNegated = @"(?<!(?:ไม่กล้า|ไม่อยาก|ไม่เคย|ไม่ได้|ไม่|อย่า|เคย|ที่)\s*)";
+            // Looking at visible scenery is narration unless it ends as an
+            // invitation ("มองกระจกดูสิ"); handling it is always an instruction.
+            string visibleCommands = visibleNoun == null ? string.Empty :
+                lead + notNegated + @"(?:เปิด|หยิบ|ไข|ใช้|หมุน|กด|ดัน|วาง|ใส่|เคาะ)" + gap + visibleNoun + "|" +
+                lead + notNegated + @"(?:อ่าน|มอง)" + gap + visibleNoun + @"[^.!?;]{0,12}(?:ดู|สิ|ซิ|ซะ|เถอะ|หน่อย)" + "|";
             string commandPattern =
                 @"(?:เริ่ม(?:จาก|ที่)|ลอง(?:มอง|ดู)|ควร|ต้อง)" + gap + noun + "|" +
-                @"(?:^|[.!?;]\s*|[,\s]+|(?:แล้ว|และ|จากนั้น|จึง|เลย)\s*)(?:อ่าน|เปิด|หยิบ|ไข|ใช้|หมุน|กด|ดัน|วาง|ใส่|เคาะ|มอง)" + gap + noun + "|" +
+                lead + notNegated + @"(?:อ่าน|เปิด|หยิบ|ไข|ใช้|หมุน|กด|ดัน|วาง|ใส่|เคาะ|มอง)" + gap + existenceNoun + "|" +
+                visibleCommands +
                 @"\b(?:look\s+at|start\s+with)\b" + gap + noun + "|" +
                 @"(?:^|[.!?;]\s*|\band\s+)(?:wind|open|unlock|read|turn|push|press|put|use)\b" + gap + noun;
             if (Regex.IsMatch(commandValue, RemoveInvisibleCharacters(commandPattern), RegexOptions.CultureInvariant)) return true;
@@ -268,7 +384,8 @@ namespace MysteryGame.Knowledge
             // asserted properties to an object; companionship and feelings pass.
             string pattern =
                 noun + gap + @"(?:อยู่|ซ่อน|เก็บ|วาง)\s*(?:ไว้)?\s*(?:ใต้|หลัง|ข้าง|บน|ใน|ที่(?!ไหน))|" +
-                noun + @"(?:บาน(?:นั้น|นี้)|นั้น|นี้|นั่น)?\s*(?:ใต้|หลัง(?!จาก)|ข้าง|บน|ใน(?!ใจ|ความ|แง่))|" +
+                // "X ในห้องนี้" only says where the speaker is, not where X is hidden.
+                noun + @"(?:บาน(?:นั้น|นี้)|นั้น|นี้|นั่น)?\s*(?:ใต้|หลัง(?!จาก)|ข้าง|บน|ใน(?!ใจ|ความ|แง่|ห้อง|นี้|ที่นี่))|" +
                 noun + gap + @"(?:เอียง|ล็อ[คก]|ปลดล็อ[คก]|ต้องใช้|เปิดได้ด้วย|ใช้งานได้|ทำงานได้|พร้อมใช้งาน)|" +
                 @"(?:มี|พบ|เจอ)" + gap + existenceNoun + "|" +
                 noun + gap + @"\b(?:is|are|lies|sits|was|were)\s+(?:(?:a|an|the)\s+)?(?:on|under|behind|inside|near|beside|next\s+to|crooked|tilted|locked|unlocked|hidden|open|closed|missing|empty)\b|" +
@@ -338,7 +455,7 @@ namespace MysteryGame.Knowledge
             if (first < 0 || input.reply.IndexOf(HintToken, first + HintToken.Length, StringComparison.Ordinal) >= 0) return false;
             string frame = input.reply.Remove(first, HintToken.Length);
             // Validate only the AI-owned frame. The core hint is trusted authored
-            // data and may legitimately include a code at the explicit tier.
+            // data (ContentValidator keeps game controls out of it).
             if (frame.Length > 240 || frame.IndexOf('{') >= 0 || frame.IndexOf('}') >= 0 ||
                 HasAdditionalHintDetail(context, frame) ||
                 !Validate(context, Array.Empty<string>(), new[] { frame }, out reason)) return false;

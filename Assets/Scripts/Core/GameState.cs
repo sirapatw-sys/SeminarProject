@@ -11,6 +11,8 @@ namespace MysteryGame.Core
         public event System.Action<string> ItemAdded;
         /// <summary>New-game reset, not save restore. Scene adapters can reapply authored defaults.</summary>
         public event System.Action StateReset;
+        /// <summary>Adapters discard transient movement/tasks after a successful save restore.</summary>
+        public event System.Action StateRestored;
 
         // =====================================================
         // Session
@@ -39,6 +41,7 @@ namespace MysteryGame.Core
 
         private readonly List<string> playerHistory =
             new List<string>();
+        public const int MaxHistoryEntries = 300;
 
         // =====================================================
         // Relationships
@@ -290,6 +293,11 @@ namespace MysteryGame.Core
             }
 
             playerHistory.Add(entry);
+            // Every dialogue and relationship change appends here and it is
+            // saved on every room entry; keep the newest entries only so a long
+            // session does not grow the save (and each atomic write) forever.
+            if (playerHistory.Count > MaxHistoryEntries)
+                playerHistory.RemoveRange(0, playerHistory.Count - MaxHistoryEntries);
 
             Debug.Log("[History] " + entry);
         }
@@ -858,6 +866,7 @@ namespace MysteryGame.Core
             StateSnapshot normalized;
             if (!SnapshotValidator.TryNormalize(snapshot, out normalized, out error)) return false;
             ApplySnapshot(normalized);
+            StateRestored?.Invoke();
             return true;
         }
 

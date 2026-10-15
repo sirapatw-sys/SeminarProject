@@ -10,22 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3b75aa9e7779470c889557275485c8a2, type: 3}
-  m_Name: Rina_Chatter
+  m_Name: Rina_OfflineTopic0
   m_EditorClassIdentifier: 
   dialogueId: rina_offline_0
   speakerId: Rina
-  speakerName: "\u0E23\u0E34\u0E19\u0E30 (Rina)"
+  speakerName: "รินะ (Rina)"
   speakerPortrait: {fileID: 21300000, guid: 077f8282b9ce40a0b6b8fbec133e9c20, type: 3}
   personalityPrompt: 
   lines:
-  - "\u0E2D\u0E22\u0E39\u0E48\u0E43\u0E19\u0E19\u0E35\u0E49\u0E19\u0E32\u0E19\u0E41\u0E25\u0E49\u0E27
-    \u0E40\u0E23\u0E32\u0E40\u0E23\u0E34\u0E48\u0E21\u0E04\u0E34\u0E14\u0E16\u0E36\u0E07\u0E1A\u0E49\u0E32\u0E19
-    \u0E40\u0E18\u0E2D\u0E40\u0E04\u0E22\u0E23\u0E39\u0E49\u0E2A\u0E36\u0E01\u0E41\u0E1A\u0E1A\u0E19\u0E35\u0E49\u0E44\u0E2B\u0E21?"
+  - "นายมองวงแหวนบนหัวฉันอยู่ใช่ไหม"
+  - "ไม่ต้องเกร็ง ฉันเองก็ไม่รู้ว่ามันมาจากไหน ถือซะว่าเป็นไฟฉายฟรีแล้วกัน"
   overrideReturnLines: 0
   returnLines: []
   choices:
-  - optionText: "\u0E40\u0E25\u0E48\u0E32\u0E43\u0E2B\u0E49\u0E40\u0E23\u0E32\u0E1F\u0E31\u0E07\u0E44\u0E14\u0E49\u0E19\u0E30"
-    responseText: "\u0E02\u0E2D\u0E1A\u0E43\u0E08\u0E19\u0E30 \u0E41\u0E04\u0E48\u0E21\u0E35\u0E04\u0E19\u0E1F\u0E31\u0E07\u0E01\u0E47\u0E0A\u0E48\u0E27\u0E22\u0E41\u0E25\u0E49\u0E27"
+  - optionText: "มันก็ดูเข้ากับเธอดีนะ"
+    responseText: "ชมแปลกดี แต่ฉันรับไว้ก็แล้วกัน"
     actions:
     - type: 4
       targetId: Rina
@@ -36,18 +35,17 @@ MonoBehaviour:
       targetId: Rina
       secondaryId: 
       amount: 0
-      text: "\u0E1C\u0E39\u0E49\u0E40\u0E25\u0E48\u0E19\u0E15\u0E31\u0E49\u0E07\u0E43\u0E08\u0E1F\u0E31\u0E07\u0E15\u0E2D\u0E19\u0E17\u0E35\u0E48
-        Rina \u0E0A\u0E27\u0E19\u0E04\u0E38\u0E22\u0E40\u0E2D\u0E07"
-  - optionText: "\u0E2D\u0E37\u0E21 \u0E40\u0E23\u0E32\u0E1F\u0E31\u0E07\u0E2D\u0E22\u0E39\u0E48"
-    responseText: "\u0E2D\u0E22\u0E48\u0E32\u0E07\u0E19\u0E49\u0E2D\u0E22\u0E40\u0E23\u0E32\u0E01\u0E47\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E2D\u0E22\u0E39\u0E48\u0E04\u0E19\u0E40\u0E14\u0E35\u0E22\u0E27"
+      text: "ผู้เล่นชมวงแหวนแสงบนหัวของรินะ"
+  - optionText: "ไม่รู้สึกอะไรเลยเหรอ"
+    responseText: "ตอนแรกก็รำคาญ ตอนนี้ชินแล้ว ห้องมืดขนาดนี้มีไฟติดตัวก็ไม่เลว"
     actions:
     - type: 4
       targetId: Rina
       secondaryId: 
       amount: 1
       text: 
-  - optionText: "\u0E15\u0E2D\u0E19\u0E19\u0E35\u0E49\u0E40\u0E23\u0E32\u0E44\u0E21\u0E48\u0E2D\u0E22\u0E32\u0E01\u0E04\u0E38\u0E22"
-    responseText: "\u0E44\u0E14\u0E49... \u0E44\u0E27\u0E49\u0E04\u0E38\u0E22\u0E01\u0E31\u0E19\u0E17\u0E35\u0E2B\u0E25\u0E31\u0E07"
+  - optionText: "เรื่องนั้นไว้ทีหลังเถอะ"
+    responseText: "อ้อ งั้นก็ตามสบาย"
     actions:
     - type: 4
       targetId: Rina

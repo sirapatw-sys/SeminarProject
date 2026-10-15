@@ -1,0 +1,103 @@
+{
+  "ParentCommit": "578eff483ca1b08479725343fa4172bd75b3dab5",
+  "Unity": "2021.3.16f1",
+  "Evidence": "Local Unity Editor tests and Windows build; mocked AI only; no CI, live API, Windows player tests or manual visual/audio QA",
+  "Results": [
+    {
+      "File": "Audit14_EditMode_Verified.xml",
+      "SHA256": "6ED7C64D6A5E177E21B54E7EC2B9A39D2F78597C261CF0A266E6FB59C03713B0",
+      "Total": 1087,
+      "Passed": 1087,
+      "Failed": 0,
+      "Skipped": 0
+    },
+    {
+      "File": "Audit14_PlayMode_Verified.xml",
+      "SHA256": "F7EFF426BF8A4CD9C8AC22C778D1A2FEA862A8E1D700D04BBBD6756578FA8351",
+      "Total": 196,
+      "Passed": 196,
+      "Failed": 0,
+      "Skipped": 0
+    }
+  ],
+  "UniquePassedTestNames": 1283,
+  "BeforeFix": "Audit14_BeforeFix.xml: 21/26 passed, 5 failures reproduced the new bugs",
+  "Intermediate": "Audit14_PlayMode_Final.xml: 190/196 passed; persistent item popups leaked across old FrameworkPlayModeTests. Closed all overlays in fixture setup/teardown before final verified run.",
+  "Build": {
+    "Log": "Audit14_WindowsBuild.log",
+    "Result": "Succeeded",
+    "Errors": 0,
+    "Warnings": 2,
+    "WarningScope": "Unity Dashboard project link and Burst test-runner staging",
+    "Directory": "Audit14_Windows"
+  },
+  "RuntimeAssemblySHA256": "6D1683C202FE8E49B459260582958DDF10E428C2850BBAE6AA335435D5CB4205",
+  "RawHashes": "SHA256 is working-copy bytes; GitBlob uses repository text filters",
+  "SourceFiles": [
+    {
+      "Path": "Assets/Scripts/AI/AiDialogueGenerator.cs",
+      "SHA256": "EEB3AD09E1E112D25751795D9DD8D849333F567DA9B2CA7AB7BB03BCAF8CD080",
+      "GitBlob": "8c6fd99fd636f57d9e31b17a8ca779c41fbd35cd"
+    },
+    {
+      "Path": "Assets/Scripts/Core/ContentValidator.cs",
+      "SHA256": "F938B16D83D96950E791C52FB22138E5477E674B57777A826CF1BE558D899890",
+      "GitBlob": "86d70117766ca982f66356f4d955477f0a35d8ac"
+    },
+    {
+      "Path": "Assets/Scripts/DialogueManager.cs",
+      "SHA256": "907D3CD1F2A648F59D46EC2E8A1929FBD21C816E7E8B04158A080285AC2F077D",
+      "GitBlob": "fa7eea647eb861a63a78126551a5deb9131652e2"
+    },
+    {
+      "Path": "Assets/Scripts/Events/MiniEventData.cs",
+      "SHA256": "D849F41DEA786FD188A71E116BF1643AEE52A497F168F54913ECA54B923AFC95",
+      "GitBlob": "35b125019967131c7ef7670f4e083ceeac4ea475"
+    },
+    {
+      "Path": "Assets/Scripts/Events/NpcEventController.cs",
+      "SHA256": "C9A12E6BFC68FD389FF954BA5E36367C2D128ECD9D5FD877820BECE7D330CD9F",
+      "GitBlob": "cc3b7c2ccfe9bfbca0ddbe3288dc20502498ff36"
+    },
+    {
+      "Path": "Assets/Scripts/NPC/CompanionDialogueCommands.cs",
+      "SHA256": "6E3E8F5A2DA86DAAFA9AE281A7E69BCE2AF3DDCE0A7B6658C2C00653F6928F29",
+      "GitBlob": "4a0e4b8f67820afd958e40e62fae7bd83c25d9f8"
+    },
+    {
+      "Path": "Assets/Tests/Editor/FrameworkTests.cs",
+      "SHA256": "87B7684687B1387DC87130A812D55B741DAF15EC31C374930488BF7A32AE3851",
+      "GitBlob": "8e3523692944ccf84b17d69ab89d31df1f873999"
+    },
+    {
+      "Path": "Assets/Tests/Editor/PrReviewRegressionTests.cs",
+      "SHA256": "B6DE19C9C8C23B261A8FB108ECC0D7AD5569C90C573F4445BA20F0826DF093A4",
+      "GitBlob": "876a881adc33d917064cd6102559898bf35973e0"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/FrameworkPlayModeTests.cs",
+      "SHA256": "7DCCE68F3BD6B75ACA6AB72DF787762CB527E1F3B2937CC97F1D64013443118B",
+      "GitBlob": "819c88f8350812e9f329efa3e0cf329033cb1835"
+    },
+    {
+      "Path": "Assets/Scripts/UI/DialogueTextScroll.cs",
+      "SHA256": "F6B745630F697C616775D0DB90955800E74F595DC682FE5B8D32C1871B75D92E",
+      "GitBlob": "5f8b0e9e98c2075e554b40025e5008b60bb3c778"
+    },
+    {
+      "Path": "Assets/Tests/Editor/CompanionCourtesyTests.cs",
+      "SHA256": "FBD1682DF6B0FDBADFF24B8C08944402F9D880F0B190CCE99FE6CB19C3B274C1",
+      "GitBlob": "b45fd637d01fb601014dfd0f0fb9388f29419a0c"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/DialogueAuditRegressionTests.cs",
+      "SHA256": "BE5386F1DAF80839712BA66CF2A3185E3BF043B6E30D31AB0B7922DB4A5387FF",
+      "GitBlob": "0cdfbc6f182736de4fdd905b864fe5a76b7dfa1c"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/NpcEventLifecycleTests.cs",
+      "SHA256": "4D47C51B1A187FF8E0B89543C7C5CD5327AB58E0EC9802CD78A85E425E55C1C9",
+      "GitBlob": "fdc12da9fa4f72f778b9ae55bf824411afe95256"
+    }
+  ]
+}

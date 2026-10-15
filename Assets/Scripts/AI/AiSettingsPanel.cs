@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// The AI settings panel (F10 or the "⚙ ตั้งค่า AI" button), plus the small
-/// controls HUD and the interaction prompt.
+/// The settings panel (F10 or the "⚙ ตั้งค่า" button) with two tabs, AI and
+/// sound (AiSettingsPanel.Audio.cs), plus the small controls HUD and the
+/// interaction prompt.
 ///
 /// The panel is a modal card drawn a size up from the HUD, since it is a
 /// form people read and type into. Models are picked from a list instead of
@@ -11,7 +12,7 @@ using UnityEngine;
 /// refreshed from the service (GET /models) for the models this account
 /// can use. Typing a model name is still there for anything not listed.
 /// </summary>
-public class AiSettingsPanel : MonoBehaviour
+public partial class AiSettingsPanel : MonoBehaviour
 {
     public static bool IsOpen { get; private set; }
     public static string InteractionPrompt { get; private set; }
@@ -223,7 +224,7 @@ public class AiSettingsPanel : MonoBehaviour
         else if (isOpen && Input.GetKeyDown(KeyCode.Escape))
         {
             // Esc backs out of the model list first, then closes the panel.
-            if (pickerOpen)
+            if (pickerOpen && tab != AudioTab)
             {
                 pickerOpen = false;
             }
@@ -237,7 +238,11 @@ public class AiSettingsPanel : MonoBehaviour
     private void SetOpen(bool open)
     {
         if (active != this || (open && (!isActiveAndEnabled || RoomTransitionManager.IsBusy))) return;
-        if (!open) CancelUiRequests();
+        if (!open)
+        {
+            CancelUiRequests();
+            CloseAudioTab();
+        }
         if (isOpen && !open)
         {
             closedOnFrame = Time.frameCount;
@@ -283,7 +288,7 @@ public class AiSettingsPanel : MonoBehaviour
         if (!isOpen)
         {
             Rect buttonRect = new Rect(UiScale.Width - 178f, 22f, 156f, 44f);
-            if (ModalGui.Button(buttonRect, "⚙  ตั้งค่า AI", launcherStyle))
+            if (ModalGui.Button(buttonRect, "⚙  ตั้งค่า", launcherStyle))
             {
                 SetOpen(true);
             }
@@ -312,9 +317,15 @@ public class AiSettingsPanel : MonoBehaviour
         Rect inner = new Rect(card.x + Padding, card.y + Padding - 4f, card.width - Padding * 2f, card.height - Padding * 2f + 8f);
         DrawHeader(new Rect(inner.x, inner.y, inner.width, 64f));
 
-        Rect body = new Rect(inner.x, inner.y + 80f, inner.width, inner.height - 80f);
+        DrawTabs(new Rect(inner.x, inner.y + 76f, inner.width, 42f));
+
+        Rect body = new Rect(inner.x, inner.y + 130f, inner.width, inner.height - 130f);
         GUILayout.BeginArea(body);
-        if (pickerOpen)
+        if (tab == AudioTab)
+        {
+            DrawAudioForm();
+        }
+        else if (pickerOpen)
         {
             DrawModelPicker();
         }
@@ -330,10 +341,12 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void DrawHeader(Rect area)
     {
-        GUI.Label(new Rect(area.x, area.y, area.width - 260f, 36f), "ตั้งค่า AI", titleStyle);
+        GUI.Label(new Rect(area.x, area.y, area.width - 260f, 36f), "ตั้งค่า", titleStyle);
         GUI.Label(
             new Rect(area.x, area.y + 36f, area.width - 60f, 24f),
-            "AI สร้างบทพูดของตัวละคร ถ้าใช้ไม่ได้ เกมจะใช้บทพูดที่เขียนไว้แทน",
+            tab == AudioTab
+                ? "ความดังของเสียงเกม ลำโพง/หูฟัง และไมโครโฟนสำหรับพูดแทนพิมพ์"
+                : "AI สร้างบทพูดของตัวละคร ถ้าใช้ไม่ได้ เกมจะใช้บทพูดที่เขียนไว้แทน",
             subtitleStyle);
 
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
@@ -429,6 +442,15 @@ public class AiSettingsPanel : MonoBehaviour
         Note("key ที่พิมพ์ตรงนี้ใช้เฉพาะรอบที่เล่นอยู่ ไม่ถูกบันทึกลงฉากหรือ PlayerPrefs (key ในโฟลเดอร์ UserSettings โหลดให้เองตอนเริ่มเกม)");
         if (string.IsNullOrWhiteSpace(apiKey))
             Note("ช่องว่างไม่ได้แปลว่า key ในเครื่องถูกลบ: เมื่อกดบันทึก ระบบจะอ่าน key ของผู้ให้บริการที่เลือกจาก Environment → UserSettings → api_keys.json (ถ้ามี) ไม่ยืม key ของผู้ให้บริการอื่น");
+
+        Section("การแสดงผล");
+        bool insights = ResponseInsights.Enabled;
+        if (ModalGui.LayoutButton(insights ? "แสดง % ท้ายคำตอบของ NPC: เปิด" : "แสดง % ท้ายคำตอบของ NPC: ปิด",
+                                  secondaryStyle, insights, GUILayout.Height(40f)))
+        {
+            ResponseInsights.Enabled = !insights;
+        }
+        Note("ใบ้กี่ % ตามระดับคำใบ้ที่ให้จริง · ความเป็นมิตรของข้อความผู้เล่น (50% = กลางๆ) · ความสนิทที่ NPC ใช้ตอบ (ค่าความสัมพันธ์)");
 
         GUILayout.Space(14f);
         Rect divider = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));
@@ -1060,6 +1082,8 @@ public class AiSettingsPanel : MonoBehaviour
         };
         hudStyle.normal.background = Keep(ModalGui.Rounded(new Color(0.05f, 0.065f, 0.09f, 0.88f), 12, line, 1f));
         hudStyle.normal.textColor = Text;
+
+        EnsureAudioStyles(line);
     }
 
     public static void SetInteractionPrompt(string prompt)

@@ -200,18 +200,35 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     /// because its quota is used up. Switches to the backup key if there is
     /// one; returns false (and changes nothing) otherwise.
     /// </summary>
-    private bool TrySwitchToBackupKey(string keyUsed)
+    private bool TrySwitchToBackupKey(RequestSettings settings, string keyUsed)
     {
-        string backup = GetBackupApiKey();
-        if (string.IsNullOrWhiteSpace(keyUsed) || keyUsed != GetPrimaryApiKey() ||
+        string backup = settings.BackupKey;
+        if (string.IsNullOrWhiteSpace(keyUsed) || keyUsed != settings.PrimaryKey ||
             string.IsNullOrWhiteSpace(backup) || backup == keyUsed)
         {
             return false;
         }
 
-        exhaustedApiKey = keyUsed;
+        // A finished request must not change the selected account's state.
+        if (provider == settings.Provider && GetPrimaryApiKey() == settings.PrimaryKey)
+            exhaustedApiKey = keyUsed;
         Debug.LogWarning("โควตาของ API key หลักหมดแล้ว — เปลี่ยนไปใช้ key สำรองจนกว่าจะปิดเกม");
         return true;
+    }
+
+    private sealed class RequestSettings
+    {
+        public AiProviderType Provider;
+        public string Url, PrimaryKey, BackupKey, InitialKey;
+        public int Timeout;
+        public bool ResponsesApi { get { return Provider == AiProviderType.OpenAiResponses; } }
+    }
+
+    private RequestSettings CaptureRequestSettings()
+    {
+        string primary = GetPrimaryApiKey(), backup = GetBackupApiKey();
+        return new RequestSettings { Provider = provider, Url = apiUrl, Timeout = timeoutSeconds,
+            PrimaryKey = primary, BackupKey = backup, InitialKey = ChooseKey(primary, backup, exhaustedApiKey) };
     }
 
     private string GetPrimaryApiKey()
@@ -387,6 +404,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             yield break;
         }
 
+        var settings = CaptureRequestSettings();
         string prompt = BuildPrompt(eventData);
         string requestJson = provider == AiProviderType.OpenAiResponses
             ? BuildRequestJson(prompt, eventData.dialogue.choices.Count)
@@ -396,13 +414,13 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         GeneratedDialogueContent result = null;
         try
         {
-            yield return Post(requestJson, sent => request = sent);
+            yield return Post(requestJson, settings, sent => request = sent);
 
             if (string.IsNullOrEmpty(request.error))
             {
                 result = AiResponseParser.ParseDialogue(
                     request.downloadHandler.text,
-                    provider == AiProviderType.OpenAiResponses,
+                    settings.ResponsesApi,
                     eventData.dialogue.choices.Count
                 );
                 ScrubGateWord(result);
@@ -452,13 +470,15 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 
         NpcKnowledgeContext knowledge = BuildKnowledgeContext(
             npcId, playerMessage);
-        GeneratedChatReply answer = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
+        GeneratedChatReply answer = NpcReplyPolicy.CompanionReply(knowledge) ??
+            NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
         if (answer != null)
         {
             onComplete(answer);
             yield break;
         }
 
+        var settings = CaptureRequestSettings();
         string prompt = BuildReplyPrompt(
             npcId,
             speakerName,
@@ -467,21 +487,22 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             customPersonality,
             knowledge
         );
+        List<string> actionIds = CompanionActionIds(knowledge);
         string requestJson = provider == AiProviderType.OpenAiResponses
-            ? BuildReplyRequestJson(prompt)
-            : BuildCompatibleReplyRequestJson(prompt);
+            ? BuildReplyRequestJson(prompt, actionIds)
+            : BuildCompatibleReplyRequestJson(prompt, actionIds);
 
         UnityWebRequest request = null;
         GeneratedChatReply result = null;
         try
         {
-            yield return Post(requestJson, sent => request = sent);
+            yield return Post(requestJson, settings, sent => request = sent);
 
             if (string.IsNullOrEmpty(request.error))
             {
                 result = AiResponseParser.ParseReply(
                     request.downloadHandler.text,
-                    provider == AiProviderType.OpenAiResponses
+                    settings.ResponsesApi
                 );
                 if (result == null)
                 {
@@ -490,6 +511,9 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                 else
                 {
                     result.reply = ScrubGateWord(result.reply);
+                    // Only an id the prompt offered survives; anything else is "none".
+                    if (actionIds == null || !actionIds.Contains(result.companionAction))
+                        result.companionAction = null;
                 }
 
                 string offendingFactId = null;
@@ -499,7 +523,11 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                         result, out ignored, out offendingFactId))
                 {
                     Debug.LogWarning("AI reply rejected by knowledge policy: " + offendingFactId);
-                    result = null;
+                    // The wording is unusable, but a proposed action is still the
+                    // model's reading of the request. The dialogue manager re-checks
+                    // it and answers with the companion's authored line instead.
+                    if (string.IsNullOrEmpty(result.companionAction) ||
+                        result.companionAction == CompanionActionOption.None) result = null;
                 }
             }
             else
@@ -520,7 +548,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     /// backup key exists, the same request is sent once more with the backup.
     /// No other failure ever touches the backup key.
     /// </summary>
-    private IEnumerator Post(string requestJson, Action<UnityWebRequest> onDone)
+    private IEnumerator Post(string requestJson, RequestSettings settings, Action<UnityWebRequest> onDone)
     {
         for (int attempt = 0; ; attempt++)
         {
@@ -528,11 +556,11 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             bool handedOff = false;
             try
             {
-                string key = GetApiKey();
-                request = new UnityWebRequest(apiUrl, "POST");
+                string key = attempt == 0 ? settings.InitialKey : settings.BackupKey;
+                request = new UnityWebRequest(settings.Url, "POST");
                 request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(requestJson));
                 request.downloadHandler = new DownloadHandlerBuffer();
-                request.timeout = timeoutSeconds;
+                request.timeout = settings.Timeout;
                 request.SetRequestHeader("Content-Type", "application/json");
                 request.SetRequestHeader("Authorization", "Bearer " + key);
                 yield return request.SendWebRequest();
@@ -540,7 +568,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 
                 if (attempt == 0 && !string.IsNullOrEmpty(request.error) &&
                     ClassifyFailure(request) == AiFailureKind.DailyLimitReached &&
-                    TrySwitchToBackupKey(key))
+                    TrySwitchToBackupKey(settings, key))
                     continue; // finally releases the failed attempt before retrying.
 
                 onDone(request);
@@ -721,13 +749,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     {
         GameState state = GameState.Instance;
         string roomId = state != null ? state.GetCurrentScene() : string.Empty;
-        RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
-        return NpcKnowledgeContextBuilder.Build(
-            npcId,
-            roomId,
-            state,
-            PlayerIntentClassifier.IsAskingForHint(playerMessage, room != null ? room.gameplayTerms : null)
-        );
+        return NpcKnowledgeContextBuilder.BuildForMessage(npcId, roomId, state, playerMessage);
     }
 
     /// <summary>
@@ -788,6 +810,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             prompt.AppendLine("บุคลิกพื้นฐาน: เป็นคนที่ติดอยู่ในสถานที่ลึกลับนี้เช่นกัน ช่างสังเกต มีอารมณ์ความรู้สึกเหมือนคนจริงๆ");
         }
         prompt.AppendLine("ตอบเป็นภาษาไทย สั้น กระชับ 1-3 ประโยค เป็นธรรมชาติและสมบทบาท ห้ามหลุดบทหรือบอกว่าตัวเองเป็น AI");
+        prompt.AppendLine("ตัวละครอยู่ในห้องจริง ไม่รู้จักเกม: ห้ามพูดถึงปุ่ม การกดปุ่ม (เช่น 'กด E') คีย์บอร์ด เมาส์ หรือช่องแชท");
         prompt.AppendLine("ห้ามใช้คำว่า 'ทวาร' ให้เรียกว่า 'ประตู' เสมอ");
         prompt.AppendLine();
 
@@ -839,6 +862,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
 
         if (knowledge != null)
         {
+            prompt.Append(knowledge.ToCompanionActionSection());
             prompt.Append(knowledge.ToHistorySection());
         }
 
@@ -967,22 +991,23 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         prompt.AppendLine("=== สิ่งที่ต้องเขียน ===");
         prompt.AppendLine("เลือกหัวข้อเองหนึ่งเรื่องที่ตัวละครนี้อยากคุยกับผู้เล่นจริงๆ ตอนนี้ ตามนิสัยและอารมณ์ของตัวละคร โดยหยิบจากข้อมูลข้างบนเท่านั้น เช่น:");
         prompt.AppendLine("- สิ่งในห้องที่ตัวละครรู้ หรือสิ่งที่เพิ่งเกิดขึ้น (ดูสถานการณ์ตอนนี้และความคืบหน้า)");
-        prompt.AppendLine("- ความรู้สึกต่อผู้เล่น หรือต่อตัวละครอื่นในรายการความสัมพันธ์");
+        prompt.AppendLine("- ความรู้สึกต่อผู้เล่น หรือต่อคนอื่นที่อยู่ในห้องนี้ตอนนี้ (ดูรายการ 'ใครอยู่ในห้องนี้')");
+        prompt.AppendLine("- สภาพตัวเองตอนนี้ (เหนื่อย หนาว หิว กลัว เบื่อ) หรือเรื่องเล็กๆ ที่สังเกตเห็นในห้อง");
         prompt.AppendLine("- เรื่องของตัวเองที่เล่าได้ หรือเรื่องที่จำได้เกี่ยวกับผู้เล่น");
         prompt.AppendLine("กฎ: ห้ามซ้ำหัวข้อที่อยู่ในบทสนทนาล่าสุด ให้เลือกเรื่องใหม่");
         prompt.AppendLine("กฎ: ห้ามให้คำใบ้หรือเฉลยปริศนา ห้ามชวนไปสำรวจสิ่งใด ห้ามสร้างเบาะแส ไอเท็ม ตัวละคร หรือข้อเท็จจริงใหม่ และห้ามเล่าความลับที่ยังห้ามเล่า");
         prompt.AppendLine("กฎ: lines 1-3 บรรทัด สั้นและเป็นธรรมชาติ บรรทัดแรกเปิดหัวข้อให้ผู้เล่นรู้ว่าอยากคุยเรื่องอะไร ถ้าจะแสดงสีหน้า ให้ขึ้นต้นบรรทัดด้วย [:emotionId] จากรายการสีหน้าเท่านั้น");
         prompt.AppendLine("กฎ: ทุกบรรทัดใน lines และ responseText เป็นคำพูดของตัวละครเท่านั้น ห้ามเขียนบรรยายท่าทางหรือเล่าแบบบุคคลที่สาม");
         prompt.AppendLine("กฎ: ห้ามใช้คำว่า 'ทวาร' ให้ใช้ 'ประตู'");
+        prompt.AppendLine("กฎ: ทุกครั้งที่ชวนคุยต้องไม่ซ้ำหัวข้อและประโยคเปิด แต่งเฉพาะ lines ให้เข้ากับตัวเลือกที่กำหนด");
         prompt.AppendLine("กฎ: คัดลอก optionText และ responseText ต้นฉบับตามลำดับ ห้ามแก้ข้อความตัวเลือกหรือคำตอบหลังกด เพราะเกมใช้ข้อความต้นฉบับคู่กับผลของ Action");
-        prompt.AppendLine("กฎ: เลือกหัวข้อและแต่งเฉพาะ lines ให้เข้ากับตัวเลือกและคำตอบต้นฉบับต่อไปนี้ ห้ามสร้างสถานการณ์ที่ทำให้ข้อความต้นฉบับขัดกัน:");
 
         for (int index = 0; index < eventData.dialogue.choices.Count; index++)
         {
             DialogueChoiceData choice = eventData.dialogue.choices[index];
             prompt.AppendLine(
-                (index + 1) + ". ผู้เล่น: " + choice.optionText +
-                " | NPC ตอบ: " + choice.responseText
+                (index + 1) + ". ท่าทีของผู้เล่น: " + choice.optionText +
+                " | แนวคำตอบของตัวละคร: " + choice.responseText
             );
         }
 
@@ -1071,7 +1096,53 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                "\"temperature\":0.85}";
     }
 
-    private string BuildReplyRequestJson(string prompt)
+    /// <summary>
+    /// The ids a reply may put in companionAction (including "none"), or null
+    /// when this NPC has nothing to offer here — then the field is not asked for.
+    /// </summary>
+    public static List<string> CompanionActionIds(NpcKnowledgeContext knowledge)
+    {
+        if (knowledge == null || knowledge.PlayerAskedForHint || knowledge.CompanionActions.Count == 0) return null;
+        var ids = new List<string>();
+        foreach (CompanionActionOption option in knowledge.CompanionActions)
+            if (option != null && !string.IsNullOrWhiteSpace(option.Id) && !ids.Contains(option.Id)) ids.Add(option.Id);
+        ids.Add(CompanionActionOption.None);
+        return ids;
+    }
+
+    /// <summary>The strict json_schema for a typed reply; companionAction only when ids are offered.</summary>
+    public static string ReplySchemaJson(IList<string> actionIds)
+    {
+        bool actions = actionIds != null && actionIds.Count > 0;
+        var enumValues = new StringBuilder();
+        if (actions)
+            foreach (string id in actionIds)
+                enumValues.Append(enumValues.Length == 0 ? "" : ",").Append("\"").Append(EscapeJson(id)).Append("\"");
+        return "{" +
+               "\"type\":\"object\",\"properties\":{" +
+               "\"reply\":{\"type\":\"string\"}," +
+               "\"relationshipDelta\":{\"type\":\"integer\"," +
+               "\"minimum\":-15,\"maximum\":10}," +
+               "\"referencedFactIds\":{\"type\":\"array\"," +
+               "\"items\":{\"type\":\"string\"}}," +
+               "\"emotion\":{\"type\":\"string\"}," +
+               "\"playerTone\":{\"type\":\"string\",\"enum\":[\"hostile\",\"cold\",\"neutral\",\"friendly\",\"kind\"]}" +
+               (actions ? ",\"companionAction\":{\"type\":\"string\",\"enum\":[" + enumValues + "]}" : "") + "}," +
+               "\"required\":[\"reply\",\"relationshipDelta\"," +
+               "\"referencedFactIds\",\"emotion\",\"playerTone\"" + (actions ? ",\"companionAction\"" : "") + "]," +
+               "\"additionalProperties\":false}";
+    }
+
+    /// <summary>The system instruction for chat-completions providers, which get no schema.</summary>
+    public static string CompatibleReplyFormat(IList<string> actionIds)
+    {
+        string format = "Return only JSON with reply, relationshipDelta (-15 to 10), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string) and playerTone (hostile, cold, neutral, friendly or kind)";
+        if (actionIds != null && actionIds.Count > 0)
+            format += " and companionAction (exactly one of: " + string.Join(", ", actionIds) + ")";
+        return format + ".";
+    }
+
+    private string BuildReplyRequestJson(string prompt, IList<string> actionIds)
     {
         return "{" +
                "\"model\":\"" + EscapeJson(model) + "\"," +
@@ -1086,27 +1157,16 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                "\"text\":{\"format\":{" +
                "\"type\":\"json_schema\"," +
                "\"name\":\"npc_typed_reply\",\"strict\":true," +
-               "\"schema\":{" +
-               "\"type\":\"object\",\"properties\":{" +
-               "\"reply\":{\"type\":\"string\"}," +
-               "\"relationshipDelta\":{\"type\":\"integer\"," +
-               "\"minimum\":-15,\"maximum\":10}," +
-               "\"referencedFactIds\":{\"type\":\"array\"," +
-               "\"items\":{\"type\":\"string\"}}," +
-               "\"emotion\":{\"type\":\"string\"}," +
-               "\"playerTone\":{\"type\":\"string\",\"enum\":[\"hostile\",\"cold\",\"neutral\",\"friendly\",\"kind\"]}}," +
-               "\"required\":[\"reply\",\"relationshipDelta\"," +
-               "\"referencedFactIds\",\"emotion\",\"playerTone\"]," +
-               "\"additionalProperties\":false}}}}";
+               "\"schema\":" + ReplySchemaJson(actionIds) + "}}}";
     }
 
-    private string BuildCompatibleReplyRequestJson(string prompt)
+    private string BuildCompatibleReplyRequestJson(string prompt, IList<string> actionIds)
     {
         return "{" +
                "\"model\":" + FormatCompatibleModel(model) + "," +
                "\"messages\":[{" +
                "\"role\":\"system\",\"content\":\"" +
-               "Return only JSON with reply, relationshipDelta (-15 to 10), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string) and playerTone (hostile, cold, neutral, friendly or kind).\"}," +
+               EscapeJson(CompatibleReplyFormat(actionIds)) + "\"}," +
                "{\"role\":\"user\",\"content\":\"" +
                EscapeJson(prompt) + "\"}],\"temperature\":0.8}";
     }
@@ -1119,14 +1179,28 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
             : "\"" + EscapeJson(modelId) + "\"";
     }
 
-    private static string EscapeJson(string value)
+    public static string EscapeJson(string value)
     {
-        return (value ?? string.Empty)
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n")
-            .Replace("\t", "\\t");
+        var escaped = new StringBuilder((value ?? string.Empty).Length + 16);
+        foreach (char c in value ?? string.Empty)
+        {
+            switch (c)
+            {
+                case '\\': escaped.Append("\\\\"); break;
+                case '"': escaped.Append("\\\""); break;
+                case '\r': escaped.Append("\\r"); break;
+                case '\n': escaped.Append("\\n"); break;
+                case '\t': escaped.Append("\\t"); break;
+                default:
+                    // JSON forbids raw control characters; a pasted message or
+                    // authored text containing one would make the provider reject
+                    // the whole request (HTTP 400) and drop to the offline reply.
+                    if (c < ' ' || c == (char)0x2028 || c == (char)0x2029) escaped.Append("\\u").Append(((int)c).ToString("x4"));
+                    else escaped.Append(c);
+                    break;
+            }
+        }
+        return escaped.ToString();
     }
 
     [Serializable]
@@ -1171,6 +1245,13 @@ public class GeneratedChatReply
     /// friendly or kind. Keeps relationshipDelta to that tone's range.
     /// </summary>
     public string playerTone;
+
+    /// <summary>
+    /// A companion action the model read from the player's message: one of
+    /// the ids the prompt offered, or "none". Only a proposal; the dialogue
+    /// manager validates it against live game state before anything happens.
+    /// </summary>
+    public string companionAction;
 
     public bool IsValid()
     {

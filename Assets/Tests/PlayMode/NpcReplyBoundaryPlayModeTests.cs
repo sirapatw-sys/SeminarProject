@@ -297,8 +297,8 @@ public class NpcReplyBoundaryPlayModeTests
             var log = state.GetConversationLog("Alice");
             var step = KnowledgeLibrary.GetRoom("Room01").steps.Find(s => s.stepId == "open_drawer");
             Assert.That(log[log.Count - 1].Text, Is.EqualTo(step.HintFor(score < 70 ? HintLevel.Vague : HintLevel.Explicit)));
-            if (score < 70) Assert.That(log[log.Count - 1].Text, Does.Not.Contain("4592"));
-            else Assert.That(log[log.Count - 1].Text, Does.Contain("4592"));
+            Assert.That(log[log.Count - 1].Text, Does.Not.Contain("4592"),
+                "Room01's authored hints no longer reveal the code, even in the explicit tier.");
             Assert.That(state.GetRelationship("Alice"), Is.EqualTo(score));
             Assert.That(state.HasFlag("drawer_opened"), Is.False, "A spoken hint must not solve the puzzle.");
             DialogueManager.Instance.HideDialogue();

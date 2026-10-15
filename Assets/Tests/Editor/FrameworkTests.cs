@@ -158,7 +158,9 @@ namespace MysteryGame.Tests
             Assert.That(low.reply, Does.Not.Contain("4592"));
             State.ChangeRelationship("Alice", 100);
             var high = NpcReplyPolicy.HintReply(Build("Alice", "Room01"));
-            Assert.That(high.reply, Does.Contain("4592"));
+            // The strongest hint points at the drawer; the code stays the player's to read.
+            Assert.That(high.reply, Is.Not.EqualTo(low.reply));
+            Assert.That(high.reply, Does.Not.Contain("4592"));
             Assert.That(high.hintId, Does.Contain("open_drawer"));
             Assert.That(NpcReplyPolicy.HintReply(Build("Alice", "Room01", false)), Is.Null);
         }
@@ -203,6 +205,21 @@ namespace MysteryGame.Tests
                         Assert.That(JsonUtility.ToJson(variant.choices[i].actions[0]),
                             Is.EqualTo(JsonUtility.ToJson(ev.dialogue.choices[i].actions[0])));
             }
+        }
+        [Test]
+        public void OfflineChoiceEffectsAreValidatedBeforeTheyCanBeUsed()
+        {
+            var ev = Object.Instantiate(Load<MiniEventData>("Assets/Data/Events/Alice_Chatter_Event.asset"));
+            var variant = Object.Instantiate(ev.offlineVariants[0]);
+            try
+            {
+                ev.offlineVariants = new List<DialogueData> { variant };
+                variant.choices[0].actions.Add(new ActionCommand { type = ActionType.AddItem, targetId = "missing_variant_item" });
+                var errors = ContentValidator.Validate(GameDefinition.Current, All<InteractionData>("Assets/Data"),
+                    All<InputPuzzleData>("Assets/Data"), new[] { ev });
+                Assert.That(errors, Does.Contain("Unknown action item missing_variant_item"));
+            }
+            finally { Object.DestroyImmediate(variant); Object.DestroyImmediate(ev); }
         }
         [Test]
         public void SecondGameCanAdvanceThroughTwoRoomsUsingOnlyAuthoredAssets()

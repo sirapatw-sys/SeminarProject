@@ -13,12 +13,19 @@ public class NpcEventController : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float triggerChancePerCheck = 0.5f;
     [SerializeField] private Vector3 indicatorOffset = new Vector3(0f, 1.2f, 0f);
     [SerializeField, Min(0.5f)] private float generationTimeoutSeconds = 25f;
+    [Tooltip("After one of this NPC's ordinary \"!\" ends (talked to or ignored) it waits at least this long " +
+             "before raising another. Story beats are never held back.")]
+    [SerializeField, Min(0f)] private float ambientGapSeconds = 100f;
+    [Tooltip("After any NPC's ordinary \"!\" ends, no NPC raises another for at least this long, " +
+             "so two NPCs in the same room do not take turns.")]
+    [SerializeField, Min(0f)] private float sharedAmbientGapSeconds = 40f;
 
     private readonly Dictionary<string, float> cooldownUntil =
         new Dictionary<string, float>();
 
     private MiniEventData pendingEvent;
     private GeneratedDialogueContent pendingDialogue;
+    private DialogueData pendingChoiceSource;
     private bool pendingIsAi;
     private float pendingUntil;
     private float nextCheckTime;
@@ -29,6 +36,47 @@ public class NpcEventController : MonoBehaviour
     private AiRequestOperation generationOperation;
     private int generationVersion;
     private float generationDeadline;
+    private float nextAmbientTime;
+    private string lastAmbientEventId;
+    private static float nextSharedAmbientTime;
+    private GameState observedState;
+
+    private void OnEnable() { BindState(); }
+    private void Start() { BindState(); } // GameState.Awake may run after this controller's OnEnable.
+
+    private void BindState()
+    {
+        if (observedState == GameState.Instance) return;
+        bool replacingState = !ReferenceEquals(observedState, null);
+        UnbindState();
+        observedState = GameState.Instance;
+        if (replacingState) ResetTimeline();
+        if (observedState == null) return;
+        observedState.StateReset += ResetTimeline;
+        observedState.StateRestored += ResetTimeline;
+    }
+
+    private void UnbindState()
+    {
+        if (observedState != null)
+        {
+            observedState.StateReset -= ResetTimeline;
+            observedState.StateRestored -= ResetTimeline;
+        }
+        observedState = null;
+    }
+
+    private void ResetTimeline()
+    {
+        // Pending speech, callbacks and pacing belong to the previous timeline,
+        // even when the restored state happens to satisfy the same conditions.
+        CancelGeneration();
+        ClearPendingEvent();
+        cooldownUntil.Clear();
+        nextCheckTime = nextStoryCheckTime = nextAmbientTime = 0f;
+        nextSharedAmbientTime = 0f;
+        lastAmbientEventId = null;
+    }
 
     private void Awake()
     {
@@ -59,6 +107,7 @@ public class NpcEventController : MonoBehaviour
 
     private void Update()
     {
+        BindState();
         // Independent of the provider's HTTP timeout, and of the game's time scale.
         if (generationInProgress && Time.realtimeSinceStartup >= generationDeadline)
         {
@@ -89,6 +138,7 @@ public class NpcEventController : MonoBehaviour
                 MiniEventData beat = FindDueStoryBeat();
                 if (beat != null)
                 {
+                    EndAmbient(pendingEvent);
                     ClearPendingEvent();
                     QueueEvent(beat);
                     return;
@@ -98,6 +148,7 @@ public class NpcEventController : MonoBehaviour
             if (stale || Time.time >= pendingUntil)
             {
                 cooldownUntil[pendingEvent.eventId] = Time.time + pendingEvent.cooldownSeconds;
+                EndAmbient(pendingEvent);
                 ClearPendingEvent();
             }
             else if (pendingEvent.autoStart && !InputGate.IsBlocked &&
@@ -146,12 +197,29 @@ public class NpcEventController : MonoBehaviour
 
         nextCheckTime = Time.time + checkInterval;
 
-        if (Random.value > triggerChancePerCheck)
+        if (Time.time < nextAmbientTime || Time.time < nextSharedAmbientTime ||
+            Random.value > triggerChancePerCheck)
         {
             return;
         }
 
         TryQueueRandomEvent();
+    }
+
+    /// <summary>
+    /// An ordinary "!" ended (talked to, ignored or pushed aside by the
+    /// story): this NPC and then everyone else keep quiet for a while.
+    /// </summary>
+    private void EndAmbient(MiniEventData ended)
+    {
+        if (ended == null || ended.storyBeat)
+        {
+            return;
+        }
+
+        nextAmbientTime = Time.time + ambientGapSeconds;
+        nextSharedAmbientTime = Time.time + sharedAmbientGapSeconds;
+        lastAmbientEventId = ended.eventId;
     }
 
     public bool HasPendingEvent
@@ -161,8 +229,10 @@ public class NpcEventController : MonoBehaviour
 
     public bool TryStartPendingEvent()
     {
-        if (pendingEvent == null || DialogueManager.Instance == null || DialogueManager.IsDialogueOpen ||
-            !InputGate.IsGameplayActive)
+        if (!isActiveAndEnabled) return false;
+        BindState();
+        if (pendingEvent == null || DialogueManager.Instance == null ||
+            InputGate.IsBlocked || ItemPopupUI.IsBusy)
         {
             return false;
         }
@@ -174,31 +244,38 @@ public class NpcEventController : MonoBehaviour
             return false;
         }
         GeneratedDialogueContent selectedDialogue = pendingDialogue;
+        DialogueData selectedChoiceSource = pendingChoiceSource;
         if (pendingIsAi)
         {
             var context = NpcKnowledgeContextBuilder.Build(selectedEvent.npcId,
                 GameState.Instance.GetCurrentScene(), GameState.Instance, false);
             GeneratedDialogueContent grounded;
             string reason;
-            selectedDialogue = selectedDialogue != null && selectedDialogue.IsValid(selectedEvent.dialogue.choices.Count) &&
-                NpcReplyPolicy.TryGroundEvent(context, selectedDialogue, out grounded, out reason)
-                ? grounded : BuildOfflineTopic(selectedEvent);
+            if (selectedDialogue != null && selectedDialogue.IsValid(selectedEvent.dialogue.choices.Count) &&
+                NpcReplyPolicy.TryGroundEvent(context, selectedDialogue, out grounded, out reason))
+            { selectedDialogue = grounded; selectedChoiceSource = null; }
+            else selectedDialogue = BuildOfflineTopic(selectedEvent, out selectedChoiceSource);
         }
         ClearPendingEvent();
 
         cooldownUntil[selectedEvent.eventId] =
             Time.time + selectedEvent.cooldownSeconds;
+        EndAmbient(selectedEvent);
 
         if (!selectedEvent.repeatable && !selectedEvent.completeOnChoice && GameState.Instance != null)
         {
             GameState.Instance.SetFlag(selectedEvent.CompletedFlag);
         }
 
+        // Only authored offline variants may replace choices and their effects.
+        // A model's topic/opening never changes the meaning of an action.
         DialogueManager.Instance.StartDialogue(
             selectedEvent.dialogue,
             selectedDialogue,
             isEvent: true,
-            completeOnChoiceFlag: selectedEvent.completeOnChoice ? selectedEvent.CompletedFlag : null
+            completeOnChoiceFlag: selectedEvent.completeOnChoice ? selectedEvent.CompletedFlag : null,
+            useGeneratedChoices: selectedEvent.freeTopic && selectedChoiceSource != null,
+            authoredChoiceSource: selectedChoiceSource
         );
         return true;
     }
@@ -263,18 +340,35 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
+        // Never the same request twice in a row (Alice asking for water
+        // again) while something else is possible.
+        if (eligible.Count > 1)
+        {
+            MiniEventData repeat = eligible.Find(e => e.eventId == lastAmbientEventId);
+            if (repeat != null)
+            {
+                eligible.Remove(repeat);
+                totalWeight -= repeat.weight;
+            }
+        }
+
+        MiniEventData chosen = eligible[eligible.Count - 1];
         float roll = Random.value * totalWeight;
         foreach (MiniEventData candidate in eligible)
         {
             roll -= candidate.weight;
             if (roll <= 0f)
             {
-                QueueEvent(candidate);
-                return;
+                chosen = candidate;
+                break;
             }
         }
 
-        QueueEvent(eligible[eligible.Count - 1]);
+        // Hold the other NPCs back while this "!" is up (plus the time an AI
+        // topic may take); EndAmbient sets the real gap once it is over.
+        nextSharedAmbientTime = Mathf.Max(nextSharedAmbientTime,
+            Time.time + generationTimeoutSeconds + chosen.expiresSeconds + sharedAmbientGapSeconds);
+        QueueEvent(chosen);
     }
 
     private bool IsOnCooldown(MiniEventData candidate)
@@ -290,7 +384,8 @@ public class NpcEventController : MonoBehaviour
 
     private void QueueEvent(MiniEventData candidate)
     {
-        if (!InputGate.IsGameplayActive) return;
+        if (!isActiveAndEnabled || !InputGate.IsGameplayActive) return;
+        BindState();
         CancelGeneration();
         ClearPendingEvent();
         if (candidate == null || candidate.dialogue == null) return;
@@ -315,12 +410,15 @@ public class NpcEventController : MonoBehaviour
             return;
         }
 
-        SetPendingEvent(candidate, candidate.freeTopic ? BuildOfflineTopic(candidate) : null);
+        DialogueData offlineChoiceSource = null;
+        var offline = candidate.freeTopic ? BuildOfflineTopic(candidate, out offlineChoiceSource) : null;
+        SetPendingEvent(candidate, offline, authoredChoiceSource: offlineChoiceSource);
     }
 
     private bool IsCurrentGeneration(MiniEventData candidate, int version)
     {
         return this != null && isActiveAndEnabled && generationInProgress &&
+            observedState != null && observedState == GameState.Instance &&
             version == generationVersion && candidate == generatingEvent;
     }
 
@@ -339,7 +437,9 @@ public class NpcEventController : MonoBehaviour
         string reason;
         bool validAi = generated != null && generated.IsValid(candidate.dialogue.choices.Count) &&
             NpcReplyPolicy.ValidateEvent(context, generated, out reason);
-        SetPendingEvent(candidate, validAi ? generated : BuildOfflineTopic(candidate), validAi);
+        DialogueData offlineChoiceSource = null;
+        var selected = validAi ? generated : BuildOfflineTopic(candidate, out offlineChoiceSource);
+        SetPendingEvent(candidate, selected, validAi, offlineChoiceSource);
     }
 
     private void CancelGeneration()
@@ -356,17 +456,42 @@ public class NpcEventController : MonoBehaviour
     {
         CancelGeneration();
         ClearPendingEvent();
+        UnbindState();
     }
 
-    private void OnDestroy() { CancelGeneration(); }
+    private void OnDestroy() { CancelGeneration(); UnbindState(); }
+
+    // The offline topic each event used last, so the same one never plays twice in a row.
+    private static readonly Dictionary<string, int> lastOfflineTopic = new Dictionary<string, int>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetOfflineTopics() { lastOfflineTopic.Clear(); nextSharedAmbientTime = 0f; }
 
     public static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate)
     {
+        DialogueData ignored;
+        return BuildOfflineTopic(candidate, out ignored);
+    }
+
+    private static GeneratedDialogueContent BuildOfflineTopic(MiniEventData candidate, out DialogueData authoredChoiceSource)
+    {
+        authoredChoiceSource = null;
         if (candidate == null || candidate.dialogue == null) return null;
         DialogueData source = candidate.dialogue;
-        if (candidate.offlineVariants != null && candidate.offlineVariants.Count > 0)
-            source = candidate.offlineVariants[Random.Range(0, candidate.offlineVariants.Count)] ?? source;
-        if (source.choices.Count != candidate.dialogue.choices.Count) source = candidate.dialogue;
+        int count = candidate.offlineVariants != null ? candidate.offlineVariants.Count : 0;
+        if (count > 0)
+        {
+            string key = candidate.eventId ?? string.Empty;
+            int last;
+            int pick = Random.Range(0, count);
+            if (count > 1 && lastOfflineTopic.TryGetValue(key, out last) && pick == last)
+                pick = (pick + 1 + Random.Range(0, count - 1)) % count;
+            lastOfflineTopic[key] = pick;
+            source = candidate.offlineVariants[pick] ?? source;
+        }
+        if (source.speakerId != candidate.dialogue.speakerId || source.choices == null ||
+            source.choices.Count != candidate.dialogue.choices.Count) source = candidate.dialogue;
+        authoredChoiceSource = source;
         var choices = new List<GeneratedDialogueChoice>();
         foreach (var choice in source.choices)
             choices.Add(new GeneratedDialogueChoice { optionText = choice.optionText, responseText = choice.responseText });
@@ -377,10 +502,12 @@ public class NpcEventController : MonoBehaviour
     private void SetPendingEvent(
         MiniEventData candidate,
         GeneratedDialogueContent generated,
-        bool fromAi = false)
+        bool fromAi = false,
+        DialogueData authoredChoiceSource = null)
     {
         pendingEvent = candidate;
         pendingDialogue = generated;
+        pendingChoiceSource = fromAi ? null : authoredChoiceSource;
         pendingIsAi = fromAi;
         pendingUntil = Time.time + candidate.expiresSeconds;
         indicatorText.gameObject.SetActive(true);
@@ -396,6 +523,7 @@ public class NpcEventController : MonoBehaviour
     {
         pendingEvent = null;
         pendingDialogue = null;
+        pendingChoiceSource = null;
         pendingIsAi = false;
         pendingUntil = 0f;
 

@@ -1,0 +1,55 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b75aa9e7779470c889557275485c8a2, type: 3}
+  m_Name: Sena_OfflineTopic2
+  m_EditorClassIdentifier: 
+  dialogueId: sena_offline_2
+  speakerId: Sena
+  speakerName: "เซนะ (Sena)"
+  speakerPortrait: {fileID: 21300000, guid: 1d146046dd6d494f921da5feb73d96ba, type: 3}
+  personalityPrompt: 
+  lines:
+  - "หอสมุดแห่งนี้เงียบงันมาช้านานนัก"
+  - "มนุษย์เอ๋ย เจ้ารู้สึกเช่นไรกับความเงียบนี้"
+  overrideReturnLines: 0
+  returnLines: []
+  choices:
+  - optionText: "เงียบแบบนี้ก็สงบดีนะ"
+    responseText: "สงบฤๅ... หึ อย่างน้อยเจ้าก็มิได้ส่งเสียงอึกทึกเช่นผู้อื่น"
+    actions:
+    - type: 4
+      targetId: Sena
+      secondaryId: 
+      amount: 3
+      text: 
+    - type: 7
+      targetId: Sena
+      secondaryId: 
+      amount: 0
+      text: "ผู้เล่นบอกเซนะว่าความเงียบของหอสมุดนั้นสงบดี"
+  - optionText: "ท่านชอบความเงียบเหรอ"
+    responseText: "สิ่งที่ข้าชอบมิใช่เรื่องที่มนุษย์ควรรู้"
+    actions:
+    - type: 4
+      targetId: Sena
+      secondaryId: 
+      amount: 1
+      text: 
+  - optionText: "ฉันไม่อยากคุยเรื่องนี้"
+    responseText: "งั้นก็จงเงียบเสียเถิด มนุษย์"
+    actions:
+    - type: 4
+      targetId: Sena
+      secondaryId: 
+      amount: -2
+      text: 
+  firstMeetingChoicesOnly: 0

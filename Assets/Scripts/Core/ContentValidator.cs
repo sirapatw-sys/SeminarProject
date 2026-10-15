@@ -22,6 +22,49 @@ namespace MysteryGame.Core
             var facts = new HashSet<string>();
             foreach (var room in game.rooms.Where(r => r != null))
             {
+                if (room.companionScenario != null)
+                {
+                    errors.AddRange(room.companionScenario.ValidateConfiguration());
+                    if (!npcIds.Contains(room.companionScenario.npcId)) errors.Add(room.roomId + ": companion NPC is missing.");
+                    if (room.companionScenario.stations != null)
+                        foreach (var station in room.companionScenario.stations)
+                            if (station != null)
+                            {
+                                Rules(station.conditions, itemIds, npcIds, errors, roomIds);
+                                if (!string.IsNullOrWhiteSpace(station.holdForInteractionId) && !interactionIds.Contains(station.holdForInteractionId))
+                                    errors.Add(room.roomId + ": unknown held interaction " + station.holdForInteractionId);
+                            }
+                    if (room.companionScenario.discussions != null)
+                        foreach (var discussion in room.companionScenario.discussions)
+                        {
+                            if (discussion == null) continue;
+                            Rules(discussion.conditions, itemIds, npcIds, errors, roomIds);
+                            if (discussion.requiredFacts != null) foreach (string id in discussion.requiredFacts)
+                            {
+                                var fact = room.FindFact(id);
+                                if (fact == null || fact.isPuzzleAnswer || fact.isPuzzleGuidance)
+                                    errors.Add(room.roomId + ": discussion requires a missing or hint-only fact " + id);
+                            }
+                        }
+                    if (room.companionScenario.searchSpots != null)
+                        foreach (var spot in room.companionScenario.searchSpots)
+                        {
+                            if (spot == null) continue;
+                            Rules(spot.conditions, itemIds, npcIds, errors, roomIds);
+                            if (string.IsNullOrWhiteSpace(spot.factId)) continue;
+                            var discovered = room.FindFact(spot.factId);
+                            if (discovered == null || discovered.isPuzzleAnswer || discovered.isPuzzleGuidance)
+                                errors.Add(room.roomId + ": search spot references a missing or hint-only fact " + spot.factId);
+                        }
+                    if (room.companionScenario.observations != null)
+                        foreach (var observation in room.companionScenario.observations)
+                        {
+                            if (observation == null) continue;
+                            Rules(observation.conditions, itemIds, npcIds, errors, roomIds);
+                            if (!interactionIds.Contains(observation.interactionId))
+                                errors.Add(room.roomId + ": unknown observed interaction " + observation.interactionId);
+                        }
+                }
                 if (room.visibleAmbientTerms != null)
                 {
                     Unique(room.visibleAmbientTerms, room.roomId + "/ambient", errors);
@@ -56,6 +99,9 @@ namespace MysteryGame.Core
                         errors.Add(room.roomId + "/" + step.stepId + ": no completion conditions.");
                     if (string.IsNullOrWhiteSpace(step.vagueHint))
                         errors.Add(room.roomId + "/" + step.stepId + ": missing vague hint (cannot escalate to explicit).");
+                    foreach (string hint in new[] { step.vagueHint, step.normalHint, step.explicitHint })
+                        if (NpcReplyPolicy.MentionsGameControls(hint))
+                            errors.Add(room.roomId + "/" + step.stepId + ": hint talks about game controls (keys, buttons, chat box); say it in character.");
                     Rules(step.availableWhen, itemIds, npcIds, errors, roomIds);
                     Rules(step.completedWhen, itemIds, npcIds, errors, roomIds);
                 }
@@ -97,6 +143,10 @@ namespace MysteryGame.Core
             }
             foreach (var interaction in allInteractions)
             {
+                if (float.IsNaN(interaction.soloPreparationSeconds) || float.IsInfinity(interaction.soloPreparationSeconds) || interaction.soloPreparationSeconds < 0f)
+                    errors.Add(interaction.interactionId + ": invalid solo preparation time.");
+                if (!string.IsNullOrWhiteSpace(interaction.helperNpcId) && !npcIds.Contains(interaction.helperNpcId))
+                    errors.Add(interaction.interactionId + ": unknown helper NPC.");
                 Rules(interaction.conditions, itemIds, npcIds, errors, roomIds);
                 Actions(interaction.actions, itemIds, npcIds, errors);
                 if (!string.IsNullOrWhiteSpace(interaction.popupItemId) && !itemIds.Contains(interaction.popupItemId))
@@ -132,8 +182,13 @@ namespace MysteryGame.Core
                 Rules(ev.conditions, itemIds, npcIds, errors, roomIds);
                 if (ev.offlineVariants != null)
                     foreach (var variant in ev.offlineVariants)
-                        if (variant == null || ev.dialogue == null || variant.choices.Count != ev.dialogue.choices.Count)
-                            errors.Add(ev.eventId + ": offline variant has mismatched choices.");
+                    {
+                        if (variant == null || ev.dialogue == null || variant.speakerId != ev.dialogue.speakerId ||
+                            variant.choices == null || variant.choices.Count != ev.dialogue.choices.Count)
+                        { errors.Add(ev.eventId + ": offline variant has mismatched choices or speaker."); continue; }
+                        foreach (var choice in variant.choices)
+                            if (choice != null) Actions(choice.actions, itemIds, npcIds, errors);
+                    }
             }
             return errors;
         }

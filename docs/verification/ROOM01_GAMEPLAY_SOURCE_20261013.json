@@ -1,0 +1,198 @@
+[
+  {
+    "Path": "Assets/Data/Companions/Room01_Companion.asset",
+    "SHA256": "FF93EEE4F072536D9CB4F3AC91C1D7E09A2FEC59A209BAA99139D8D90C27B725"
+  },
+  {
+    "Path": "Assets/Data/Interactions/Desk_Data.asset",
+    "SHA256": "4825CF36A0087180E884356B8BAA7125FD82FA171CD790F8092F852DBBA36F4B"
+  },
+  {
+    "Path": "Assets/Resources/Knowledge/Rooms/Room01.asset",
+    "SHA256": "187EAED6B47443FD5F0E4D304FC925F8130C82B3E9A2EEB2FDB9CD75DC800EAD"
+  },
+  {
+    "Path": "Assets/Scripts/Core/ContentValidator.cs",
+    "SHA256": "073AD08F6014B7D19471DEF2BC0D1D0497A4B8D5EB80E766E84F81AA661E929B"
+  },
+  {
+    "Path": "Assets/Scripts/Dialogue/PlayerIntent.cs",
+    "SHA256": "10F0798581CB3E5C367A0539C17933E30B60CDD0AA2F29584FC58FA1483ABD71"
+  },
+  {
+    "Path": "Assets/Scripts/Interaction/InteractionData.cs",
+    "SHA256": "46B4B16A53A590C4BD62B8FB04E3D1B4D90D96E40C45BE4ADDD80B2C5D660F2B"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/EvidenceSharing.cs",
+    "SHA256": "FE8B5AEFC7B931EEB4C942538198BD9DB25035BEBE87ECF7C8CD77771A22CE7C"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/NpcKnowledgeContextBuilder.cs",
+    "SHA256": "F04C2570ED9538D3DE1C5960B80260EF35EE1EB3DF966204339EFEA0CFD6380D"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/NpcProfileData.cs",
+    "SHA256": "B29066790C27640866438C0D5445F052EEECB8541543DF69370E2DB707B11FF9"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/NpcReplyPolicy.cs",
+    "SHA256": "D47DD2CD08DA2FC3B973B2FACDBBAE6B4BC235CF576ED6156C33BEA09FAE93C4"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/CompanionDialogueCommands.cs",
+    "SHA256": "59F6DE9AEC92562DB581F6386199192A8D90D85035F9AD22FA15F836DD0F4C3E"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/CompanionNavigator.cs",
+    "SHA256": "AF345D5389477817A22E71D4864DC458F5323CD2C1ADA82C9C88A4C45CF9E0BB"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/CompanionScenarioData.cs",
+    "SHA256": "D30D22A033DFDEAF00C111D18E9EF89C26E0CABB7F9E4FACF2A9CDB86584A8B9"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/NpcCompanionController.cs",
+    "SHA256": "3D850790B9C98E08E24ECF2BB27C3AEC9EBBA6870D67432954C02A0B0998BA9A"
+  },
+  {
+    "Path": "Assets/Scripts/ObjectInteraction.cs",
+    "SHA256": "EFD6FDE31DAD23120C3C895EAA2D7AFBBF4F15852E0500A50C81268C62CB63DB"
+  },
+  {
+    "Path": "Assets/Scripts/UI/CharacterVisualController.cs",
+    "SHA256": "2F98A317A1D3012F3A97BCC8BC527FD25CD3BF99499FB0EF6ABA42F38E788E49"
+  },
+  {
+    "Path": "Assets/Scripts/UI/CompanionHud.cs",
+    "SHA256": "B583C5EDF14B32149351F4B889F1745B4356B7D5E9B3ED27814178FA7356CB18"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/NpcMemoryRecall.cs",
+    "SHA256": "F2760F8C1BEF775206A68DFD3EE7DECE3B2E3AD342AA97CE10BC9FC5869E8E16"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/NpcMemoryRecall.cs.meta",
+    "SHA256": "AFD4B240ABB1457EFA730A71A70E62776AE71862621A4B1BDABE1CDB6E7C5554"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/NpcObservation.cs",
+    "SHA256": "A287C781908F3BAAB42C5BD2139D23AA281F62D6B30E8AE176775ADC795DA5B7"
+  },
+  {
+    "Path": "Assets/Scripts/Knowledge/NpcObservation.cs.meta",
+    "SHA256": "E0CB4E4A272011B5B771206686B806265CE0598F0C54D2F4BA165D542A87AF89"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/CompanionConversation.cs",
+    "SHA256": "79D395CD0D619478F8A09F2097B1E2D582054C0FDDB0B8439A41A7173ED1482C"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/CompanionConversation.cs.meta",
+    "SHA256": "F106200CF9DA5C7E80008D54DF739AD0365BC97A97C8031009BA6A4CD34C398A"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/CompanionStationInteraction.cs",
+    "SHA256": "B2993DE67FCEC41ADE59386B52DE97E85C79D27459187AA9D1A1707206AECEB3"
+  },
+  {
+    "Path": "Assets/Scripts/NPC/CompanionStationInteraction.cs.meta",
+    "SHA256": "D0C6944A1E462F53D55D2EC99A754CF3A14EE95F78074BE11A6EAA40173B4250"
+  },
+  {
+    "Path": "Assets/Scripts/UI/CompanionWorkVisuals.cs",
+    "SHA256": "CD48B9CB3127A99B47EAB435EE309D0737032C7342C409946FC48DE6FCE94957"
+  },
+  {
+    "Path": "Assets/Scripts/UI/CompanionWorkVisuals.cs.meta",
+    "SHA256": "8B67E38F5CA840628019A108DCEEC447DE2C12ACEC776679F02FBBA35D654665"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionCooperationTests.cs",
+    "SHA256": "763E7191E171ACB69D71571E986AFA3E042A0767CBCA1453BD0286C6F54CC337"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionCooperationTests.cs.meta",
+    "SHA256": "9609ED071EB65BCAE9FBC31ACCE7800398FF42D4EEE5895D4F42E42F2153385F"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionPresentationTests.cs",
+    "SHA256": "775919A9821EF25B811817CC3D54987CEBC62E550A9B2BB24F1C61975F3A6F3B"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionPresentationTests.cs.meta",
+    "SHA256": "4E4A7AFBF71A9D4FFFF989D687FBA47D73CCF8F20CBB9A45BAC5B929FD38F94F"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionQualifierRegressionTests.cs",
+    "SHA256": "4BDD2BDE3AC72D25F3E5BCCFBD1D26C6F9FBD4E39EDBC269B5CF1EE33347D10D"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionQualifierRegressionTests.cs.meta",
+    "SHA256": "9F5FF9AB17475F2A446AD17569F955D808F104816CD13261A2E37C66164F773C"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionSpeechActRegressionTests.cs",
+    "SHA256": "51BE2553D814EB1A3E30C71D4DA50F4D45435D9F5F0957818880046C3B13637B"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionSpeechActRegressionTests.cs.meta",
+    "SHA256": "2B4FD55E1E886D64490834B0901E731A2136ED1204E70C313FAD1352C6F0A440"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionUsabilityTests.cs",
+    "SHA256": "79913487B1C5EF468FC0E4BF46447B27161BD9D4AC39855311B341C4C891F22E"
+  },
+  {
+    "Path": "Assets/Tests/Editor/CompanionUsabilityTests.cs.meta",
+    "SHA256": "06BC950D4B9C3E0A6F4DA1B073C7B1ED9CA913E3689EA7B4345311CFDCC564BB"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionCooperationPlayTests.cs",
+    "SHA256": "1B7924C56AD961C61CF06292CAB3C37131272F9DBFCCBC9A49A5399A3A657898"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionCooperationPlayTests.cs.meta",
+    "SHA256": "F106DD3AAB093D62EC39635B22ACC73FCA623C4F5DF3BF24CAB821465D088E70"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionNavigationPlayTests.cs",
+    "SHA256": "1DAEDB6FFEF193F255D99F20DE904F6D0F9D7A9FF1B6CADEC52D333BF6F69086"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionNavigationPlayTests.cs.meta",
+    "SHA256": "B8263C57997244A7FF8C2AD88FD03A0B90CC70A5C158476D74AC5659F90F2EA9"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionPresentationPlayTests.cs",
+    "SHA256": "C67F6111554AB8167D58AA2DAC05A85A051A5CE571AF85566125846B212D0B40"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionPresentationPlayTests.cs.meta",
+    "SHA256": "8963E5548AA103C06A61E3503FA05835DD7951B02D4D214A7D980D49731EA575"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionQualifierPlayTests.cs",
+    "SHA256": "2BA9FB4EA8833CA0B53687AFB3765D72BEE7DBA86363E7532F3793CC45A84FC0"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionQualifierPlayTests.cs.meta",
+    "SHA256": "6C114BC04EB3E42C395AF8BB34760C97C5D6BF5DACF3BCBE42FE8729ACBDFDFA"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionSpeechActPlayTests.cs",
+    "SHA256": "97A6967877A77C714ADEBB12DB3004F783C8BA925A955F1471FB8BDBFE5AE911"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionSpeechActPlayTests.cs.meta",
+    "SHA256": "766237A3031C9B7F3D75229A3660826ED887E5AC0008564C76F017F9C4EEFB4E"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionUsabilityPlayTests.cs",
+    "SHA256": "E4C0AE4B4F80D0CA7CAFD08C42E1693E41D6BDCB878D6649668D5160C75D0A12"
+  },
+  {
+    "Path": "Assets/Tests/PlayMode/CompanionUsabilityPlayTests.cs.meta",
+    "SHA256": "41EEAD322F2A9F1B3814DAE9CD7A0285D57C5A058EE4FDD734B59C263684D01A"
+  }
+]

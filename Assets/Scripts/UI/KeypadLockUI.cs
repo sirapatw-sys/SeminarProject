@@ -35,6 +35,7 @@ public class KeypadLockUI : MonoBehaviour
     private string statusMessage = "";
     private Color statusColor = Color.white;
     private Action onUnlockSuccess;
+    private Action<string> onUnlockFailure;
 
     private Texture2D dimTexture;
     private Texture2D panelTexture;
@@ -71,7 +72,8 @@ public class KeypadLockUI : MonoBehaviour
         string targetCode,
         string title = null,
         string hint = null,
-        Action onSuccess = null)
+        Action onSuccess = null,
+        Action<string> onFailure = null)
     {
         if (string.IsNullOrEmpty(targetCode) || targetCode.Length > 8 ||
             !System.Text.RegularExpressions.Regex.IsMatch(targetCode, @"^\d+$"))
@@ -84,6 +86,7 @@ public class KeypadLockUI : MonoBehaviour
         if (!string.IsNullOrWhiteSpace(title)) ui.lockTitle = title;
         if (!string.IsNullOrWhiteSpace(hint)) ui.lockHint = hint;
         ui.onUnlockSuccess = onSuccess;
+        ui.onUnlockFailure = onFailure;
         ui.currentInput = "";
         ui.statusMessage = "";
         ui.openTime = Time.unscaledTime;
@@ -98,6 +101,7 @@ public class KeypadLockUI : MonoBehaviour
             _instance.currentInput = "";
             _instance.statusMessage = "";
             _instance.onUnlockSuccess = null;
+            _instance.onUnlockFailure = null;
         }
         IsOpen = false;
     }
@@ -115,7 +119,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void Update()
     {
-        if (!IsOpen)
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard)
         {
             return;
         }
@@ -130,7 +134,7 @@ public class KeypadLockUI : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                Close();
+                HandleKey(KeyCode.Escape);
                 return;
             }
 
@@ -141,20 +145,20 @@ public class KeypadLockUI : MonoBehaviour
                 KeyCode keypadKey = KeyCode.Keypad0 + i;
                 if (Input.GetKeyDown(alphaKey) || Input.GetKeyDown(keypadKey))
                 {
-                    AppendDigit(i.ToString());
+                    HandleKey(alphaKey);
                     return;
                 }
             }
 
             if (Input.GetKeyDown(KeyCode.Backspace))
             {
-                DeleteDigit();
+                HandleKey(KeyCode.Backspace);
                 return;
             }
 
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                TrySubmit();
+                HandleKey(KeyCode.Return);
                 return;
             }
         }
@@ -162,6 +166,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void AppendDigit(string digit)
     {
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
         if (currentInput.Length < targetCode.Length)
         {
             currentInput += digit;
@@ -175,6 +180,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void DeleteDigit()
     {
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
         if (currentInput.Length > 0)
         {
             currentInput = currentInput.Substring(0, currentInput.Length - 1);
@@ -184,6 +190,7 @@ public class KeypadLockUI : MonoBehaviour
 
     private void TrySubmit()
     {
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
         if (currentInput.Length < targetCode.Length)
         {
             statusMessage = "กรุณาใส่รหัสให้ครบ " + targetCode.Length + " หลัก";
@@ -199,6 +206,7 @@ public class KeypadLockUI : MonoBehaviour
             IsOpen = false;
             Action callback = onUnlockSuccess;
             onUnlockSuccess = null;
+            onUnlockFailure = null;
             callback?.Invoke();
         }
         else
@@ -206,8 +214,22 @@ public class KeypadLockUI : MonoBehaviour
             statusMessage = "รหัสไม่ถูกต้อง! สลักยังคงล็อคอยู่";
             statusColor = new Color(0.95f, 0.3f, 0.3f);
             shakeTimer = 0.4f;
+            string rejectedAnswer = currentInput;
             currentInput = "";
+            // Only a complete, incorrect submission is an attempted unlock.
+            // Keep the keypad open; cancel/incomplete input has no gameplay effect.
+            onUnlockFailure?.Invoke(rejectedAnswer);
         }
+    }
+
+    private void HandleKey(KeyCode key)
+    {
+        if (!IsOpen || AiSettingsPanel.HoldsKeyboard) return;
+        if (key == KeyCode.Escape) Close();
+        else if (key == KeyCode.Backspace) DeleteDigit();
+        else if (key == KeyCode.Return || key == KeyCode.KeypadEnter) TrySubmit();
+        else if (key >= KeyCode.Alpha0 && key <= KeyCode.Alpha9) AppendDigit(((int)key - (int)KeyCode.Alpha0).ToString());
+        else if (key >= KeyCode.Keypad0 && key <= KeyCode.Keypad9) AppendDigit(((int)key - (int)KeyCode.Keypad0).ToString());
     }
 
     private void OnGUI()

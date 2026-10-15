@@ -50,6 +50,18 @@ public static class PlayerIntentClassifier
     };
     private static readonly Regex GenericHelpRequest = R(string.Join("|", Array.ConvertAll(GenericHelpWords, Regex.Escape)));
 
+    // Saying you are stuck is asking for help, however it is worded:
+    // "ไม่รู้จะทำยังไงต่อดี", "ตันแล้ว", "ไปต่อไม่ถูก", "what now?".
+    // Treated like the generic requests above (feelings elsewhere in the
+    // message still win, "no hints" still holds).
+    private static readonly Regex StuckRequest = R(
+        @"ไม่รู้(?:ว่า)?\s*(?:จะ|ต้อง|ควร)\s*(?:ทำ(?!ตัว|ใจ)|ไป|เริ่ม|หา|ดู|เล่น)|" +
+        @"(?:ทำ|ไป|เล่น|เริ่ม)\s*(?:ยังไง|ไง|อย่างไร|อะไร|ไหน|ตรงไหน|ทางไหน)\s*ต่อ|" +
+        @"ต่อ\s*(?:จากนี้|ไป)?\s*(?:ต้อง|ควร|จะ)?\s*(?:ทำ|ไป)\s*(?:อะไร|ยังไง|อย่างไร|ไหน)|" +
+        @"(?:ทาง)?ตัน(?:เลย|อยู่|จริง|\s*$)|(?:คิด|นึก)ไม่ออก(?!ว่าจะ(?:คุย|พูด|ตอบ))|ไปต่อไม่(?:ได้|ถูก|เป็น)|" +
+        @"ไม่มี(?:ไอเดีย|ทางไป)|งงไปหมด|ติดอยู่ตรงนี้|ขั้น(?:ต่อไป|ถัดไป)|" +
+        @"\b(?:stuck|no\s+idea\s+what|what\s+now|what\s+next|i'?m\s+lost|(?:don'?t|do\s+not)\s+know\s+what\s+to\s+do|not\s+sure\s+what\s+to\s+do)\b");
+
     // Help with feelings is not puzzle help. A real object/action question or
     // explicit hint request still wins in a message that also mentions feelings.
     private const string SocialTopics =
@@ -149,7 +161,44 @@ public static class PlayerIntentClassifier
     /// <summary>Room-authored nouns extend detection without hardcoding each room here.</summary>
     public static bool IsAskingForHint(string message, IEnumerable<string> gameplaySubjects)
     {
-        return ReadHintRequest(NormalizeHintText(message), gameplaySubjects);
+        return IsAskingForHint(message, gameplaySubjects, null);
+    }
+
+    /// <summary>Opt-in activity topics do not turn a request for cooperation into a main-puzzle hint.</summary>
+    public static bool IsAskingForHint(string message, IEnumerable<string> gameplaySubjects, IEnumerable<string> companionSubjects)
+    {
+        return ReadHintRequest(NormalizeHintText(message), gameplaySubjects, companionSubjects);
+    }
+
+    private static readonly Regex CompanionRequest = R(
+        @"ช่วย|(?:คำ)?ใบ้|วิธี|ยังไง|อย่างไร|ได้ไหม|ได้หรือ|คืออะไร|ทำอะไร|สำเร็จ|เสร็จ|เปิด|สถานะ|" +
+        @"\b(?:help|hint|how|what|can|could|would|open|opened|done|finished|complete|completed|status)\b");
+    private static readonly Regex ActivityLocation = R(@"(?:ใน|ข้าง|ใกล้|ด้านหน้า|ด้านหลัง|หน้า|หลัง)\s*(?:ห้องนี้|ประตู|ลิ้นชัก)|\b(?:in|near|beside|by|behind|next\s+to|in\s+front\s+of)\s+(?:the\s+)?(?:this\s+room|room|door|drawer)\b");
+    internal static string WithoutActivityLocations(string text) { return ActivityLocation.Replace(text, " "); }
+
+    public static bool IsCompanionRequest(string message, IEnumerable<string> companionSubjects)
+    {
+        foreach (string clause in Clauses.Split(NormalizeHintText(message)))
+        {
+            if (!MentionsSubject(clause, companionSubjects) || RequestDecline.IsMatch(clause)) continue;
+            foreach (Match request in CompanionRequest.Matches(clause))
+            {
+                bool negated = false;
+                foreach (Match deny in HintDecline.Matches(clause))
+                    if (request.Index < deny.Index + deny.Length && deny.Index < request.Index + request.Length)
+                    { negated = true; break; }
+                if (!negated) return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool MentionsSubject(string text, IEnumerable<string> subjects)
+    {
+        var patterns = new List<string>(); var seen = new HashSet<string>(StringComparer.Ordinal);
+        AddSubjects(subjects, patterns, seen);
+        foreach (string pattern in patterns) if (Regex.IsMatch(text, pattern, RegexOptions.CultureInvariant)) return true;
+        return false;
     }
 
     private const int GameplayQuestionCacheLimit = 32;
@@ -184,14 +233,24 @@ public static class PlayerIntentClassifier
         return question;
     }
 
-    private static bool ReadHintRequest(string message, IEnumerable<string> roomSubjects)
+    private static bool ReadHintRequest(string message, IEnumerable<string> roomSubjects, IEnumerable<string> companionSubjects)
     {
         if (string.IsNullOrWhiteSpace(message)) return false;
         Regex question = GetGameplayQuestion(roomSubjects);
         bool social = SocialTopic.IsMatch(message);
-        bool asking = false, declined = false;
+        bool asking = false, genericHelp = false, declined = false, activityTopic = false;
+        var mainSubjects = new List<string>(GameplaySubjects);
+        if (roomSubjects != null) mainSubjects.AddRange(roomSubjects);
+        mainSubjects.RemoveAll(term => term == "ห้องนี้" || term == "this room" ||
+            MentionsSubject(NormalizeHintText(term), companionSubjects));
         foreach (string clause in Clauses.Split(message))
         {
+            bool mentionsActivity = MentionsSubject(clause, companionSubjects);
+            // A location is not the target of the request ("box beside the door").
+            string targets = mentionsActivity ? WithoutActivityLocations(clause) : clause;
+            bool mainTarget = MentionsSubject(targets, mainSubjects);
+            bool activityOnly = mentionsActivity && !mainTarget;
+            if (mentionsActivity) activityTopic = activityOnly;
             MatchCollection declines = HintDecline.Matches(clause);
             int lastDecline = declines.Count > 0 ? declines[declines.Count - 1].Index : -1;
             int lastRequest = -1;
@@ -206,20 +265,28 @@ public static class PlayerIntentClassifier
             // A later explicit request can retract a refusal. An indirect
             // question cannot silently undo "no hints", even in a later clause.
             if (lastDecline > lastRequest)
-            { declined = true; asking = false; continue; }
+            { declined = true; asking = false; genericHelp = false; continue; }
+            // A later activity target resolves an earlier, otherwise unbound
+            // "help me". Never erase an explicit hint or main-puzzle question.
+            if (activityOnly) { genericHelp = false; continue; }
             if (lastRequest >= 0)
             { declined = false; asking = true; continue; }
             if (declined || RequestDecline.IsMatch(clause)) continue;
+            if (activityTopic && !mainTarget &&
+                (GenericHelpRequest.IsMatch(clause) || BareHelpQuestion.IsMatch(clause))) continue;
             if (question.IsMatch(clause) ||
                 (ExplorationQuestion.IsMatch(clause) && !SocialTopic.IsMatch(clause)))
             { asking = true; continue; }
             // Bare/general help may refer to another clause's loneliness or
             // anxiety. Specific puzzle requests above are not suppressed.
             if (!social &&
-                (GenericHelpRequest.IsMatch(clause) || BareHelpQuestion.IsMatch(clause)))
-                asking = true;
+                (GenericHelpRequest.IsMatch(clause) || BareHelpQuestion.IsMatch(clause) || StuckRequest.IsMatch(clause)))
+            {
+                if (mainTarget || StuckRequest.IsMatch(clause)) asking = true;
+                else genericHelp = true;
+            }
         }
-        return asking;
+        return asking || genericHelp;
     }
 
     private static string BuildGameplayQuestion(IEnumerable<string> roomSubjects)
@@ -231,6 +298,7 @@ public static class PlayerIntentClassifier
         string subject = "(?:" + string.Join("|", nouns) + ")";
         return ThaiAction + QuestionGap + "{0,24}" + subject + QuestionGap + "{0,24}" + ThaiMethod + "|" +
             subject + QuestionGap + "{0,16}" + ThaiAction + QuestionGap + "{0,24}" + ThaiMethod + "|" +
+            subject + QuestionGap + @"{0,12}(?:ต้อง|ควร)?\s*ทำ\s*(?:ยังไง|อย่างไร|อะไร)(?:ต่อ)?|" +
             @"(?:วิธี|ทำยังไง|ทำอย่างไร)" + QuestionGap + "{0,12}" + ThaiAction + QuestionGap + "{0,24}" + subject + "|" +
             subject + QuestionGap + @"{0,16}(?:อยู่|ซ่อน|เก็บ|หา)" + QuestionGap + @"{0,20}(?:ที่ไหน|ตรงไหน|ไหน)|" +
             @"\b(?:(?:how|what|which)\b|(?:can|could|would)\s+(?:you|i|we)\b)" + QuestionGap + "{0,48}" + EnglishAction + QuestionGap + "{0,24}" + subject + "|" +

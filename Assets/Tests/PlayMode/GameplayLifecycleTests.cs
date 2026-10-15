@@ -174,9 +174,12 @@ public class GameplayLifecycleTests
         Assert.That(InputGate.IsGameplayActive, Is.True);
         Assert.That(ambient.CanTrigger(GameState.Instance), Is.True);
         // Setup may span a frame, allowing Update to schedule its next poll
-        // while the authored 40-second event is still ineligible.
+        // while the authored minimum room time still made the event ineligible.
         Debug.Log("Active invitation poll: next=" + typeof(NpcEventController).GetField("nextCheckTime", Private).GetValue(controller) + ", now=" + Time.time);
         Set("nextCheckTime", 0f); Set("nextStoryCheckTime", 0f);
+        // Earlier tests may have just ended an ordinary "!", which starts the quiet gaps.
+        Set("nextAmbientTime", 0f);
+        typeof(NpcEventController).GetField("nextSharedAmbientTime", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, 0f);
         Tick(); yield return null;
         Assert.That(provider.Calls, Is.EqualTo(1)); Assert.That(controller.HasPendingEvent, Is.True);
         Assert.That(DialogueManager.IsDialogueOpen, Is.False, "An invitation does not interrupt play.");

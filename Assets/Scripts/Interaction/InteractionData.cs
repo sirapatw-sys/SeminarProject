@@ -13,6 +13,11 @@ public class InteractionData : ScriptableObject
     public InputPuzzleData inputPuzzle;
     [Tooltip("Hide from focus selection until conditions hold (e.g. a guarded door).")]
     public bool hideFocusUntilAvailable;
+    [Tooltip("Optional preparation time when inspecting alone; an active companion hold skips it.")]
+    [Min(0f)] public float soloPreparationSeconds;
+    public string helperNpcId;
+    public string preparationLabel = "กำลังเตรียมสำรวจ";
+    [TextArea] public string assistedMessage;
 
     [Header("Dialogue")]
     [TextArea(2, 5)]

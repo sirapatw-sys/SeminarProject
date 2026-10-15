@@ -17,6 +17,38 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
     private InteractionData followUpInteraction;
 
     private Collider2D area;
+    private InteractionData preparing;
+    private float preparation;
+    private GameState preparationState;
+    public float PreparationProgress { get { return preparing == null ? 0f : Mathf.Clamp01(preparation / preparing.soloPreparationSeconds); } }
+
+    private bool Assisted(InteractionData data)
+    {
+        var state = GameState.Instance;
+        var actor = state == null ? null : MysteryGame.Companions.NpcCompanionController.Find(data.helperNpcId, state.GetCurrentScene());
+        return actor != null && actor.IsHolding(data.interactionId);
+    }
+    private void Update()
+    {
+        if (preparing == null) return;
+        var player = GameObject.FindGameObjectWithTag("Player");
+        var playerArea = player != null ? player.GetComponent<Collider2D>() : null;
+        if (area == null) area = GetComponent<Collider2D>();
+        string reason;
+        if (preparationState != GameState.Instance || player == null || InputGate.IsBlocked || ItemPopupUI.IsBusy ||
+            (area != null && playerArea != null && !area.bounds.Intersects(playerArea.bounds)) ||
+            Vector2.Distance(player.transform.position, FocusPoint) > 2.5f ||
+            !InteractionSystem.CanExecute(preparing, GameState.Instance, out reason))
+        { CancelPreparation(); return; }
+        preparation += Time.deltaTime;
+        if (preparation >= preparing.soloPreparationSeconds || Assisted(preparing))
+        { var data = preparing; CancelPreparation(); ExecuteInteraction(data); }
+    }
+    private void CancelPreparation()
+    {
+        if (preparationState != null) { preparationState.StateReset -= CancelPreparation; preparationState.StateRestored -= CancelPreparation; }
+        preparing = null; preparationState = null; preparation = 0f;
+    }
 
     // ------------------------------------------------------------ IFocusable
     // InteractionFocus picks the nearest interactable and calls Interact().
@@ -37,7 +69,8 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         get
         {
             InteractionData data = ActiveData;
-            return data != null ? "กด E เพื่อสำรวจ " + data.displayName : string.Empty;
+            return preparing != null ? preparing.preparationLabel + " " + Mathf.RoundToInt(PreparationProgress * 100f) + "% · เดินออกเพื่อหยุด" :
+                data != null ? "กด E เพื่อสำรวจ " + data.displayName : string.Empty;
         }
     }
 
@@ -78,6 +111,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
 
     private void TryInteract()
     {
+        if (!isActiveAndEnabled || InputGate.IsBlocked) return;
         InteractionData data = ActiveData;
         if (data == null)
         {
@@ -105,7 +139,26 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         {
             var puzzle = data.inputPuzzle;
             KeypadLockUI.Show(puzzle.acceptedAnswers[0], puzzle.title, puzzle.question,
-                () => ExecuteInteraction(data, puzzle.acceptedAnswers[0]));
+                () => ExecuteInteraction(data, puzzle.acceptedAnswers[0]),
+                answer =>
+                {
+                    if (this == null || InteractionSystem.Instance == null) return;
+                    // Reuse the puzzle's authoritative validation/signals without
+                    // starting dialogue over the still-open keypad.
+                    string ignored;
+                    InteractionSystem.Instance.TryExecute(data, out ignored, answer);
+                });
+            return;
+        }
+        if (data.soloPreparationSeconds > 0f && !Assisted(data) &&
+            !state.HasFlag("interaction." + data.interactionId + ".prepared") &&
+            InteractionSystem.CanExecute(data, state, out unavailable))
+        {
+            if (preparing == null)
+            {
+                preparing = data; preparationState = state; preparation = 0f;
+                state.StateReset += CancelPreparation; state.StateRestored += CancelPreparation;
+            }
             return;
         }
         ExecuteInteraction(data);
@@ -115,12 +168,18 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
     {
         GameState state = GameState.Instance;
         string responseMessage;
+        bool assisted = Assisted(data);
 
         bool success = InteractionSystem.Instance.TryExecute(
             data,
             out responseMessage,
             answer
         );
+        if (success && data.soloPreparationSeconds > 0f)
+        {
+            state.SetFlag("interaction." + data.interactionId + ".prepared");
+            if (assisted && !string.IsNullOrWhiteSpace(data.assistedMessage)) responseMessage = data.assistedMessage;
+        }
 
         SfxPlayer.Play(success ? SfxPlayer.Cue.Interact : SfxPlayer.Cue.Locked);
         if (success && data.successClip != null)
@@ -222,6 +281,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
 
     private void OnDisable()
     {
+        CancelPreparation();
         InteractionFocus.Exit(this);
     }
 }

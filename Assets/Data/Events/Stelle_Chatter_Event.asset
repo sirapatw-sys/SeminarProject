@@ -18,8 +18,8 @@ MonoBehaviour:
   metricId: ""
   relatedNpcId: ""
   threshold: 70
-  minimumRoomTimeSeconds: 40
-  weight: 1
+  minimumRoomTimeSeconds: 30
+  weight: 2
   cooldownSeconds: 150
   expiresSeconds: 45
   repeatable: 1
@@ -38,3 +38,5 @@ MonoBehaviour:
   offlineVariants:
   - {fileID: 11400000, guid: 702b437785c134b4aae66b0908707155, type: 2}
   - {fileID: 11400000, guid: f292b83fe0042694c808c5ef9a905797, type: 2}
+  - {fileID: 11400000, guid: f0089f23b9a149c9a2c4a40d58a40f47, type: 2}
+  - {fileID: 11400000, guid: ee917b788c474f35bb4d0f382acf9290, type: 2}

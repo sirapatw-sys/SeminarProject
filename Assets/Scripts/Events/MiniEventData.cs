@@ -42,8 +42,10 @@ public class MiniEventData : ScriptableObject
     [Tooltip(
         "The NPC starts a conversation about something it picks itself: the AI " +
         "chooses a topic from what this NPC knows, what has happened and what " +
-        "it remembers. AI varies opening lines only; choice labels, responses " +
-        "and effects stay authored. Without AI, offlineVariants vary the opening lines."
+        "it remembers. AI writes opening lines; choice labels, replies and effects " +
+        "stay authored. Without AI, one of offlineVariants (lines, choices and " +
+        "their own effects) is used, never " +
+        "the same one twice in a row."
     )]
     public bool freeTopic;
 
@@ -52,7 +54,7 @@ public class MiniEventData : ScriptableObject
 
     [Tooltip("Used immediately when AI is unavailable or returns invalid data.")]
     public DialogueData dialogue;
-    [Tooltip("Authored topic variants used when AI is unavailable. Choice effects must match dialogue.")]
+    [Tooltip("Authored topic variants used when AI is unavailable. Their own labels, replies, effects and memories stay together.")]
     public List<DialogueData> offlineVariants = new List<DialogueData>();
     public List<ConditionRule> conditions = new List<ConditionRule>();
 

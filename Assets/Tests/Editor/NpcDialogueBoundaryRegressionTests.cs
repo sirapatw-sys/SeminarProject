@@ -78,6 +78,10 @@ namespace MysteryGame.Tests
         [TestCase("อย่าเพิ่งให้คำใบ้")]
         [TestCase("Don't give me the code, I only want to talk.")]
         [TestCase("ไม่ต้องบอกว่าประตูเปิดยังไง แค่อยากคุยเป็นเพื่อน")]
+        [TestCase("ไม่รู้จะทำตัวยังไงกับเธอดี")]
+        [TestCase("คิดไม่ออกว่าจะคุยอะไรกับเธอ")]
+        [TestCase("ฉันกลัว ไม่รู้จะทำยังไงต่อ")]
+        [TestCase("ไม่ต้องใบ้ แค่ไม่รู้จะทำยังไงต่อ")]
         public void PersonalQuestionsWithRoomContextAreNotPuzzleHelp(string message)
         {
             Assert.That(PlayerIntentClassifier.Classify(message) & PlayerIntent.AskingHint,
@@ -123,6 +127,13 @@ namespace MysteryGame.Tests
         [TestCase("Room01", "I don't know how to open the door.")]
         [TestCase("Room01", "ฉันไม่รู้ว่าประตูเปิดยังไง")]
         [TestCase("Room01", "ไม่ต้องใบ้เยอะ ขอแค่คำใบ้หน่อย")]
+        [TestCase("Room01", "ผมไปดูตรงโต๊ะมาเมื่อกี้ ตอนนี้ไม่รู้จะทำยังไงต่อดี")]
+        [TestCase("Room01", "ตันแล้ว")]
+        [TestCase("Room01", "คิดไม่ออกเลย")]
+        [TestCase("Room01", "ไปต่อไม่ถูก")]
+        [TestCase("Room01", "ต่อจากนี้ต้องทำอะไร")]
+        [TestCase("Room01", "I'm stuck")]
+        [TestCase("Room01", "what now?")]
         public void GenuineAndMixedHelpQuestionsStillGetOnlyTheirAllowedHint(string room, string message)
         {
             State.SetCurrentScene(room);

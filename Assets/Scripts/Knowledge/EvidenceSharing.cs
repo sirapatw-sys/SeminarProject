@@ -63,7 +63,7 @@ namespace MysteryGame.Knowledge
         }
 
         public static bool TryShare(GameState state, string npcId, string factId,
-            out EvidenceShareResult result)
+            out EvidenceShareResult result, bool recordConversation = true)
         {
             result = null;
             if (state == null) return false;
@@ -107,8 +107,11 @@ namespace MysteryGame.Knowledge
                     SharedFlag(npc.npcId, room.roomId, fact.factId),
                     "คุยเรื่อง " + fact.EvidenceTitle + " กับ " + npc.displayName, result.Reply);
             }
-            state.AddConversationTurn(npc.npcId, ConversationTurn.Player, "(หลักฐาน) " + fact.EvidenceTitle);
-            state.AddConversationTurn(npc.npcId, npc.npcId, result.Reply);
+            if (recordConversation)
+            {
+                state.AddConversationTurn(npc.npcId, ConversationTurn.Player, "(หลักฐาน) " + fact.EvidenceTitle);
+                state.AddConversationTurn(npc.npcId, npc.npcId, result.Reply);
+            }
             return true;
         }
     }

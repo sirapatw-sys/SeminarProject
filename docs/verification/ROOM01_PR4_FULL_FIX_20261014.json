@@ -1,0 +1,173 @@
+{
+  "ParentCommit": "3e68e42dfe826c3d64d59a1caeabd8626f6e97bf",
+  "Unity": "2021.3.16f1",
+  "Evidence": "Local Unity Editor tests, loopback HTTP with dummy keys and Windows build; no live provider/quota, CI, manual visual/audio QA or player-runtime tests",
+  "Results": [
+    {
+      "File": "FixAll14_EditMode_Verified.xml",
+      "SHA256": "B5892FD9B544377DC655167791AD0D49CA476F012BEC495626D260BB7A1D5773",
+      "Total": 1094,
+      "Passed": 1094,
+      "Failed": 0,
+      "Skipped": 0,
+      "Inconclusive": 0
+    },
+    {
+      "File": "FixAll14_PlayMode_Verified.xml",
+      "SHA256": "B1C5B30281B3809E284A21C85AC068129B12D6457CE07074E90A881A4207F21C",
+      "Total": 206,
+      "Passed": 206,
+      "Failed": 0,
+      "Skipped": 0,
+      "Inconclusive": 0
+    }
+  ],
+  "UniquePassedTestNames": 1300,
+  "AddedTests": {
+    "EditMode": 7,
+    "PlayMode": 10
+  },
+  "Intermediate": "SaveFocused: 6/7 before separating JSON scene membership from player build availability; first full PlayMode: 199/205 before updating old offering fixtures to dismiss item cards and adding Room02 closing-frame regression.",
+  "Build": {
+    "Log": "FixAll14_WindowsBuild.log",
+    "Result": "Succeeded",
+    "Errors": 0,
+    "Warnings": 2,
+    "Directory": "FixAll14_Windows",
+    "WarningScope": "Unity Dashboard project link and Burst test-runner staging"
+  },
+  "RuntimeAssemblySHA256": "E2D38E2F82B645AF63914FEB881FAE3ECDC1AC4B42ADF0B972B51D4F8AF468AC",
+  "RawHashes": "SHA256 is working-copy bytes; GitBlob uses repository text filters",
+  "SourceFiles": [
+    {
+      "Path": "Assets/Scripts/AI/AiDialogueGenerator.cs",
+      "SHA256": "8D3C2C56F8811E9495E19D522E2135806A1BFA31B3CC906C5DEE2DD098963A46",
+      "GitBlob": "f0367be288b15238a0bdde1653dfce4c09c31ef6"
+    },
+    {
+      "Path": "Assets/Scripts/Core/AtomicSaveStore.cs",
+      "SHA256": "072656832CD0D17A24D199FD57E17BFA23AABEC1FFF7FA226FDE9A31468C7D71",
+      "GitBlob": "b32f2629e6c739c7fd90f404c549abc6b4d65d2f"
+    },
+    {
+      "Path": "Assets/Scripts/Core/ContentValidator.cs",
+      "SHA256": "F938B16D83D96950E791C52FB22138E5477E674B57777A826CF1BE558D899890",
+      "GitBlob": "86d70117766ca982f66356f4d955477f0a35d8ac"
+    },
+    {
+      "Path": "Assets/Scripts/Core/SaveSystem.cs",
+      "SHA256": "489480854036DE9E8EA0DE6C6667AE64E6F64CD78590137A5F1185CCFBC6E8D2",
+      "GitBlob": "befe72eb735f77e39885ebdbb9721c0454b93e86"
+    },
+    {
+      "Path": "Assets/Scripts/DialogueManager.cs",
+      "SHA256": "907D3CD1F2A648F59D46EC2E8A1929FBD21C816E7E8B04158A080285AC2F077D",
+      "GitBlob": "fa7eea647eb861a63a78126551a5deb9131652e2"
+    },
+    {
+      "Path": "Assets/Scripts/Events/MiniEventData.cs",
+      "SHA256": "D849F41DEA786FD188A71E116BF1643AEE52A497F168F54913ECA54B923AFC95",
+      "GitBlob": "35b125019967131c7ef7670f4e083ceeac4ea475"
+    },
+    {
+      "Path": "Assets/Scripts/Events/NpcEventController.cs",
+      "SHA256": "C9A12E6BFC68FD389FF954BA5E36367C2D128ECD9D5FD877820BECE7D330CD9F",
+      "GitBlob": "cc3b7c2ccfe9bfbca0ddbe3288dc20502498ff36"
+    },
+    {
+      "Path": "Assets/Scripts/NPC/CompanionDialogueCommands.cs",
+      "SHA256": "6E3E8F5A2DA86DAAFA9AE281A7E69BCE2AF3DDCE0A7B6658C2C00653F6928F29",
+      "GitBlob": "4a0e4b8f67820afd958e40e62fae7bd83c25d9f8"
+    },
+    {
+      "Path": "Assets/Scripts/NPC/NpcPuzzleInteraction.cs",
+      "SHA256": "3F77BD02E4EBE1EDB5496BAF7D94F2C1F2AA2A73CF272332958BFF235F6FF51E",
+      "GitBlob": "145a03222f658e2cef27e4c040dfa994f10e6ce1"
+    },
+    {
+      "Path": "Assets/Scripts/NPCInteraction.cs",
+      "SHA256": "65010329B5D4E25057A53674BAB78D5DEC587A5610AD2E95D1F50614AB7D2520",
+      "GitBlob": "da1f8fd880e9b037567664997cfca06a53c6e272"
+    },
+    {
+      "Path": "Assets/Scripts/ObjectInteraction.cs",
+      "SHA256": "941E07AF7043B5B8D0C0CB3278EB231A04D57A71A09F13D9D412CBA6BDFAB841",
+      "GitBlob": "4666d07c6e507f7d788aa97aec8d7fce4843c53a"
+    },
+    {
+      "Path": "Assets/Scripts/PlayerMovement.cs",
+      "SHA256": "18FF6E7960484D896A2E58C384E5A987DBCCD4BB1368C91A422D38FC047D8822",
+      "GitBlob": "460fd37b4ee323b6483fa58f03fee39537eac1bf"
+    },
+    {
+      "Path": "Assets/Scripts/UI/DialogueTextScroll.cs",
+      "SHA256": "F6B745630F697C616775D0DB90955800E74F595DC682FE5B8D32C1871B75D92E",
+      "GitBlob": "5f8b0e9e98c2075e554b40025e5008b60bb3c778"
+    },
+    {
+      "Path": "Assets/Scripts/UI/InputGate.cs",
+      "SHA256": "10F400138C0F7D86EC40530BA19A1E4CA5B846D9FCF403BD9069F00355894A77",
+      "GitBlob": "15891c8dc421c0f830abbdc9eff33942e0bd7a0e"
+    },
+    {
+      "Path": "Assets/Scripts/UI/ItemPopupUI.cs",
+      "SHA256": "7964D8BEDD5B3B1EFEB5F4A80A09B0143EA02DC4C2879B8A039DB281099B77FA",
+      "GitBlob": "b4654fddfdc401c2373eea04ac25aff55b611fd8"
+    },
+    {
+      "Path": "Assets/Scripts/UI/JournalUI.cs",
+      "SHA256": "84AF83393F69E9C44413AF05C3578D003511850F620FA06D423A422B00EDB23C",
+      "GitBlob": "e66e38e0d7de102ec8b6faa3ebc422e3476a5765"
+    },
+    {
+      "Path": "Assets/Scripts/UI/KeypadLockUI.cs",
+      "SHA256": "573F6761D7F1EE432B4642683CDCD3A06F84C72B2D6CDCDE4A6B99532A7BE17E",
+      "GitBlob": "31fe9bb42ba0acc8f779ea090ed36bcae7825e70"
+    },
+    {
+      "Path": "Assets/Tests/Editor/AtomicSaveStoreTests.cs",
+      "SHA256": "EC4AB3B0A41D357E25BFEC090D4A38416310EA09C04297C622CE57DB516F05B8",
+      "GitBlob": "bff36645acdea1978128d74f6c77d4d5559fd5a7"
+    },
+    {
+      "Path": "Assets/Tests/Editor/CompanionCourtesyTests.cs",
+      "SHA256": "FBD1682DF6B0FDBADFF24B8C08944402F9D880F0B190CCE99FE6CB19C3B274C1",
+      "GitBlob": "b45fd637d01fb601014dfd0f0fb9388f29419a0c"
+    },
+    {
+      "Path": "Assets/Tests/Editor/FrameworkTests.cs",
+      "SHA256": "87B7684687B1387DC87130A812D55B741DAF15EC31C374930488BF7A32AE3851",
+      "GitBlob": "8e3523692944ccf84b17d69ab89d31df1f873999"
+    },
+    {
+      "Path": "Assets/Tests/Editor/PrReviewRegressionTests.cs",
+      "SHA256": "B6DE19C9C8C23B261A8FB108ECC0D7AD5569C90C573F4445BA20F0826DF093A4",
+      "GitBlob": "876a881adc33d917064cd6102559898bf35973e0"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/AiRequestLifecycleTests.cs",
+      "SHA256": "059804965847EF56EF84551412F26FA5CE0A2D221F8C92B685AE917F1C2D2884",
+      "GitBlob": "e78792f4fead9dad1ace25aff76c327070a28bd5"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/DialogueAuditRegressionTests.cs",
+      "SHA256": "BE5386F1DAF80839712BA66CF2A3185E3BF043B6E30D31AB0B7922DB4A5387FF",
+      "GitBlob": "0cdfbc6f182736de4fdd905b864fe5a76b7dfa1c"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/FrameworkPlayModeTests.cs",
+      "SHA256": "A92356272FE98F5F8C004926991A3A57050F156EDFECD1A3E509CC87E5257053",
+      "GitBlob": "dba312c308f7617faa889d256a67fa15b295a3db"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/ModalRequestRegressionTests.cs",
+      "SHA256": "085378DA1AABCDF5741A3D9BCD92E31E63F931D73DBDC9D140000671AAB273AD",
+      "GitBlob": "c6dac2a4d298ec1aa4e0e157a58312b55f56c463"
+    },
+    {
+      "Path": "Assets/Tests/PlayMode/NpcEventLifecycleTests.cs",
+      "SHA256": "4D47C51B1A187FF8E0B89543C7C5CD5327AB58E0EC9802CD78A85E425E55C1C9",
+      "GitBlob": "fdc12da9fa4f72f778b9ae55bf824411afe95256"
+    }
+  ]
+}

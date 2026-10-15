@@ -63,6 +63,7 @@ public class DialogueManager : MonoBehaviour
     private float chatRequestDeadline;
     private string pendingPlayerMessage;
     private EvidencePickerUI evidencePicker;
+    private DialogueTextScroll dialogueScroll;
     private string choiceCompletionFlag;
 
     // The emotion box: a small face card that pops up beside the text when a
@@ -116,6 +117,7 @@ public class DialogueManager : MonoBehaviour
     public bool TryShareEvidence(string factId)
     {
         if (!CanShareEvidence) return false;
+        int closenessBefore = GameState.Instance.GetRelationship(activeNpcId);
         EvidenceShareResult result;
         if (!EvidenceSharing.TryShare(GameState.Instance, activeNpcId, factId, out result)) return false;
         if (evidencePicker != null) evidencePicker.Close();
@@ -128,7 +130,7 @@ public class DialogueManager : MonoBehaviour
         dialogueLines = new[] { result.Reply };
         currentLine = 0;
         activeDialogueContext = result.Reply;
-        dialogueText.text = EscapeRichText(result.Reply);
+        SetDialogueText(EscapeRichText(result.Reply) + InsightFor(0, closenessBefore));
         AnimateSpeakerForText(result.Reply);
         continueButton.gameObject.SetActive(activeChoices != null && activeChoices.Count > 0);
         SfxPlayer.Play(SfxPlayer.Cue.Talk);
@@ -285,7 +287,9 @@ public class DialogueManager : MonoBehaviour
         DialogueData data,
         GeneratedDialogueContent generated,
         bool isEvent = false,
-        string completeOnChoiceFlag = null)
+        string completeOnChoiceFlag = null,
+        bool useGeneratedChoices = false,
+        DialogueData authoredChoiceSource = null)
     {
         if (data == null)
         {
@@ -298,6 +302,30 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        OpenDialogue(data, generated, isEvent, completeOnChoiceFlag, useGeneratedChoices, authoredChoiceSource);
+    }
+
+    /// <param name="useGeneratedChoices">
+    /// Retained for callers using authored offline topic variants. Generated
+    /// JSON never supplies actionable choice text; a separate DialogueData
+    /// supplies the authored labels, responses and their matching effects.
+    /// </param>
+    private void OpenDialogue(
+        DialogueData data,
+        GeneratedDialogueContent generated,
+        bool isEvent,
+        string completeOnChoiceFlag,
+        bool useGeneratedChoices,
+        DialogueData authoredChoiceSource)
+    {
+        string companionInvitation = null;
+        var companion = GameState.Instance == null ? null : MysteryGame.Companions.NpcCompanionController.Find(
+            data.speakerId, GameState.Instance.GetCurrentScene());
+        if (!isEvent && companion != null && companion.CanCommand)
+        {
+            companion.RefreshInvitation();
+            companionInvitation = companion.ReadInvitation();
+        }
         ConversationVersion++;
         dialoguePanel.SetActive(true);
         choicePanel.SetActive(false);
@@ -305,10 +333,12 @@ public class DialogueManager : MonoBehaviour
 
         showingChoiceResponse = false;
         choiceCompletionFlag = completeOnChoiceFlag;
-        // Generated opening lines are presentation only. Choice labels and
-        // responses must stay with their authored effects, including the
-        // completion flag that can exist even when a choice has no actions.
-        activeChoices = data.choices;
+        // Story events keep their authored labels and responses, which stay
+        // paired with their effects (and any completion flag).
+        activeChoices = useGeneratedChoices && authoredChoiceSource != null &&
+            authoredChoiceSource.speakerId == data.speakerId && authoredChoiceSource.choices != null &&
+            authoredChoiceSource.choices.Count == data.choices.Count
+            ? authoredChoiceSource.choices : data.choices;
         // Per dialogue, not per speaker: Alice's Room02 choices must still
         // appear the first time even though she was met in Room01.
         string metFlag = "dialogue." + data.dialogueId + ".met";
@@ -341,6 +371,12 @@ public class DialogueManager : MonoBehaviour
         dialogueLines = generated != null && generated.IsValid(data.choices.Count)
             ? generated.lines
             : BuildContextualLines(data, isEvent);
+        if (!string.IsNullOrWhiteSpace(companionInvitation))
+        {
+            var invitedLines = new List<string> { companionInvitation };
+            invitedLines.AddRange(dialogueLines);
+            dialogueLines = invitedLines.ToArray();
+        }
         activeDialogueContext = StripLineTags(string.Join(" ", dialogueLines));
         currentLine = 0;
 
@@ -364,6 +400,19 @@ public class DialogueManager : MonoBehaviour
                 "Started dialogue: " + data.dialogueId
             );
         }
+    }
+
+    /// <summary>The numbers line for a reply to a choice or shared evidence.</summary>
+    private string InsightFor(int hintPercent, int closenessBefore)
+    {
+        GameState state = GameState.Instance;
+        if (!ResponseInsights.Enabled || state == null || KnowledgeLibrary.GetNpc(activeNpcId) == null)
+        {
+            return string.Empty;
+        }
+
+        int closeness = state.GetRelationship(activeNpcId);
+        return ResponseInsights.Format(hintPercent, ResponseInsights.KindPercent(closeness - closenessBefore), closeness);
     }
 
     private void BuildVisualNovelLayout()
@@ -414,14 +463,15 @@ public class DialogueManager : MonoBehaviour
         textRect.offsetMin = new Vector2(0f, 92f);
         textRect.offsetMax = new Vector2(-150f, -72f);
         dialogueText.fontSize = 25f;
-        // Long replies shrink to fit instead of spilling past the box.
-        dialogueText.enableAutoSizing = true;
+        dialogueText.enableAutoSizing = false;
         dialogueText.fontSizeMax = 25f;
         dialogueText.fontSizeMin = 15f;
         dialogueText.enableWordWrapping = true;
-        dialogueText.overflowMode = TextOverflowModes.Truncate;
+        dialogueText.overflowMode = TextOverflowModes.Overflow;
         dialogueText.lineSpacing = 5f;
         dialogueText.color = new Color(1f, 1f, 1f, 1f);
+        DialogueTextScroll.Install(dialogueText);
+        dialogueScroll = dialogueText.GetComponentInParent<DialogueTextScroll>(true);
 
         RectTransform continueRect =
             continueButton.GetComponent<RectTransform>();
@@ -793,7 +843,7 @@ public class DialogueManager : MonoBehaviour
         inputRect.anchorMin = Vector2.zero;
         inputRect.anchorMax = Vector2.one;
         inputRect.offsetMin = new Vector2(18f, 6f);
-        inputRect.offsetMax = new Vector2(-280f, -6f);
+        inputRect.offsetMax = new Vector2(-344f, -6f); // room for the mic, หลักฐาน and ส่ง
 
         TMP_Text inputText = CreateInputText(
             inputObject.transform,
@@ -837,6 +887,7 @@ public class DialogueManager : MonoBehaviour
         sendButton.onClick.AddListener(SendTypedMessage);
         evidencePicker = composer.AddComponent<EvidencePickerUI>();
         evidencePicker.Configure(this, composer.transform, dialoguePanel.transform, nameText.font);
+        composer.AddComponent<VoiceInputButton>().Configure(this, composer.transform, chatInput, nameText.font);
     }
 
     private TMP_Text CreateInputText(
@@ -1057,6 +1108,12 @@ public class DialogueManager : MonoBehaviour
     // Show Current Line
     // =========================================================
 
+    private void SetDialogueText(string value)
+    {
+        dialogueText.text = value;
+        if (dialogueScroll != null) dialogueScroll.ResetToTop();
+    }
+
     private void ShowCurrentLine()
     {
         if (dialogueLines == null || dialogueLines.Length == 0)
@@ -1071,7 +1128,7 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
-        dialogueText.text = ApplyLineTag(dialogueLines[currentLine]);
+        SetDialogueText(ApplyLineTag(dialogueLines[currentLine]));
         AnimateSpeakerForText(dialogueText.text);
         SfxPlayer.Play(SfxPlayer.Cue.Talk);
     }
@@ -1209,7 +1266,7 @@ public class DialogueManager : MonoBehaviour
             activeChoices[choiceIndex];
         activeChoices = null;
 
-        dialogueText.text = ApplyLineTag(selectedChoice.responseText);
+        SetDialogueText(ApplyLineTag(selectedChoice.responseText));
         AnimateSpeakerForText(dialogueText.text);
         SfxPlayer.Play(SfxPlayer.Cue.Talk);
 
@@ -1233,6 +1290,7 @@ public class DialogueManager : MonoBehaviour
         }
         else
         {
+            int closenessBefore = GameState.Instance.GetRelationship(activeNpcId);
             foreach (ActionCommand action in selectedChoice.actions)
             {
                 if (action != null)
@@ -1247,6 +1305,7 @@ public class DialogueManager : MonoBehaviour
             );
             if (!string.IsNullOrWhiteSpace(choiceCompletionFlag))
                 GameState.Instance.SetFlag(choiceCompletionFlag);
+            dialogueText.text += InsightFor(0, closenessBefore);
         }
         choiceCompletionFlag = null;
         if (evidencePicker != null) evidencePicker.RefreshAvailability();
@@ -1288,12 +1347,28 @@ public class DialogueManager : MonoBehaviour
         playerTalkingUntil = Time.unscaledTime +
                              Mathf.Clamp(playerMessage.Length * 0.025f, 0.5f, 2f);
 
-        dialogueText.text =
+        SetDialogueText(
             "<color=#69D0D8><b>คุณ:</b></color> " +
             EscapeRichText(playerMessage) +
             "\n\n<color=#E8B950><b>" +
             EscapeRichText(activeSpeakerName) +
-            ":</b></color> กำลังคิด...";
+            ":</b></color> กำลังคิด...");
+
+        // Only an actual player send can start a bounded companion action.
+        // Model output, prompt building and repeated callbacks cannot execute it.
+        GeneratedChatReply companionCommand;
+        if (MysteryGame.Companions.CompanionDialogueCommands.TryReply(this, playerMessage, out companionCommand))
+        {
+            CompleteTypedReply(playerMessage, null, serial, companionCommand);
+            return;
+        }
+        // Activity instructions/state are authored, not a model command.
+        // Resolve locally even when a third-party provider is configured.
+        if (NpcReplyPolicy.CompanionReply(AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage)) != null)
+        {
+            CompleteTypedReply(playerMessage, null, serial);
+            return;
+        }
 
         IAiDialogueProvider generator = DialogueProviders.Current;
         if (generator != null && generator.CanGenerate)
@@ -1335,7 +1410,8 @@ public class DialogueManager : MonoBehaviour
     private void CompleteTypedReply(
         string playerMessage,
         GeneratedChatReply generated,
-        int serial)
+        int serial,
+        GeneratedChatReply companionCommand = null)
     {
         // A reply to a request that timed out or belongs to a conversation
         // the player already closed.
@@ -1351,9 +1427,22 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        // The model may have read a companion request the rules missed. It is
+        // applied only through the same validation as a parsed command, and the
+        // answer then becomes the companion's authored line.
+        GeneratedChatReply proposedAction;
+        if (companionCommand == null && generated != null &&
+            MysteryGame.Companions.CompanionDialogueCommands.TryApplyProposedAction(
+                this, playerMessage, generated.companionAction, out proposedAction))
+        {
+            companionCommand = proposedAction;
+            generated = null;
+        }
+
         var knowledge = AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage);
         string policyReason = null;
-        var answerReply = NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
+        var answerReply = companionCommand ?? NpcReplyPolicy.CompanionReply(knowledge) ??
+            NpcReplyPolicy.AnswerReply(knowledge, playerMessage, GameState.Instance);
         var hintReply = answerReply ?? NpcReplyPolicy.HintReply(knowledge);
         if (generated != null && answerReply == null)
         {
@@ -1362,7 +1451,16 @@ public class DialogueManager : MonoBehaviour
                 ? grounded : null;
         }
         bool usedFallback = generated == null && hintReply == null;
-        GeneratedChatReply reply = answerReply ?? generated ?? hintReply ?? BuildFallbackReply(playerMessage);
+        GeneratedChatReply reply = answerReply ?? generated ?? hintReply;
+        if (reply == null)
+        {
+            // An unclear request to a companion asks back instead of getting an
+            // unrelated neutral line when the model's answer was unusable.
+            GeneratedChatReply askBack;
+            if (MysteryGame.Companions.CompanionDialogueCommands.TryAskBack(this, playerMessage, out askBack))
+            { reply = askBack; companionCommand = askBack; }
+            else reply = BuildFallbackReply(playerMessage);
+        }
         // Offline replies author small gains (+1 to +4), so they count double.
         // The AI's reading and the rules' reading are combined there; a rude
         // or distancing message never raises the relationship.
@@ -1372,6 +1470,11 @@ public class DialogueManager : MonoBehaviour
                 : reply.relationshipDelta,
             usedFallback ? null : reply.playerTone,
             PlayerToneClassifier.Read(playerMessage));
+        // Commands are not a repeatable affection button. Comfort/completion
+        // rewards are awarded once by the controller, not also by chat tone.
+        if (companionCommand != null) relationshipDelta = Mathf.Min(0, relationshipDelta);
+        // How the message read, before the hint and repeat rules hold gains back.
+        int judgedDelta = relationshipDelta;
 
         GameState state = GameState.Instance;
         if (state != null && !string.IsNullOrWhiteSpace(activeNpcId))
@@ -1410,13 +1513,19 @@ public class DialogueManager : MonoBehaviour
                 " — จึงใช้คำตอบสำรอง</size></color>";
         }
 
-        dialogueText.text =
+        string insight = ResponseInsights.Enabled && state != null && !string.IsNullOrWhiteSpace(activeNpcId)
+            ? ResponseInsights.Format(
+                string.IsNullOrWhiteSpace(reply.hintId) ? 0 : ResponseInsights.HintPercent(knowledge.AllowedHintLevel),
+                ResponseInsights.KindPercent(judgedDelta),
+                state.GetRelationship(activeNpcId))
+            : string.Empty;
+        SetDialogueText(
             "<color=#69D0D8><b>คุณ:</b></color> " +
             EscapeRichText(playerMessage) +
             "\n\n<color=#E8B950><b>" +
             EscapeRichText(activeSpeakerName) +
             ":</b></color> " + EscapeRichText(reply.reply) +
-            serviceNotice;
+            insight + serviceNotice);
         AnimateSpeakerForText(reply.reply);
         if (string.IsNullOrWhiteSpace(reply.emotion))
         {

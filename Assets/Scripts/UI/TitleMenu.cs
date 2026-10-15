@@ -162,21 +162,12 @@ public class TitleMenu : MonoBehaviour
 
         SaveSystem.Delete();
 
-        if (SceneManager.GetActiveScene().name != FirstScene)
-        {
-            pendingIntroPlay = true;
-            SceneManager.LoadScene(FirstScene);
-        }
-        else
-        {
-            // Reset player position in Room01
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
-            {
-                player.transform.position = new Vector3(0f, -2f, 0f);
-            }
-            IntroSequence.Play(force: true);
-        }
+        // Always start from a freshly loaded first scene: it puts the player
+        // (and anything that moves, like a companion NPC) at the positions the
+        // scene authors, for whichever game definition is running. The old
+        // fixed (0,-2) teleport was Room01's spawn and wrong for other games.
+        pendingIntroPlay = true;
+        SceneManager.LoadScene(FirstScene);
     }
 
     private bool IsButtonClicked(Rect rect, string text, GUIStyle style, bool enabled = true)
@@ -261,7 +252,7 @@ public class TitleMenu : MonoBehaviour
         by += 76f;
 
         Rect aiRect = new Rect(bx, by, buttonWidth, 60f);
-        if (IsButtonClicked(aiRect, "ตั้งค่า AI", buttonStyle))
+        if (IsButtonClicked(aiRect, "ตั้งค่า", buttonStyle))
         {
             SfxPlayer.Play(SfxPlayer.Cue.Interact);
             AiSettingsPanel.Open();
@@ -282,7 +273,7 @@ public class TitleMenu : MonoBehaviour
         if (!string.IsNullOrEmpty(toast) && Time.unscaledTime < toastUntil)
             GUI.Label(new Rect(x, UiScale.Height - 112f, width, 36f), toast, noteStyle);
         GUI.Label(new Rect(x, UiScale.Height - 70f, width, 30f),
-                  "ระหว่างเล่น: F5 บันทึก · F9 โหลด · F10 ตั้งค่า AI · กด Space หรือ Enter เพื่อเริ่ม",
+                  "ระหว่างเล่น: F5 บันทึก · F9 โหลด · F10 ตั้งค่า · กด Space หรือ Enter เพื่อเริ่ม",
                   noteStyle);
         GUI.color = previous;
     }

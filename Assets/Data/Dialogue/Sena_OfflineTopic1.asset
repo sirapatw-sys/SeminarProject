@@ -10,20 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3b75aa9e7779470c889557275485c8a2, type: 3}
-  m_Name: Sena_Chatter
+  m_Name: Sena_OfflineTopic1
   m_EditorClassIdentifier: 
   dialogueId: sena_offline_1
   speakerId: Sena
-  speakerName: "\u0E40\u0E0B\u0E19\u0E30 (Sena)"
+  speakerName: "เซนะ (Sena)"
   speakerPortrait: {fileID: 21300000, guid: 1d146046dd6d494f921da5feb73d96ba, type: 3}
   personalityPrompt: 
   lines:
-  - "\u0E21\u0E19\u0E38\u0E29\u0E22\u0E4C\u0E40\u0E2D\u0E4B\u0E22 \u0E40\u0E08\u0E49\u0E32\u0E22\u0E31\u0E07\u0E08\u0E33\u0E1A\u0E49\u0E32\u0E19\u0E02\u0E2D\u0E07\u0E40\u0E08\u0E49\u0E32\u0E44\u0E14\u0E49\u0E2B\u0E23\u0E37\u0E2D\u0E44\u0E21\u0E48?"
+  - "ข้าเห็นผู้เช่นเจ้ามาแล้วนับร้อย ล้วนผุพังอยู่ในหอสมุดนี้"
+  - "เจ้าคิดว่าเจ้าจะต่างจากพวกนั้นฤๅ"
   overrideReturnLines: 0
   returnLines: []
   choices:
-  - optionText: "\u0E40\u0E25\u0E48\u0E32\u0E43\u0E2B\u0E49\u0E40\u0E23\u0E32\u0E1F\u0E31\u0E07\u0E44\u0E14\u0E49\u0E19\u0E30"
-    responseText: "\u0E02\u0E2D\u0E1A\u0E43\u0E08\u0E19\u0E30 \u0E41\u0E04\u0E48\u0E21\u0E35\u0E04\u0E19\u0E1F\u0E31\u0E07\u0E01\u0E47\u0E0A\u0E48\u0E27\u0E22\u0E41\u0E25\u0E49\u0E27"
+  - optionText: "ฉันจะพยายามให้ดีที่สุด"
+    responseText: "คำพูดของมนุษย์นั้นเบานัก ...แต่ข้าจะคอยดูเจ้า"
     actions:
     - type: 4
       targetId: Sena
@@ -34,18 +35,17 @@ MonoBehaviour:
       targetId: Sena
       secondaryId: 
       amount: 0
-      text: "\u0E1C\u0E39\u0E49\u0E40\u0E25\u0E48\u0E19\u0E15\u0E31\u0E49\u0E07\u0E43\u0E08\u0E1F\u0E31\u0E07\u0E15\u0E2D\u0E19\u0E17\u0E35\u0E48
-        Sena \u0E0A\u0E27\u0E19\u0E04\u0E38\u0E22\u0E40\u0E2D\u0E07"
-  - optionText: "\u0E2D\u0E37\u0E21 \u0E40\u0E23\u0E32\u0E1F\u0E31\u0E07\u0E2D\u0E22\u0E39\u0E48"
-    responseText: "\u0E2D\u0E22\u0E48\u0E32\u0E07\u0E19\u0E49\u0E2D\u0E22\u0E40\u0E23\u0E32\u0E01\u0E47\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E2D\u0E22\u0E39\u0E48\u0E04\u0E19\u0E40\u0E14\u0E35\u0E22\u0E27"
+      text: "ผู้เล่นบอกเซนะว่าจะพยายามให้ดีที่สุด"
+  - optionText: "คนพวกนั้นเป็นอย่างไรบ้าง"
+    responseText: "ล้วนโอหัง ล้วนเร่งร้อน และล้วนจบลงเช่นเดียวกัน"
     actions:
     - type: 4
       targetId: Sena
       secondaryId: 
       amount: 1
       text: 
-  - optionText: "\u0E15\u0E2D\u0E19\u0E19\u0E35\u0E49\u0E40\u0E23\u0E32\u0E44\u0E21\u0E48\u0E2D\u0E22\u0E32\u0E01\u0E04\u0E38\u0E22"
-    responseText: "\u0E44\u0E14\u0E49... \u0E44\u0E27\u0E49\u0E04\u0E38\u0E22\u0E01\u0E31\u0E19\u0E17\u0E35\u0E2B\u0E25\u0E31\u0E07"
+  - optionText: "ไม่ต้องห่วงฉันหรอก"
+    responseText: "ห่วงฤๅ ข้ามิเคยห่วงมนุษย์ผู้ใดดอก"
     actions:
     - type: 4
       targetId: Sena

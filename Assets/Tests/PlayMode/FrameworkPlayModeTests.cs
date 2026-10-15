@@ -76,13 +76,15 @@ public class FrameworkPlayModeTests
         GameDefinition.Override = null;
         KnowledgeLibrary.ClearCache();
         DialogueProviders.Override = new OfflineProvider();
-        if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
+        // Earlier tests may have earned an item. Close its persistent popup as
+        // well as dialogue so event tests begin at an actual safe moment.
+        RoomTransitionManager.CloseRoomOverlays();
         if (GameState.Instance != null) GameState.Instance.ResetState();
     }
     [TearDown]
     public void Cleanup()
     {
-        if (DialogueManager.Instance != null) DialogueManager.Instance.HideDialogue();
+        RoomTransitionManager.CloseRoomOverlays();
         if (puzzleNpc != null) puzzleNpc.StopAllCoroutines();
         if (puzzleDefinition != null) UnityEngine.Object.Destroy(puzzleDefinition);
         if (afterDialogue != null) UnityEngine.Object.Destroy(afterDialogue);
@@ -117,7 +119,7 @@ public class FrameworkPlayModeTests
     private static void Queue(NpcEventController controller, MiniEventData data)
     {
         typeof(NpcEventController).GetMethod("SetPendingEvent", BindingFlags.Instance | BindingFlags.NonPublic)
-            .Invoke(controller, new object[] { data, null, false });
+            .Invoke(controller, new object[] { data, null, false, null });
     }
 
     [UnityTest]
@@ -307,7 +309,8 @@ public class FrameworkPlayModeTests
                 if (action.type == ActionType.ChangeNpcNeed && action.secondaryId == "homesickness") needDelta += action.amount;
             }
             DialogueManager.Instance.SelectChoice(selectedIndex);
-            Assert.That(text.text, Is.EqualTo(source.choices[selectedIndex].responseText));
+            // The authored reply, followed by the optional line of numbers.
+            Assert.That(text.text, Does.StartWith(source.choices[selectedIndex].responseText));
             Assert.That(state.GetRelationship("Alice"), Is.EqualTo(30 + delta));
             Assert.That(state.GetNpcNeed("Alice", "homesickness"), Is.EqualTo(50f + needDelta).Within(0.5f));
             Assert.That(state.HasFlag(ev.CompletedFlag), Is.True);
@@ -451,7 +454,9 @@ public class FrameworkPlayModeTests
         Assert.That(state.HasFlag("sena_wants_tome"), Is.True);
         Type("tomorrow");
         Assert.That(state.HasFlag("room02_door_unlocked"), Is.False, "No offering yet.");
-        DialogueManager.Instance.HideDialogue(); state.AddItem("tome"); npc.Interact();
+        DialogueManager.Instance.HideDialogue(); state.AddItem("tome");
+        ItemPopupUI.CancelAll(); // Inventory setup: the player has already dismissed its card.
+        npc.Interact();
         Assert.That(state.HasItem("tome"), Is.False);
         Assert.That(state.HasFlag("sena_offering_given"), Is.True);
         Type("tomorrow");
@@ -528,7 +533,7 @@ public class FrameworkPlayModeTests
     }
     private void SolvePuzzle()
     {
-        GameState.Instance.AddItem("tome"); puzzleNpc.Interact(); Type("tomorrow");
+        GameState.Instance.AddItem("tome"); ItemPopupUI.CancelAll(); puzzleNpc.Interact(); Type("tomorrow");
         Assert.That(GameState.Instance.HasFlag("sena_passed"), Is.True);
         Assert.That(GameState.Instance.HasFlag("room02_door_unlocked"), Is.True);
     }
@@ -590,6 +595,7 @@ public class FrameworkPlayModeTests
         Assert.That(puzzleNpc.GetComponent<Collider2D>().enabled, Is.True);
         Assert.That(InteractionFocus.PickNearest(new IFocusable[] { puzzleNpc }, puzzleNpc.FocusPoint), Is.SameAs(puzzleNpc));
         DialogueManager.Instance.HideDialogue(); GameState.Instance.AddItem("tome");
+        ItemPopupUI.CancelAll();
         puzzleNpc.Interact();
         Assert.That(DialogueManager.IsDialogueOpen, Is.True);
         Assert.That(GameState.Instance.HasItem("tome"), Is.True);
@@ -655,14 +661,14 @@ public class FrameworkPlayModeTests
             GameState.Instance.SetFlag("inspected_painting");
             EvidenceShareResult shared;
             Assert.That(EvidenceSharing.TryShare(GameState.Instance, "Alice", "painting_arrow", out shared), Is.True);
-            queue.Invoke(controller, new object[] { data, raw, true });
+            queue.Invoke(controller, new object[] { data, raw, true, null });
             Assert.That(controller.TryStartPendingEvent(), Is.True);
             var log = GameState.Instance.GetConversationLog("Alice");
             Assert.That(log[log.Count - 1].Text, Does.Contain("ด้านหลังกรอบภาพ"));
             Assert.That(log[log.Count - 1].Text, Does.Not.Contain("{fact:"));
             DialogueManager.Instance.HideDialogue();
             GameState.Instance.RemoveFlag("inspected_painting");
-            queue.Invoke(controller, new object[] { data, raw, true });
+            queue.Invoke(controller, new object[] { data, raw, true, null });
             Assert.That(controller.TryStartPendingEvent(), Is.True);
             log = GameState.Instance.GetConversationLog("Alice");
             Assert.That(log[log.Count - 1].Text, Is.EqualTo("บทสำรองที่ยืนยันได้"));
