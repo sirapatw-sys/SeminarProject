@@ -77,8 +77,13 @@ namespace MysteryGame.Companions
             @"ช่วย|กัน|มา|ไป|ลอง|เธอ|คุณ|เรา|ฉัน|ผม|ให้|ไว้|ด้วย|หน่อย|ที|สิ|ซิ|นะ|ครับ|ค่ะ|คะ|จ้ะ|จ้า|ไหม|มั้ย|เลย|ก่อน|นี่|นั่น|" +
             // R() lower-cases patterns, so no \p{..} or \W classes here: list punctuation.
             @"\b(?:please|help|me|us|you|can|could|would|will|the|a|this|that|it|here|there|with|and|for|to)\b|[\s.,!?;:…'""()/~\-]+";
-        private static readonly Regex HelpFiller = R(@"(?:จับ|ถือ|ยก|เปิด|ประคอง|ทำ|ประจำ|ยืน|ตรง(?:นี้|นั้น|โน้น)?|ที่|กับ|อีก\s*(?:ด้าน|ฝั่ง|ข้าง)(?:หนึ่ง)?|(?:ฝั่ง|ด้าน|ข้าง)(?:นี้|นั้น|โน้น)?|" +
-            @"\b(?:hold|lift|open|side|other)\b|" + RequestFiller + @")");
+        private static readonly Regex HelpFiller = R(@"(?:ได้(?:หรือ|รึ)เปล่า|แล้ว(?:ก็)?|และ|จับ|ถือ|ยก|เปิด|ประคอง|ทำ|ประจำ|ยืน|ตรง(?:นี้|นั้น|โน้น)?|ที่|กับ|อีก\s*(?:ด้าน|ฝั่ง|ข้าง)(?:หนึ่ง)?|(?:ฝั่ง|ด้าน|ข้าง)(?:นี้|นั้น|โน้น)?|" +
+            @"ของ|\b(?:hold|lift|open|side|other|of)\b|" + RequestFiller + @")");
+        // Follow means accompany the player; wait means stop at the current
+        // position. Neither action supports arbitrary destinations or objects.
+        private static readonly Regex MovementFiller = R(@"(?:เป็นเพื่อน|ด้วยกัน|ทางนี้|ข้าง\s*ๆ?|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว|สำรวจ|แล้ว(?:ก็)?|และ|" +
+            @"เดิน|ตาม|รอ|หยุด|พัก|อยู่|ยืน|กับ|ไป|มา|ต่อ|เถอะ|เร็ว|" +
+            @"\b(?:following|walking|moving|walk|follow|come|go|wait|stay|stop|pause|stand|beside|along|over|a\s+moment)\b|" + RequestFiller + @")");
         private static readonly Regex SearchFiller = R(@"(?:ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
             @"\b(?:search|look|find|clues?|evidence|room|around)\b|" + RequestFiller + @")");
         // Only split coordinated actions after classifying the enclosing
@@ -174,6 +179,15 @@ namespace MysteryGame.Companions
                     previousClauseStart = pending.Count;
                     continue;
                 }
+                // Validate the complete request before splitting coordinated
+                // actions: "hold the desk and lift the chair" must not lose
+                // the unsupported second target and start the first task.
+                CompanionStationData combinedTarget;
+                if (ReadAction(clause, scenario, out combinedTarget) == CompanionCommand.Clarify)
+                {
+                    pending.Add(new KeyValuePair<CompanionCommand, CompanionStationData>(CompanionCommand.Clarify, null));
+                    continue;
+                }
                 foreach (string action in ActionJoiner.Split(clause))
                 {
                     CompanionStationData candidate;
@@ -218,6 +232,9 @@ namespace MysteryGame.Companions
             int mentioned = (Wait.IsMatch(Comfort.Replace(text, " ")) ? 1 : 0) + (Comfort.IsMatch(text) ? 1 : 0) +
                 (Follow.IsMatch(Wait.Replace(text, " ")) ? 1 : 0) + (helpMention ? 1 : 0) + (Search.IsMatch(Wait.Replace(text, " ")) ? 1 : 0);
             if ((count > 0 && mentioned > 1) || (help && (matching.Count != 1 || OtherTarget.IsMatch(PlayerIntentClassifier.WithoutActivityLocations(text))))) return CompanionCommand.Clarify;
+            if (help && HasOtherActivityTarget(text, CompanionCommand.Help, matching[0])) return CompanionCommand.Clarify;
+            if (follow && HasMovementTargetConflict(text, CompanionCommand.Follow) ||
+                wait && HasMovementTargetConflict(text, CompanionCommand.Wait)) return CompanionCommand.Clarify;
             if (help) { station = matching[0]; return CompanionCommand.Help; }
             if (follow) return CompanionCommand.Follow;
             if (wait) return CompanionCommand.Wait;
@@ -318,6 +335,20 @@ namespace MysteryGame.Companions
                 command == CompanionCommand.Search && actor.Mode == CompanionMode.Searching;
         }
 
+        private static bool EndsWithWithdrawal(string text)
+        {
+            // An explicit final cancellation can follow a question or an earlier
+            // request, but must never escape quotation/reported/hypothetical speech.
+            if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text)) return false;
+            string last = Clauses.Split(text).LastOrDefault(c => !string.IsNullOrWhiteSpace(c));
+            if (last == null) return false;
+            if (Withdrawal.IsMatch(last)) return true;
+            for (int i = 1; i < last.Length; i++)
+                if (char.IsWhiteSpace(last[i - 1]) && !char.IsWhiteSpace(last[i]) && Withdrawal.IsMatch(last.Substring(i)))
+                    return true;
+            return false;
+        }
+
         private static string Normalize(string message)
         {
             string source = message ?? string.Empty;
@@ -378,6 +409,31 @@ namespace MysteryGame.Companions
             return Regex.Replace(residue, @"\p{M}", string.Empty).Length > 0;
         }
 
+        private static bool HasOtherActivityTarget(string text, CompanionCommand command, CompanionStationData station)
+        {
+            string remaining = PlayerIntentClassifier.WithoutActivityLocations(text);
+            if (station != null)
+                foreach (string name in MatchingNames(text, station).OrderByDescending(n => n.Length))
+                    remaining = Regex.Replace(remaining, TermPattern(name), " ", RegexOptions.CultureInvariant);
+            // Preserve the existing target-first form, not arbitrary descriptive
+            // words which might conceal a second object.
+            if (command == CompanionCommand.Help && TargetFirstHelp.IsMatch(remaining)) return false;
+            return NamesOtherObject(remaining, command);
+        }
+
+        private static bool HasMovementTargetConflict(string text, CompanionCommand command)
+        {
+            if (command == CompanionCommand.Wait && StayRequest.IsMatch(text)) return false;
+            Regex action = command == CompanionCommand.Follow ? Follow : Wait;
+            string remaining = text;
+            foreach (Match match in action.Matches(text))
+                if (RequestLead.IsMatch(text.Substring(0, match.Index)))
+                { remaining = text.Substring(match.Index); break; }
+            remaining = action.Replace(remaining, " ");
+            remaining = MovementFiller.Replace(remaining, string.Empty);
+            return Regex.Replace(remaining, @"\p{M}", string.Empty).Length > 0;
+        }
+
         // Called only from the trusted player-send path, never from a provider,
         // policy validator, prompt builder, timeout or repeated callback.
         public static bool TryReply(DialogueManager dialogue, string message, out GeneratedChatReply reply)
@@ -387,7 +443,7 @@ namespace MysteryGame.Companions
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null) return false;
             string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
-            bool vagueStop = StopWork.IsMatch(normalized) || Withdrawal.IsMatch(normalized) || AmbiguousStop.IsMatch(normalized);
+            bool vagueStop = StopWork.IsMatch(normalized) || EndsWithWithdrawal(normalized) || AmbiguousStop.IsMatch(normalized);
             if (vagueStop && actor.Mode == CompanionMode.Waiting) return false;
             if (actor.CanConverse(dialogue) && (vagueStop || CancelsActiveRequest(normalized, actor)))
             {
@@ -490,6 +546,14 @@ namespace MysteryGame.Companions
             if (command == CompanionCommand.Follow && !IsDirectAction(text, FollowProposalVerb, actor.Scenario) ||
                 command == CompanionCommand.Wait && !StayRequest.IsMatch(text) && !IsDirectAction(text, WaitProposalVerb, actor.Scenario))
                 return false;
+            if ((command == CompanionCommand.Follow || command == CompanionCommand.Wait) && HasMovementTargetConflict(text, command))
+            {
+                string clarify;
+                actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out clarify);
+                if (string.IsNullOrWhiteSpace(clarify)) return false;
+                reply = new GeneratedChatReply { reply = clarify, referencedFactIds = Array.Empty<string>() };
+                return true;
+            }
             if (AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message).PlayerAskedForHint &&
                 command != CompanionCommand.Wait && command != CompanionCommand.Search) return false;
 
@@ -513,11 +577,7 @@ namespace MysteryGame.Companions
                 // No activity named: the request must not name some other object
                 // either ("ช่วยยกเก้าอี้หน่อย" proposed as the box). A social object
                 // stays conversation; anything else is asked about, not guessed.
-                string remaining = text;
-                if (named.Count == 1)
-                    foreach (string name in MatchingNames(text, named[0]).OrderByDescending(n => n.Length))
-                        remaining = remaining.Replace(Normalize(name), " ");
-                if (NamesOtherObject(remaining, command))
+                if (HasOtherActivityTarget(text, command, named.Count == 1 ? named[0] : null))
                 {
                     if (SocialObject.IsMatch(text)) return false;
                     string clarify;
