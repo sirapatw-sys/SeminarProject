@@ -33,6 +33,7 @@ public partial class AiSettingsPanel : MonoBehaviour
     private const float PanelWidth = 760f;
     private const float PanelHeight = 720f;
     private const float Padding = 28f;
+    private const string OfflineNotice = "รุ่นนี้เป็นเดโมออฟไลน์ — ใช้รุ่น AI เพื่อเชื่อมต่อผู้ให้บริการ";
 
     private static readonly string[] ProviderLabels =
         { "OpenAI", "KKU IntelSphere", "Google Gemini", "กำหนดเอง" };
@@ -205,9 +206,13 @@ public partial class AiSettingsPanel : MonoBehaviour
             apiKey = generator.GetApiKey();
         }
 
-        if (generator.CanGenerate)
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode)
         {
-            SetStatus("AI พร้อมใช้งาน", Tone.Good);
+            SetStatus(OfflineNotice, Tone.Warn);
+        }
+        else if (generator.CanGenerate)
+        {
+            SetStatus("ตั้งค่า AI แล้ว — กดทดสอบการเชื่อมต่อเพื่อยืนยัน", Tone.Good);
         }
         else
         {
@@ -351,7 +356,8 @@ public partial class AiSettingsPanel : MonoBehaviour
 
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
         bool ready = generator != null && generator.CanGenerate;
-        string pill = ready ? "●  AI พร้อมใช้งาน" : "●  ใช้บทพูดสำรอง";
+        string pill = MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode ? "●  เดโมออฟไลน์"
+            : ready ? "●  ตั้งค่า AI แล้ว" : "●  ใช้บทพูดสำรอง";
         pillStyle.normal.textColor = ready ? GoodColor : WarnColor;
         float pillWidth = pillStyle.CalcSize(new GUIContent(pill)).x + 8f;
         GUI.Box(new Rect(area.xMax - 52f - pillWidth, area.y + 4f, pillWidth, 32f), pill, pillStyle);
@@ -769,9 +775,13 @@ public partial class AiSettingsPanel : MonoBehaviour
             apiKey
         );
 
-        if (generator.CanGenerate)
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode)
         {
-            SetStatus("บันทึกแล้ว — กด \"ทดสอบการเชื่อมต่อ\" เพื่อยืนยัน key และโมเดล", Tone.Good);
+            SetStatus("บันทึกโมเดลแล้ว — " + OfflineNotice, Tone.Warn);
+        }
+        else if (generator.CanGenerate)
+        {
+            SetStatus("บันทึกแล้ว — key ใช้เฉพาะรอบนี้ กด \"ทดสอบการเชื่อมต่อ\" เพื่อยืนยัน", Tone.Good);
         }
         else
         {
@@ -826,6 +836,7 @@ public partial class AiSettingsPanel : MonoBehaviour
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
         if (generator == null) { SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad); return; }
         ApplySettings();
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode) return;
         int version = ++modelFetchVersion;
         int requestedProvider = providerIndex;
         string requestedEndpoint = Normalized(endpoint), requestedKey = Normalized(apiKey);
@@ -866,6 +877,7 @@ public partial class AiSettingsPanel : MonoBehaviour
         if (generator == null) { SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad); return; }
         // Test exactly the values currently displayed, just like model discovery.
         ApplySettings();
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode) return;
         IAiDialogueProvider dialogueProvider = DialogueProviders.Current;
         if (dialogueProvider == null || !dialogueProvider.CanGenerate)
         { SetStatus("ยังกรอก key, โมเดล หรือ endpoint ไม่ครบ", Tone.Warn); return; }

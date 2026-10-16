@@ -15,6 +15,7 @@ NPC ตอบตามสิ่งที่รู้และระดับค�
 
 ## เริ่มลอง
 - ผู้เล่น: อ่าน [protocol](ROOM01_PLAYTEST_PROTOCOL_TH.md) และใช้ build ที่ระบุใน [progress](SOL_NPC_VALUE_PROGRESS_TH.md)
+- ผู้เล่นที่ต้องการคุยกับ AI จริง: [คู่มือตั้งค่ารุ่น AI-Enabled](AI_ENABLED_DEMO_TH.md) โดยใช้คีย์ของตนเอง
 - ผู้สาธิต: [เส้นทางเดโมและ checklist](ROOM01_DEMO_RUNBOOK_TH.md)
 - ผู้นำเสนอ: [บทพูด 5 นาทีและภาพที่ต้องเตรียม](NPC_PRESENTATION_SCRIPT_TH.md)
 - ผู้พัฒนา: [ติดตั้ง package](../FrameworkPackages/com.mysterygame.companion-reasoning/README.md) → [ต่อ host](../FrameworkPackages/com.mysterygame.companion-reasoning/INTEGRATION.md) → [ภารกิจทดลองใช้](COMPANION_DEVELOPER_TRIAL_TH.md)

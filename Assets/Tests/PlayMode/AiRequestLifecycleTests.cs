@@ -305,6 +305,42 @@ public class AiRequestLifecycleTests
         AiSettingsPanel.Close(); Assert.That(provider.Disposals, Is.EqualTo(1));
     }
 
+    [UnityTest] public IEnumerator SavingConfigurationPersistsModelAndEnablesConnectionTesting()
+    {
+        Form(); Call(panel, "ApplySettings");
+        Assert.That(generator.CanGenerate, Is.True);
+        Assert.That(generator.GetApiKey() == "dummy-lifecycle-test", Is.True, "The submitted session key should be active.");
+        Assert.That(PlayerPrefs.GetString("ai.model"), Is.EqualTo("probe-model"));
+        Assert.That(PlayerPrefs.GetString("ai.endpoint"), Is.EqualTo("http://127.0.0.1:1/v1/chat/completions"));
+        Assert.That(Status, Does.Contain("บันทึกแล้ว").And.Contain("เฉพาะรอบนี้").And.Not.Contain("ยังขาด"));
+        Assert.That(provider.Calls, Is.Zero, "Saving settings does not spend an API request.");
+        provider.Behaviour = Mode.Immediate; Call(panel, "TestConnection"); yield return null;
+        Assert.That(provider.Calls, Is.EqualTo(1));
+        Assert.That(Status, Does.Contain("เชื่อมต่อสำเร็จ"));
+    }
+
+    [UnityTest] public IEnumerator OfflineSettingsExplainTheBuildModeAndNeverTestOrFetch()
+    {
+        var offline = typeof(MysteryGame.Companions.CompanionPlaytestTrace).GetProperty("OfflineMode");
+        bool previous = (bool)offline.GetValue(null);
+        try
+        {
+            offline.SetValue(null, true); Form(); Call(panel, "ApplySettings");
+            Assert.That(PlayerPrefs.GetString("ai.model"), Is.EqualTo("probe-model"));
+            Assert.That(Status, Does.Contain("บันทึกโมเดลแล้ว").And.Contain("ออฟไลน์").And.Not.Contain("ยังขาด"));
+            Call(panel, "TestConnection"); yield return null;
+            Assert.That(Status, Does.Contain("ออฟไลน์"));
+            Assert.That(provider.Calls, Is.Zero, "Offline settings must not use even a ready provider override.");
+            Call(panel, "FetchModels"); yield return null;
+            Assert.That(Status, Does.Contain("ออฟไลน์"));
+            Assert.That((bool)Field(panel, "modelFetchInProgress"), Is.False);
+            Assert.That((bool)Field(panel, "testInProgress"), Is.False);
+            Call(panel, "Start");
+            Assert.That(Status, Does.Contain("ออฟไลน์").And.Not.Contain("ยังไม่มี API key"));
+        }
+        finally { offline.SetValue(null, previous); }
+    }
+
     [UnityTest] public IEnumerator ClosingAiPanelCancelsItsConnectionTestAndDropsLateResults()
     {
         TestConnection(); yield return null; AiSettingsPanel.Close();
