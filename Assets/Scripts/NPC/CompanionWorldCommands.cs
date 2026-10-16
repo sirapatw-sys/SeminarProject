@@ -44,8 +44,25 @@ namespace MysteryGame.Companions
         {
             text = Normalize(text, KnowledgeLibrary.GetRoom(room)?.companionScenario);
             if (string.IsNullOrWhiteSpace(text) || CompanionDialogueCommands.RulesVeto(text, CompanionCommand.Follow) || !Request.IsMatch(text.Trim())) return false;
-            return (Move.IsMatch(text) || Inspect.IsMatch(text) || Open.IsMatch(text)) &&
-                (Named(text, RoomWorldRegistry.Available(room, GameState.Instance)).Count > 0 || Reference.IsMatch(text));
+            var named = Named(text, RoomWorldRegistry.Available(room, GameState.Instance));
+            string instruction = StripNames(text, named);
+            return (Move.IsMatch(instruction) || Inspect.IsMatch(instruction) || Open.IsMatch(instruction)) &&
+                (named.Count > 0 || Reference.IsMatch(text));
+        }
+        static IEnumerable<string> Names(CompanionWorldTarget target) => new[] { target.Definition.id, target.Definition.title }
+            .Concat(target.Definition.aliases ?? new List<string>()).Where(n => !string.IsNullOrWhiteSpace(n));
+        static string NamePattern(string name) => name.Any(c => c >= 'ก' && c <= '๛') ? Regex.Escape(name) :
+            @"(?<![\p{L}\p{N}_])" + Regex.Escape(name) + @"(?![\p{L}\p{N}_])";
+        static string StripNames(string text, IEnumerable<CompanionWorldTarget> targets)
+        {
+            foreach (string name in targets.SelectMany(Names).Distinct().OrderByDescending(n => n.Length))
+                text = Regex.Replace(text, NamePattern(name), " ", RegexOptions.IgnoreCase);
+            return text;
+        }
+        static bool OnlyTargetAnswer(string text, CompanionWorldTarget target)
+        {
+            string remaining = StripNames(text, new[] { target });
+            return Regex.Replace(remaining, @"หมายถึง|เอา|ตัว|อัน|ตรง|ชิ้น|นี้|นั้น|นี่|นั่น|นะ|ครับ|ค่ะ|คะ|จ๊ะ|จ้ะ|\b(?:the|this|that|one|please)\b|[\s.!?…]+", "", RegexOptions.IgnoreCase).Length == 0;
         }
         static List<CompanionWorldTarget> Named(string text, IEnumerable<CompanionWorldTarget> targets)
         {
@@ -54,9 +71,17 @@ namespace MysteryGame.Companions
                 .Any(n => !string.IsNullOrWhiteSpace(n) && (n.Any(c => c >= 'ก' && c <= '๛')
                     ? value.Contains(n.ToLowerInvariant()) : Regex.IsMatch(value, @"(?<![\p{L}\p{N}_])" + Regex.Escape(n.ToLowerInvariant()) + @"(?![\p{L}\p{N}_])")))).ToList();
         }
-        static string Relation(string message) => Regex.IsMatch(message, @"ทางซ้าย|ด้านซ้าย|ข้างซ้าย|\bleft\b", RegexOptions.IgnoreCase) ? "left" :
-            Regex.IsMatch(message, @"ทางขวา|ด้านขวา|ข้างขวา|\bright\b", RegexOptions.IgnoreCase) ? "right" :
-            Regex.IsMatch(message, @"ข้างหน้า|ด้านหน้า|\bin\s+front\b", RegexOptions.IgnoreCase) ? "front" : "at";
+        // Object/area names are removed first: 'bottom left' names a place,
+        // whereas 'left of the desk' requests an offset from that place.
+        static string Relation(string instruction)
+        {
+            bool left = Regex.IsMatch(instruction, @"ทางซ้าย|ด้านซ้าย|ข้างซ้าย|\bleft\b", RegexOptions.IgnoreCase);
+            bool right = Regex.IsMatch(instruction, @"ทางขวา|ด้านขวา|ข้างขวา|\bright\b", RegexOptions.IgnoreCase);
+            bool front = Regex.IsMatch(instruction, @"ข้างหน้า|ด้านหน้า|\bin\s+front\b", RegexOptions.IgnoreCase);
+            if ((left ? 1 : 0) + (right ? 1 : 0) + (front ? 1 : 0) > 1 ||
+                Regex.IsMatch(instruction, @"ด้านหลัง|ข้างหลัง|ไปหลัง|ข้างบน|ด้านบน|ข้างใต้|ด้านล่าง|\b(?:behind|above|below|under)\b", RegexOptions.IgnoreCase)) return null;
+            return left ? "left" : right ? "right" : front ? "front" : "at";
+        }
         static CompanionWorldVerb Verb(string text) => Open.IsMatch(text) ? CompanionWorldVerb.Open :
             Inspect.IsMatch(text) ? CompanionWorldVerb.Inspect : CompanionWorldVerb.Move;
         public static string Id(CompanionWorldVerb verb, string target, string relation = "at") =>
@@ -97,7 +122,7 @@ namespace MysteryGame.Companions
             if (session.Candidates != null)
             {
                 var answers = named.Where(t => session.Candidates.Contains(t.Definition.id)).ToList();
-                if (answers.Count == 1 && !Move.IsMatch(text) && !Inspect.IsMatch(text) && !Open.IsMatch(text) &&
+                if (answers.Count == 1 && OnlyTargetAnswer(text, answers[0]) &&
                     !CompanionDialogueCommands.RulesVeto(text, CompanionCommand.Follow))
                 {
                     var verb = session.PendingVerb; string relation = session.PendingRelation;
@@ -108,7 +133,9 @@ namespace MysteryGame.Companions
             }
             if (!IsRequest(text, actor.RoomId)) { session.FocusId = null; return false; }
             if (MultiAction.IsMatch(text)) { reply = Reply("ขอทำทีละอย่างก่อนนะ อยากให้ฉันไปที่ไหนหรือตรวจอะไรเป็นอย่างแรก?"); return true; }
-            var requestVerb = Verb(text); string requestRelation = requestVerb == CompanionWorldVerb.Move ? Relation(text) : "at";
+            string instruction = StripNames(text, named);
+            var requestVerb = Verb(instruction); string requestRelation = requestVerb == CompanionWorldVerb.Move ? Relation(instruction) : "at";
+            if (requestRelation == null) { reply = Reply("ตำแหน่งที่ขอยังไม่ชัดหรือยังไปแบบนั้นไม่ได้ บอกชื่อจุดหมาย หรือเลือกด้านซ้าย ขวา หรือหน้าของสิ่งนั้นนะ"); return true; }
             if (named.Count == 0 && Reference.IsMatch(text) && session.FocusId != null)
             { var focus = targets.FirstOrDefault(t => t.Definition.id == session.FocusId); if (focus != null) named.Add(focus); }
             if (named.Count == 0 || named.Count > 1)
@@ -134,9 +161,11 @@ namespace MysteryGame.Companions
             if (target == null || !target.Allows(verb)) return false;
             var named = Named(text, RoomWorldRegistry.Available(actor.RoomId, GameState.Instance));
             if (named.Count > 1 || named.Count == 1 && named[0] != target) return false;
+            string instruction = StripNames(text, new[] { target });
+            if (verb == CompanionWorldVerb.Move && (Relation(instruction) == null || parts[2] != Relation(instruction))) return false;
             // A model may expand wording, but cannot promote a clear look request to opening.
-            if (Open.IsMatch(text) && verb != CompanionWorldVerb.Open || !Open.IsMatch(text) && Inspect.IsMatch(text) && verb != CompanionWorldVerb.Inspect ||
-                !Open.IsMatch(text) && !Inspect.IsMatch(text) && Move.IsMatch(text) && verb != CompanionWorldVerb.Move) return false;
+            if (Open.IsMatch(instruction) && verb != CompanionWorldVerb.Open || !Open.IsMatch(instruction) && Inspect.IsMatch(instruction) && verb != CompanionWorldVerb.Inspect ||
+                !Open.IsMatch(instruction) && !Inspect.IsMatch(instruction) && Move.IsMatch(instruction) && verb != CompanionWorldVerb.Move) return false;
             if (Reference.IsMatch(text) && named.Count == 0 && (!session.Valid(actor) || session.FocusId != target.Definition.id)) return false;
             return Dispatch(actor, session, target, verb, parts[2], out reply);
         }

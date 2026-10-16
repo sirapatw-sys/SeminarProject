@@ -22,9 +22,11 @@ namespace MysteryGame.Companions
         ScrollRect historyScroll;
         readonly Queue<string> lines = new Queue<string>();
         readonly CompanionWorldSession session = new CompanionWorldSession();
+        List<string> pendingReadCandidates;
+        int pendingReadRevision;
         AiRequestOperation operation;
         GameState boundState;
-        int serial, sceneRevision;
+        int serial, sceneRevision, pendingTaskRevision;
         bool open, pending;
         float deadline;
         public string LastReply { get; private set; }
@@ -41,6 +43,7 @@ namespace MysteryGame.Companions
         void Update()
         {
             if (open && (boundState != GameState.Instance || sceneRevision != boundState.SceneRevision || !actor.CanReceiveRoomCommand)) { Close(); return; }
+            if (pending && actor.TaskRevision != pendingTaskRevision) CancelRequest();
             if (pending && Time.unscaledTime >= deadline) { CancelRequest(); Say("ตอนนี้ AI ยังไม่ตอบ ลองบอกชื่อสิ่งของกับสิ่งที่อยากให้ทำสั้น ๆ อีกครั้งได้นะ"); }
             if (Input.GetKeyDown(ToggleKey) && !open && !InputGate.IsBlocked) OpenSession();
             else if (Input.GetKeyDown(KeyCode.Escape) && open) Close();
@@ -56,7 +59,7 @@ namespace MysteryGame.Companions
         }
         public void Close()
         {
-            CancelRequest(); session.Clear(); open = false;
+            CancelRequest(); session.Clear(); pendingReadCandidates = null; open = false;
             if (openPanel == this) openPanel = null;
             if (canvas != null) canvas.SetActive(false);
         }
@@ -69,6 +72,7 @@ namespace MysteryGame.Companions
             CancelRequest(); // The newest player message supersedes any pending interpretation.
             AddLine("คุณ: " + message);
             GeneratedChatReply local;
+            if (TryReadAnswer(message)) return;
             if (TryRead(message)) return;
             if (CompanionNaturalRequests.IsJoinRequest(message) && actor.ApplyRoomCommand(CompanionCommand.Follow))
             { Say(actor.Bubble); return; }
@@ -81,6 +85,7 @@ namespace MysteryGame.Companions
             if (provider == null || !provider.CanGenerate) { Say("ตอนนี้ใช้ AI ไม่ได้ ลองบอกว่าให้ไปหรือตรวจสิ่งไหน พร้อมชื่อสิ่งนั้นนะ"); return; }
             pending = true; deadline = Time.unscaledTime + 30f;
             int request = ++serial, task = actor.TaskRevision, scene = boundState.SceneRevision;
+            pendingTaskRevision = task;
             var capturedState = boundState;
             status.text = "กำลังฟัง… พิมพ์หยุดหรือส่งคำสั่งใหม่ได้";
             operation = new AiRequestOperation(this);
@@ -88,7 +93,8 @@ namespace MysteryGame.Companions
                 "ช่องคุยระหว่างเล่น: เลือก companionAction ตามคำขอจริง หากกำกวมให้ถามกลับ ห้ามอ้างว่าทำสำเร็จก่อนเกมยืนยัน\n" +
                 string.Join("\n", lines), message, reply => {
                     if (!pending || request != serial || !open || capturedState != GameState.Instance ||
-                        scene != capturedState.SceneRevision || task != actor.TaskRevision || !actor.CanReceiveRoomCommand) return;
+                        scene != capturedState.SceneRevision || !actor.CanReceiveRoomCommand) return;
+                    if (task != actor.TaskRevision) { CancelRequest(); return; }
                     CancelRequest();
                     GeneratedChatReply applied;
                     if (reply != null && CompanionWorldCommands.TryProposal(actor, session, message, reply.companionAction, out applied))
@@ -111,16 +117,37 @@ namespace MysteryGame.Companions
         }
         bool TryRead(string message)
         {
+            var room = KnowledgeLibrary.GetRoom(actor.RoomId);
             if (CompanionDialogueCommands.RulesVeto(message, CompanionCommand.Help) ||
-                !CompanionNaturalRequests.IsEvidenceRequest(message, KnowledgeLibrary.GetRoom(actor.RoomId))) return false;
+                !CompanionNaturalRequests.IsEvidenceRequest(message, room)) return false;
+            session.Clear(); // Evidence discussion consumes any earlier world-task clarification.
             var available = EvidenceSharing.Available(boundState, actor.Scenario.npcId);
-            var matches = available.Where(f => new[] { f.EvidenceTitle, f.factId }.Concat(f.evidenceAliases ?? new List<string>())
-                .Any(n => !string.IsNullOrWhiteSpace(n) && message.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0)).ToList();
-            if (matches.Count != 1) { Say("อยากให้อ่านหลักฐานชิ้นไหน? บอกชื่อหลักฐานที่พบแล้วให้ฉันหน่อยนะ"); return true; }
+            var matches = CompanionNaturalRequests.FindNamedEvidence(message, room.facts);
+            if (matches.Any(f => !available.Contains(f))) { Say("ฉันยังอ่านหลักฐานชิ้นนั้นไม่ได้ บอกชื่อสิ่งที่เราตรวจพบแล้วให้ฉันนะ"); return true; }
+            if (matches.Count != 1)
+            {
+                var candidates = matches.Count > 0 ? matches : available;
+                if (candidates.Count == 0) { Say("เรายังไม่มีหลักฐานที่อ่านได้ ชวนฉันไปตรวจสิ่งของก่อน หรือเอาหลักฐานที่พบแล้วมาให้ดูนะ"); return true; }
+                pendingReadCandidates = candidates.Select(f => f.factId).ToList(); pendingReadRevision = actor.TaskRevision;
+                Say("อยากให้อ่านหลักฐานชิ้นไหน: " + string.Join(" หรือ ", candidates.Select(f => f.EvidenceTitle)) + "? พิมพ์ชื่อให้ฉันได้เลย"); return true;
+            }
+            ReadEvidence(matches[0]); return true;
+        }
+        bool TryReadAnswer(string message)
+        {
+            var candidates = pendingReadCandidates; pendingReadCandidates = null; // One next player turn only.
+            if (candidates == null || pendingReadRevision != actor.TaskRevision) return false;
+            var available = EvidenceSharing.Available(boundState, actor.Scenario.npcId);
+            var matches = CompanionNaturalRequests.FindNamedEvidence(message, available);
+            if (matches.Count != 1 || !candidates.Contains(matches[0].factId) ||
+                !CompanionNaturalRequests.IsShortEvidenceAnswer(message, matches)) return false;
+            session.Clear(); ReadEvidence(matches[0]); return true;
+        }
+        void ReadEvidence(RoomFact fact)
+        {
             EvidenceShareResult shared;
-            if (EvidenceSharing.TryShare(boundState, actor.Scenario.npcId, matches[0].factId, out shared, false)) Say(shared.Fact.statement);
+            if (EvidenceSharing.TryShare(boundState, actor.Scenario.npcId, fact.factId, out shared, false)) Say(shared.Fact.statement);
             else Say("ฉันยังอ่านหลักฐานชิ้นนั้นไม่ได้");
-            return true;
         }
         void OnResult(CompanionTaskResult result)
         {

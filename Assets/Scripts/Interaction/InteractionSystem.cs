@@ -40,11 +40,13 @@ public class InteractionSystem : MonoBehaviour
         return Execute(data, out responseMessage, answer, null);
     }
 
-    public CompanionInteractionResult TryExecuteCompanion(InteractionData data, string npcId)
+    public CompanionInteractionResult TryExecuteCompanion(InteractionData data, string npcId,
+        CompanionInteractionOperation operation = CompanionInteractionOperation.Inspect)
     {
         var result = new CompanionInteractionResult { InteractionId = data != null ? data.interactionId : null };
         // NPCs cannot solve input puzzles, run player preparation/holds alone, or leave the room.
         if (data == null || !data.allowCompanionExecution || string.IsNullOrWhiteSpace(npcId) ||
+            !System.Enum.IsDefined(typeof(CompanionInteractionOperation), operation) || data.companionOperation != operation ||
             data.inputPuzzle != null || data.endsDemo || !string.IsNullOrWhiteSpace(data.transitionScene))
         { result.Message = "ตรงนี้ต้องให้เธอเป็นคนลงมือเอง ฉันช่วยดูหรือรอข้าง ๆ ได้นะ"; return result; }
         string message;

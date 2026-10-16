@@ -90,6 +90,8 @@ namespace MysteryGame.Companions
         static string NamePattern(string n) =>
             (n.Any(ch => ch >= 'ก' && ch <= '๛') ? "" : @"(?<![\p{L}\p{N}_])") + Regex.Escape(n) +
             (n.Any(ch => ch >= 'ก' && ch <= '๛') ? "" : @"(?![\p{L}\p{N}_])");
+        internal static List<RoomFact> FindNamedEvidence(string message, IEnumerable<RoomFact> facts) => Named(message, facts);
+        internal static bool IsShortEvidenceAnswer(string message, List<RoomFact> facts) => Consent(message) && OnlyNames(message, facts, true);
         static List<RoomFact> Named(string message, IEnumerable<RoomFact> facts)
         {
             string remaining = Key(message);

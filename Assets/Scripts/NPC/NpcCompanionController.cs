@@ -130,7 +130,7 @@ namespace MysteryGame.Companions
         private bool FollowCore()
         {
             if (Mode == CompanionMode.Following) { Say(Scenario.followLine); return true; }
-            CancelTask(); Mode = CompanionMode.Following; Say(Scenario.followLine);
+            CancelTask(); TaskRevision++; Mode = CompanionMode.Following; Say(Scenario.followLine);
             string flag = Scenario.Flag("invited");
             if (!state.HasFlag(flag)) { state.SetFlag(flag); state.AddNpcMemory(Scenario.npcId, "ผู้เล่นชวนเดินสำรวจไปด้วยกัน"); }
             return true;
@@ -180,7 +180,7 @@ namespace MysteryGame.Companions
         }
         private bool WaitCore()
         {
-            CancelTask(); Mode = CompanionMode.Waiting; Say(Scenario.waitLine); return true;
+            CancelTask(); TaskRevision++; Mode = CompanionMode.Waiting; Say(Scenario.waitLine); return true;
         }
         private bool SearchCore()
         {

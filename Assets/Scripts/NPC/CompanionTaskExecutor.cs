@@ -52,9 +52,10 @@ namespace MysteryGame.Companions
             if (data != null && data.interactionId != interactionId)
             { Finish(false, "สิ่งตรงนี้เปลี่ยนไปขณะที่ฉันกำลังตรวจ ลองชวนอีกครั้งนะ"); return; }
             var result = new CompanionTaskResult { TargetId = target.Definition.id, Verb = verb };
-            if (data != null && data.allowCompanionExecution && InteractionSystem.Instance != null)
+            var operation = verb == CompanionWorldVerb.Open ? CompanionInteractionOperation.Open : CompanionInteractionOperation.Inspect;
+            if (data != null && data.allowCompanionExecution && data.companionOperation == operation && InteractionSystem.Instance != null)
             {
-                var execution = InteractionSystem.Instance.TryExecuteCompanion(data, actor.Scenario.npcId);
+                var execution = InteractionSystem.Instance.TryExecuteCompanion(data, actor.Scenario.npcId, operation);
                 result.Success = execution.Success; result.Message = execution.Message;
             }
             else

@@ -19,9 +19,10 @@ public class CompanionWorldPlayTests
     {
         public string Action;
         public bool Delay;
+        public bool Available = true;
         public int Calls;
         public Action<GeneratedChatReply> Callback;
-        public bool CanGenerate => true;
+        public bool CanGenerate => Available;
         public string LastError => "";
         public IEnumerator Generate(MiniEventData d, Action<GeneratedDialogueContent> done) { done(null); yield break; }
         public IEnumerator GenerateReply(string id, string name, string context, string message, Action<GeneratedChatReply> done, string personality = null)
@@ -39,7 +40,7 @@ public class CompanionWorldPlayTests
         persistence = SaveSystem.PersistenceEnabled; SaveSystem.PersistenceEnabled = false;
         title = TitleMenu.IsOpen; intro = IntroSequence.IsPlaying;
         Title(false); Intro(false); RoomTransitionManager.CloseRoomOverlays();
-        DialogueProviders.Override = null; GameDefinition.Override = null; KnowledgeLibrary.ClearCache();
+        DialogueProviders.Override = new Provider { Available = false }; GameDefinition.Override = null; KnowledgeLibrary.ClearCache();
         if (State != null) UnityEngine.Object.DestroyImmediate(State.gameObject);
         yield return SceneManager.LoadSceneAsync("Room01"); yield return null;
         Title(false); Intro(false); RoomTransitionManager.CloseRoomOverlays();
@@ -230,6 +231,7 @@ public class CompanionWorldPlayTests
         try
         {
             data.interactionId = "test.open_cabinet"; data.allowCompanionExecution = true; data.repeatable = false;
+            data.companionOperation = CompanionInteractionOperation.Open;
             data.companionMessage = "เปิดตู้แล้ว พบเหรียญ"; data.alreadyCompletedMessage = "ตู้เปิดแล้ว"; data.popupItemId = "key";
             data.actions.Add(new ActionCommand { type = ActionType.SetFlag, targetId = "test.cabinet.open" });
             var obj = go.AddComponent<ObjectInteraction>();
@@ -257,5 +259,124 @@ public class CompanionWorldPlayTests
         provider.Delay = false; provider.Action = "inspect_together";
         chat.Submit("ช่วยมาดูด้วยกันสักครู่ได้ไหม"); yield return null;
         Assert.That(provider.Calls, Is.EqualTo(1)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+    }
+    [Test]
+    public void ClarificationCannotTreatConversationalMentionAsPermissionToAct()
+    {
+        foreach (string message in new[] { "เราชอบภาพวาด", "ภาพวาดสวยดี", "อยากคุยเรื่องภาพวาด" })
+        {
+            chat.Close(); chat.OpenSession(); chat.Submit("ไปตรวจอันนั้นหน่อย");
+            Assert.That(chat.LastReply, Does.Contain("หมายถึง"));
+            chat.Submit(message);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message);
+        }
+    }
+    [Test]
+    public void ReadingEvidenceExpiresAnUnansweredWorldClarification()
+    {
+        State.SetFlag("found_note"); chat.OpenSession(); chat.Submit("ไปตรวจอันนั้นหน่อย");
+        chat.Submit("ช่วยอ่านโน้ตให้หน่อย"); Assert.That(chat.LastReply, Does.Contain("2 · 9 · 5 · 4"));
+        chat.Submit("ภาพวาด"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+    }
+    [Test]
+    public void ModelCannotSwapRequestedSideOrInventAnUnrequestedSide()
+    {
+        chat.OpenSession(); var session = new CompanionWorldSession(); GeneratedChatReply reply;
+        Assert.That(CompanionWorldCommands.TryProposal(actor, session, "ช่วยเดินไปข้างขวาของภาพวาดหน่อย", "world:move:left:room01.painting", out reply), Is.False);
+        Assert.That(CompanionWorldCommands.TryProposal(actor, session, "ช่วยเดินไปที่ภาพวาดหน่อย", "world:move:right:room01.painting", out reply), Is.False);
+        Assert.That(CompanionWorldCommands.TryProposal(actor, session, "ช่วยเดินไปข้างหลังภาพวาดหน่อย", "world:move:at:room01.painting", out reply), Is.False);
+        Assert.That(CompanionWorldCommands.TryProposal(actor, session, "ช่วยเดินไปข้างขวาของภาพวาดหน่อย", "world:move:right:room01.painting", out reply), Is.True);
+    }
+    [Test]
+    public void EnglishAreaNameDoesNotTurnIntoAnExtraDirectionalOffset()
+    {
+        chat.OpenSession(); chat.Submit("walk to bottom left"); Tick();
+        Assert.That(actor.LastWorldResult?.Success, Is.True);
+        Assert.That(Vector2.Distance(actor.Feet, Target("lower_left").Definition.approachPoint), Is.LessThanOrEqualTo(0.12f));
+        var previous = actor.Feet;
+        chat.Submit("ไปยืนข้างหลังโต๊ะหน่อย"); Tick();
+        Assert.That(Vector2.Distance(actor.Feet, previous), Is.LessThan(0.01f));
+    }
+    [UnityTest]
+    public IEnumerator ExternalStopInvalidatesAnOutstandingModelInterpretation()
+    {
+        var provider = new Provider { Delay = true }; DialogueProviders.Override = provider;
+        chat.OpenSession(); chat.Submit("ช่วยพิจารณารายละเอียดภาพวาดหน่อย"); yield return null;
+        Assert.That(provider.Calls, Is.EqualTo(1)); var callback = provider.Callback;
+        actor.ApplyRoomCommand(CompanionCommand.Wait);
+        callback(new GeneratedChatReply { reply = "ได้", companionAction = "world:inspect:at:room01.painting" });
+        yield return null; Tick();
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Assert.That(chat.RequestPending, Is.False); Assert.That(State.HasFlag("inspected_painting"), Is.False);
+    }
+    [Test]
+    public void DisabledInteractionCannotExecuteAfterNpcHasAcceptedTheTask()
+    {
+        chat.OpenSession(); chat.Submit("ไปตรวจภาพวาดหน่อย"); Target("painting").Interaction.enabled = false;
+        Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.False);
+        Assert.That(actor.LastWorldResult?.Success, Is.False);
+    }
+    [Test]
+    public void ActionWordInAnAuthoredObjectNameDoesNotChangeThePlayersVerb()
+    {
+        var go = new GameObject("TestOpenSign");
+        try
+        {
+            go.AddComponent<CompanionWorldTarget>().Configure(new CompanionWorldDefinition {
+                id = "test.open_sign", title = "ป้ายเปิดร้าน", approachPoint = new Vector2(2, -2),
+                allowInspect = true, allowOpen = true, inspectLine = "ตัวหนังสือบนป้ายยังอ่านได้" }, null);
+            chat.OpenSession(); chat.Submit("ตรวจป้ายเปิดร้านหน่อย"); Tick();
+            Assert.That(actor.LastWorldResult?.Verb, Is.EqualTo(CompanionWorldVerb.Inspect));
+            Assert.That(actor.LastWorldResult?.Success, Is.True);
+            var session = new CompanionWorldSession(); GeneratedChatReply reply;
+            Assert.That(CompanionWorldCommands.TryProposal(actor, session, "ช่วยตรวจป้ายเปิดร้านหน่อย", "world:inspect:at:test.open_sign", out reply), Is.True);
+            Tick(); Assert.That(actor.LastWorldResult?.Verb, Is.EqualTo(CompanionWorldVerb.Inspect));
+        }
+        finally { UnityEngine.Object.DestroyImmediate(go); }
+    }
+    [Test]
+    public void InspectingAnOpenableObjectCannotExecuteItsOpenEffects()
+    {
+        var go = new GameObject("TestCabinet"); var data = ScriptableObject.CreateInstance<InteractionData>();
+        try
+        {
+            data.interactionId = "test.cabinet.open"; data.allowCompanionExecution = true;
+            data.companionOperation = CompanionInteractionOperation.Open; data.repeatable = false;
+            data.companionMessage = "ตู้เปิดแล้ว"; data.alreadyCompletedMessage = "ตู้เปิดแล้ว";
+            data.actions.Add(new ActionCommand { type = ActionType.SetFlag, targetId = "test.cabinet.opened" });
+            var obj = go.AddComponent<ObjectInteraction>();
+            typeof(ObjectInteraction).GetField("interactionData", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(obj, data);
+            go.AddComponent<CompanionWorldTarget>().Configure(new CompanionWorldDefinition { id = "test.cabinet",
+                title = "ตู้ทดลอง", allowInspect = true, allowOpen = true, approachPoint = new Vector2(2, -2), inspectLine = "ตู้ยังปิดอยู่" }, obj);
+            chat.OpenSession(); chat.Submit("ตรวจตู้ทดลองหน่อย"); Tick();
+            Assert.That(State.HasFlag("test.cabinet.opened"), Is.False);
+            Assert.That(actor.LastWorldResult?.Success, Is.True); Assert.That(chat.LastReply, Is.EqualTo("ตู้ยังปิดอยู่"));
+            var denied = InteractionSystem.Instance.TryExecuteCompanion(data, "Alice");
+            Assert.That(denied.Success, Is.False); Assert.That(State.HasFlag("test.cabinet.opened"), Is.False);
+            chat.Submit("เปิดตู้ทดลองหน่อย"); Tick(); Assert.That(State.HasFlag("test.cabinet.opened"), Is.True);
+        }
+        finally { UnityEngine.Object.DestroyImmediate(go); UnityEngine.Object.DestroyImmediate(data); }
+    }
+    [Test]
+    public void EvidenceAskBackAcceptsAShortNameButNotAConversationalMention()
+    {
+        State.SetFlag("found_note"); chat.OpenSession(); chat.Submit("อ่านอันนี้หน่อย");
+        Assert.That(chat.LastReply, Does.Contain("หลักฐาน")); chat.Submit("เราชอบโน้ต");
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        chat.Submit("อ่านอันนี้หน่อย"); chat.Submit("โน้ตนะครับ");
+        Assert.That(chat.LastReply, Does.Contain("2 · 9 · 5 · 4"));
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.True);
+        Assert.That(State.HasFlag("drawer_opened"), Is.False);
+    }
+    [Test]
+    public void EvidenceAskBackExpiresOnAnotherTaskCloseOrAnUnrelatedTurn()
+    {
+        State.SetFlag("found_note"); chat.OpenSession(); chat.Submit("อ่านอันนี้หน่อย");
+        chat.Submit("ไปยืนกลางห้องหน่อย"); Tick(); chat.Submit("โน้ต");
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        chat.Submit("อ่านอันนี้หน่อย"); chat.Close(); chat.OpenSession(); chat.Submit("โน้ต");
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        chat.Submit("อ่านอันนี้หน่อย"); chat.Submit("สวัสดี"); chat.Submit("โน้ต");
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
     }
 }

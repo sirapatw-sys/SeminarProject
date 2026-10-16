@@ -30,7 +30,7 @@
 - `CompanionChatPanel`: ช่อง C, serial cancellation, timeout, บริบทชั่วคราว, ประวัติข้อความ, รายงานผลจริง
 - `CompanionDiscovery`/`NpcObservation`: NPC เรียนรู้เฉพาะ fact ที่ตรวจจริงและเปิดเผยได้แล้ว
 
-เพิ่มวัตถุที่ใช้ความสามารถเดิม: ตั้งชื่อ scene object ให้ไม่ซ้ำ เพิ่ม definition ใน worldTargets ระบุจุดยืนปลอดภัย ตั้ง aliases และ allowInspect/allowOpen หากต้องเปลี่ยนสถานะให้ตั้ง allowCompanionExecution บน interaction ที่เกี่ยวข้องทุก stage และใช้ conditions/actions เดิม เพิ่ม discoveredFactIds ให้ตรงกับ room facts ไม่เขียนเฉลยไว้ใน visibleDescription
+เพิ่มวัตถุที่ใช้ความสามารถเดิม: ตั้งชื่อ scene object ให้ไม่ซ้ำ เพิ่ม definition ใน worldTargets ระบุจุดยืนปลอดภัย ตั้ง aliases และ allowInspect/allowOpen หากต้องเปลี่ยนสถานะให้ตั้ง allowCompanionExecution บน interaction ที่เกี่ยวข้องทุก stage และใช้ conditions/actions เดิม ตั้ง companionOperation เป็น Inspect สำหรับ effects จากการตรวจ หรือ Open สำหรับ effects จากการเปิด (ค่าเริ่มต้น Inspect) การขอตรวจวัตถุที่มี Open interaction จะดูตาม inspectLine และไม่เรียก effects เปิด เพิ่ม discoveredFactIds ให้ตรงกับ room facts ไม่เขียนเฉลยไว้ใน visibleDescription
 
 หากเป็นพื้นที่โล่ง ให้ sceneObject ว่างและตั้ง approachPoint ไม่ต้องสร้าง interaction ใหม่
 
@@ -51,6 +51,6 @@
 
 ผล Unity tests และ build ของรอบนี้อยู่ใน `Logs/NaturalWorld_20261016/` และระบุฉบับที่ผ่านในข้อความส่งมอบ ไม่ใช้ผลก่อนแก้เป็นผลฉบับสุดท้าย
 
-ผลยืนยัน source ฉบับล่าสุด: `PlayModeAccepted.xml` ผ่าน 316/316 และ `EditModeAccepted.xml` ผ่าน 1,281/1,281 รวม 1,597/1,597 ไม่มี failed/skipped เป็น local Unity 2021.3.16f1 + AI จำลอง รวม regression ใหม่ 15 กรณี ผลนี้ไม่ใช่การวัดโมเดล KKU จริงหรือ manual visual QA
+ผลรอบแรกที่ commit `5d1a32e`: `PlayModeAccepted.xml` ผ่าน 316/316 และ `EditModeAccepted.xml` ผ่าน 1,281/1,281 รวม 1,597/1,597 ไม่มี failed/skipped เป็น local Unity 2021.3.16f1 + AI จำลอง รวม regression ใหม่ 15 กรณี ผลนี้ไม่ใช่การวัดโมเดล KKU จริงหรือ manual visual QA
 
 Windows AI-enabled release build: `Logs/CompanionAiBuilds/20261016-140554-36e944/` สำเร็จ errors=0; log `Logs/NaturalWorld_20261016/Build.log` ไม่มี `NPC_PLAYTEST_BUILD` แพ็กเกจ ZIP ไม่รวม UserSettings หรือ BurstDebugInformation_DoNotShip

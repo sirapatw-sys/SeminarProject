@@ -36,6 +36,7 @@ namespace MysteryGame.Companions
         public void Configure(CompanionWorldDefinition definition, ObjectInteraction interaction)
         { Definition = definition; Interaction = interaction; }
         public bool Allows(CompanionWorldVerb verb) => Definition != null &&
+            (verb == CompanionWorldVerb.Move || ReferenceEquals(Interaction, null) || Interaction != null && Interaction.isActiveAndEnabled) &&
             (verb == CompanionWorldVerb.Move || verb == CompanionWorldVerb.Inspect && Definition.allowInspect ||
              verb == CompanionWorldVerb.Open && Definition.allowOpen);
     }
