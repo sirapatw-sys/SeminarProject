@@ -493,6 +493,7 @@ namespace MysteryGame.Companions
             string remaining;
             if (actor.CanConverse(dialogue) && TryReadWithdrawal(normalized, out remaining))
             {
+                dialogue.ReadingContext = null;
                 bool active = actor.Mode != CompanionMode.Waiting;
                 string stopped = null;
                 if (active) actor.ApplyDialogueCommand(dialogue, CompanionCommand.Wait, null, out stopped);
@@ -509,14 +510,17 @@ namespace MysteryGame.Companions
                 message = normalized;
             }
             bool vagueStop = StopWork.IsMatch(normalized) || AmbiguousStop.IsMatch(normalized);
+            if (vagueStop) dialogue.ReadingContext = null;
             if (vagueStop && actor.Mode == CompanionMode.Waiting) return false;
             if (actor.CanConverse(dialogue) && (vagueStop || CancelsActiveRequest(normalized, actor)))
             {
+                dialogue.ReadingContext = null;
                 string stopped;
                 actor.ApplyDialogueCommand(dialogue, CompanionCommand.Wait, null, out stopped);
                 reply = new GeneratedChatReply { reply = stopped, referencedFactIds = Array.Empty<string>() };
                 return true;
             }
+            if (CompanionNaturalRequests.TryReply(dialogue, actor, normalized, out reply)) return true;
             if (actor.CanConverse(dialogue) && CompanionConversation.TryReply(actor, normalized, out reply)) return true;
             var knowledge = AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message);
             CompanionStationData station;
@@ -648,6 +652,7 @@ namespace MysteryGame.Companions
             if (actor == null || actor.Scenario == null) return false;
 
             CompanionCommand command = CompanionCommand.None;
+            if (CompanionNaturalRequests.TryApplyProposal(dialogue, actor, message, actionId, out reply)) return true;
             CompanionStationData station = null;
             if (actionId == CompanionActionOption.Follow) command = CompanionCommand.Follow;
             else if (actionId == CompanionActionOption.Wait) command = CompanionCommand.Wait;

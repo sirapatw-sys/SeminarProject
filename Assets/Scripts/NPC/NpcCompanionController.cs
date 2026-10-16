@@ -538,6 +538,7 @@ namespace MysteryGame.Companions
         {
             var dialogue = DialogueManager.Instance;
             if (dialogue != null && dialogue.PendingCompanionHelp?.Actor == this) dialogue.PendingCompanionHelp = null;
+            if (dialogue != null && dialogue.ReadingContext?.Actor == this) dialogue.ReadingContext = null;
             CancelTask(); TaskRevision++; TaskPhase = CompanionTaskPhase.None; LastTaskId = null;
             Invitation = null; Mode = CompanionMode.Waiting; reactions.Clear(); Bubble = null; bubbleSeconds = 0f;
         }

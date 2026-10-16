@@ -65,6 +65,7 @@ public class DialogueManager : MonoBehaviour
     private float chatTraceStartedAt;
     private string chatTraceRequest;
     internal MysteryGame.Companions.PendingCompanionHelp PendingCompanionHelp;
+    internal MysteryGame.Companions.CompanionReadingContext ReadingContext;
     private EvidencePickerUI evidencePicker;
     private DialogueTextScroll dialogueScroll;
     private string choiceCompletionFlag;
@@ -123,6 +124,7 @@ public class DialogueManager : MonoBehaviour
         int closenessBefore = GameState.Instance.GetRelationship(activeNpcId);
         EvidenceShareResult result;
         if (!EvidenceSharing.TryShare(GameState.Instance, activeNpcId, factId, out result)) return false;
+        MysteryGame.Companions.CompanionNaturalRequests.RememberShared(this, factId);
         if (evidencePicker != null) evidencePicker.Close();
         if (result.JournalEntryAdded) JournalUI.NotifyNewEntry();
         choicePanel.SetActive(false);
@@ -1621,6 +1623,7 @@ public class DialogueManager : MonoBehaviour
             MysteryGame.Companions.CompanionPlaytestTrace.Record("request_end", GameState.Instance?.GetCurrentScene(),
                 activeNpcId, request: chatTraceRequest, outcome: "cancelled", duration: Time.realtimeSinceStartup - chatTraceStartedAt);
         PendingCompanionHelp = null;
+        ReadingContext = null;
         ConversationVersion++;
         chatRequestSerial++;
         chatRequestInProgress = false;

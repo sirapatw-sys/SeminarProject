@@ -164,8 +164,13 @@ namespace MysteryGame.Core
             return session;
         }
 
+        // Session-only revision: returning to the same room must not revive
+        // a previous room's transient conversational authorization.
+        public int SceneRevision { get; private set; }
+
         public void SetCurrentScene(string sceneId)
         {
+            if (session.CurrentSceneId != sceneId) SceneRevision++;
             session.CurrentSceneId = sceneId;
         }
 

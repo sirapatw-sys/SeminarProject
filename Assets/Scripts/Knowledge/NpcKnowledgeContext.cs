@@ -12,6 +12,9 @@ namespace MysteryGame.Knowledge
         public const string Wait = "wait";
         public const string Search = "search";
         public const string HelpPrefix = "help:";
+        public const string InspectTogether = "inspect_together";
+        public const string ReadPrefix = "read:";
+        public const string ShowPrefix = "show:";
 
         public string Id;
         public string Description;
@@ -327,7 +330,7 @@ namespace MysteryGame.Knowledge
                 sb.AppendLine("- " + option.Id + ": " + option.Description);
             sb.AppendLine("- " + CompanionActionOption.None + ": ผู้เล่นไม่ได้ขอให้ลงมือทำอะไรในข้อความนี้");
             sb.AppendLine("ใส่รหัสใน companionAction เฉพาะเมื่อผู้เล่นขอให้ตัวละครทำสิ่งนั้น 'ตอนนี้' อย่างชัดเจน " +
-                          "ถ้าเป็นคำถาม การเล่าเรื่อง การสมมติ การยกคำพูดคนอื่น การปฏิเสธ หรือไม่แน่ใจ ให้ใส่ " + CompanionActionOption.None);
+                          "คำขอสุภาพ เช่น ได้ไหม ถือเป็นคำขอได้ แต่คำถามเรื่องสถานะ การเล่าเรื่อง การสมมติ การยกคำพูดคนอื่น การปฏิเสธ หรือไม่แน่ใจ ให้ใส่ " + CompanionActionOption.None);
             sb.AppendLine("ถ้าผู้เล่นขอให้ทำสิ่งที่ไม่มีในรายการนี้ (เช่นขอให้ช่วยที่วัตถุอื่น) ให้ใส่ " + CompanionActionOption.None +
                           " ห้ามเลือกรหัสที่ใกล้เคียงแทน แล้วตอบตามบุคลิกว่าตอนนี้ยังช่วยเรื่องนั้นไม่ได้");
             sb.AppendLine("เกมจะตรวจเองว่าทำได้จริงหรือไม่ก่อนลงมือ ใน reply ให้ตอบรับหรือถามกลับสั้นๆ ตามบุคลิก ห้ามบอกว่าทำสำเร็จแล้ว");

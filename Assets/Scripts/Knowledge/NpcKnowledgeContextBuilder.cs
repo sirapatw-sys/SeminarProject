@@ -37,6 +37,8 @@ namespace MysteryGame.Knowledge
                     subjects.AddRange(MysteryGame.Companions.CompanionDialogueCommands.MatchingNames(message, station));
             }
             var context = Build(npcId, roomId, state,
+                !(companion && (MysteryGame.Companions.CompanionNaturalRequests.IsEvidenceRequest(message, room) ||
+                    MysteryGame.Companions.CompanionNaturalRequests.IsJoinRequest(message))) &&
                 PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
             if (companion)
             {
@@ -150,6 +152,15 @@ namespace MysteryGame.Knowledge
         {
             context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Follow,
                 Description = "เดินตามผู้เล่นไปด้วยกัน" });
+            context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.InspectTogether,
+                Description = "ผู้เล่นชวนมาดูหรือสำรวจด้วยกัน: ตามผู้เล่นหลังจบบทคุย ไม่ใช่ค้นพบหลักฐานอัตโนมัติ" });
+            foreach (var fact in EvidenceSharing.Available(state, context.NpcId))
+            {
+                context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.ReadPrefix + fact.factId,
+                    Description = "อ่านตามข้อความในหลักฐานที่ผู้เล่นยื่นให้: " + fact.EvidenceTitle + " (ไม่ตีความหรือเฉลย)" });
+                context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.ShowPrefix + fact.factId,
+                    Description = "ผู้เล่นนำหลักฐานที่ค้นพบมาให้ดู: " + fact.EvidenceTitle });
+            }
             context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Wait,
                 Description = "หยุดรออยู่ตรงนี้ หรือเลิกทำสิ่งที่กำลังทำอยู่" });
             if (scenario.searchSpots != null)
