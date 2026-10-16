@@ -3,7 +3,7 @@
 สาขา codex/npc-cothinking ต่อจาก 88c8b55 บนฐาน develop a6c6d23
 ตรวจ develop ตอนเริ่มรอบนี้แล้ว ไม่มี commit ใหม่ที่สาขาขาดอยู่
 
-รอบแก้บั๊กคำสั่งหลัง f31a7e9 และการยกเลิกก่อนคำขอใหม่หลัง f24e3ab: ดู NPC_COMMAND_SAFETY_FIX_TH.md สำหรับผล Unity ล่าสุด (EditMode 1249/1249, PlayMode 248/248)
+รอบแก้คำสั่งค้นหาหลัง 0b8d527: ดู NPC_SEARCH_SCOPE_FIX_TH.md สำหรับผล Unity ล่าสุด (EditMode 1266/1266, PlayMode 256/256) ประวัติแก้คำสั่งก่อนหน้านี้อยู่ใน NPC_COMMAND_SAFETY_FIX_TH.md
 
 ## ปัญหาที่พิสูจน์แล้วและแก้
 

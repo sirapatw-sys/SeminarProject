@@ -84,8 +84,9 @@ namespace MysteryGame.Companions
         private static readonly Regex MovementFiller = R(@"(?:เป็นเพื่อน|ด้วยกัน|ทางนี้|ข้าง\s*ๆ?|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว|สำรวจ|แล้ว(?:ก็)?|และ|" +
             @"เดิน|ตาม|รอ|หยุด|พัก|อยู่|ยืน|กับ|ไป|มา|ต่อ|เถอะ|เร็ว|" +
             @"\b(?:following|walking|moving|walk|follow|come|go|wait|stay|stop|pause|stand|beside|along|over|a\s+moment)\b|" + RequestFiller + @")");
-        private static readonly Regex SearchFiller = R(@"(?:ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
-            @"\b(?:search|look|find|clues?|evidence|room|around)\b|" + RequestFiller + @")");
+        private static readonly Regex SearchFiller = R(@"(?:ได้(?:หรือ|รึ)เปล่า|แล้ว|ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|ทั่ว(?:ทั้ง)?|ทั้ง|ใน|เฉพาะ|เท่านั้น|แค่|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
+            @"\b(?:search|look|find|inspect|explore|clues?|evidence|room|around|in|only|just|throughout)\b|" + RequestFiller + @")");
+        private static readonly Regex SearchVerb = R(@"ค้น|หา|สำรวจ|ตรวจ|ดู|\b(?:search|look|find|inspect|explore)\b");
         // Only split coordinated actions after classifying the enclosing
         // clause. A question about two actions must not execute its first half.
         private static readonly Regex ActionJoiner = R(
@@ -234,6 +235,7 @@ namespace MysteryGame.Companions
                 (Follow.IsMatch(Wait.Replace(text, " ")) ? 1 : 0) + (helpMention ? 1 : 0) + (Search.IsMatch(Wait.Replace(text, " ")) ? 1 : 0);
             if ((count > 0 && mentioned > 1) || (help && (matching.Count != 1 || OtherTarget.IsMatch(PlayerIntentClassifier.WithoutActivityLocations(text))))) return CompanionCommand.Clarify;
             if (help && HasOtherActivityTarget(text, CompanionCommand.Help, matching[0])) return CompanionCommand.Clarify;
+            if (search && HasOtherActivityTarget(text, CompanionCommand.Search, null)) return CompanionCommand.Clarify;
             if (follow && HasMovementTargetConflict(text, CompanionCommand.Follow) ||
                 wait && HasMovementTargetConflict(text, CompanionCommand.Wait)) return CompanionCommand.Clarify;
             if (help) { station = matching[0]; return CompanionCommand.Help; }
@@ -432,14 +434,31 @@ namespace MysteryGame.Companions
 
         private static bool HasOtherActivityTarget(string text, CompanionCommand command, CompanionStationData station)
         {
-            string remaining = PlayerIntentClassifier.WithoutActivityLocations(text);
-            if (station != null)
-                foreach (string name in MatchingNames(text, station).OrderByDescending(n => n.Length))
-                    remaining = Regex.Replace(remaining, TermPattern(name), " ", RegexOptions.CultureInvariant);
+            // Search currently covers the authored room route, not a chosen
+            // object. Do not erase its target as an activity location or station
+            // name ("search in the drawer" is not a request to search elsewhere).
+            if (command == CompanionCommand.Search) return NamesOtherObject(text, command);
+            string remaining = WithoutStationNames(PlayerIntentClassifier.WithoutActivityLocations(text), station);
             // Preserve the existing target-first form, not arbitrary descriptive
             // words which might conceal a second object.
             if (command == CompanionCommand.Help && TargetFirstHelp.IsMatch(remaining)) return false;
             return NamesOtherObject(remaining, command);
+        }
+
+        private static string WithoutStationNames(string text, CompanionStationData station)
+        {
+            string remaining = text;
+            if (station != null)
+                foreach (string name in MatchingNames(text, station).OrderByDescending(n => n.Length))
+                    remaining = Regex.Replace(remaining, TermPattern(name), " ", RegexOptions.CultureInvariant);
+            return remaining;
+        }
+
+        private static string SearchClarification(DialogueManager dialogue, NpcCompanionController actor, string text, string fallback)
+        {
+            return actor.CanConverse(dialogue) && SearchVerb.IsMatch(text) &&
+                HasOtherActivityTarget(text, CompanionCommand.Search, null) &&
+                !string.IsNullOrWhiteSpace(actor.Scenario.searchScopeLine) ? actor.Scenario.searchScopeLine : fallback;
         }
 
         private static bool HasMovementTargetConflict(string text, CompanionCommand command)
@@ -511,10 +530,14 @@ namespace MysteryGame.Companions
             }
             if (command == CompanionCommand.None && !modelCanRead && !knowledge.PlayerAskedForHint && IsUnclearActionRequest(normalized))
                 command = CompanionCommand.Clarify;
-            if (knowledge.PlayerAskedForHint && command != CompanionCommand.Wait && command != CompanionCommand.Search && !ContextHelp.IsMatch(normalized)) return false;
+            bool unsupportedSearch = command == CompanionCommand.Clarify && IsDirectAction(normalized, Search, actor.Scenario) &&
+                HasOtherActivityTarget(normalized, CompanionCommand.Search, null);
+            if (knowledge.PlayerAskedForHint && command != CompanionCommand.Wait && command != CompanionCommand.Search &&
+                !unsupportedSearch && !ContextHelp.IsMatch(normalized)) return false;
             if (command == CompanionCommand.None) return false;
             string text;
             actor.ApplyDialogueCommand(dialogue, command, station, out text);
+            if (command == CompanionCommand.Clarify) text = SearchClarification(dialogue, actor, normalized, text);
             reply = new GeneratedChatReply { reply = text, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
             return true;
         }
@@ -613,15 +636,22 @@ namespace MysteryGame.Companions
                     reply = new GeneratedChatReply { reply = ambiguous, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
                     return true;
                 }
-                if (named.Count == 1 && station != named[0]) { command = CompanionCommand.Help; station = named[0]; }
+                // A real search request naming the desk must not become holding
+                // the desk. Keep the old help correction only when the player
+                // actually asked for assistance ("ไปช่วยตรงโต๊ะหน่อยสิ").
+                if (named.Count == 1 && station != named[0] &&
+                    (command != CompanionCommand.Search || !SearchVerb.IsMatch(text)))
+                { command = CompanionCommand.Help; station = named[0]; }
                 // No activity named: the request must not name some other object
                 // either ("ช่วยยกเก้าอี้หน่อย" proposed as the box). A social object
                 // stays conversation; anything else is asked about, not guessed.
                 if (HasOtherActivityTarget(text, command, named.Count == 1 ? named[0] : null))
                 {
-                    if (SocialObject.IsMatch(text)) return false;
+                    string socialTarget = command == CompanionCommand.Search && named.Count == 1 ? WithoutStationNames(text, named[0]) : text;
+                    if (SocialObject.IsMatch(socialTarget)) return false;
                     string clarify;
                     actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out clarify);
+                    if (command == CompanionCommand.Search) clarify = SearchClarification(dialogue, actor, text, clarify);
                     if (string.IsNullOrWhiteSpace(clarify)) return false;
                     reply = new GeneratedChatReply { reply = clarify, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
                     return true;
