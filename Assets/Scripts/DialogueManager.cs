@@ -62,6 +62,9 @@ public class DialogueManager : MonoBehaviour
     private int chatRequestSerial;
     private float chatRequestDeadline;
     private string pendingPlayerMessage;
+    private float chatTraceStartedAt;
+    private string chatTraceRequest;
+    internal MysteryGame.Companions.PendingCompanionHelp PendingCompanionHelp;
     private EvidencePickerUI evidencePicker;
     private DialogueTextScroll dialogueScroll;
     private string choiceCompletionFlag;
@@ -1338,6 +1341,10 @@ public class DialogueManager : MonoBehaviour
         chatRequestDeadline = Time.unscaledTime + ChatRequestTimeoutSeconds;
         pendingPlayerMessage = playerMessage;
         int serial = chatRequestSerial;
+        chatTraceStartedAt = Time.realtimeSinceStartup;
+        chatTraceRequest = ConversationVersion + ":" + serial;
+        MysteryGame.Companions.CompanionPlaytestTrace.Record("request", GameState.Instance?.GetCurrentScene(),
+            activeNpcId, request: chatTraceRequest, outcome: "received");
         chatInput.interactable = false;
         sendButton.interactable = false;
         choicePanel.SetActive(false);
@@ -1461,6 +1468,11 @@ public class DialogueManager : MonoBehaviour
             { reply = askBack; companionCommand = askBack; }
             else reply = BuildFallbackReply(playerMessage);
         }
+        MysteryGame.Companions.CompanionPlaytestTrace.Record("reply", GameState.Instance?.GetCurrentScene(), activeNpcId,
+            request: chatTraceRequest, outcome: string.IsNullOrWhiteSpace(policyReason) ? "completed" : "policy_rejected",
+            route: companionCommand != null ? "companion" : answerReply != null ? "authored" :
+                generated != null ? "provider" : hintReply != null ? "hint" : "fallback",
+            duration: Time.realtimeSinceStartup - chatTraceStartedAt);
         // Offline replies author small gains (+1 to +4), so they count double.
         // The AI's reading and the rules' reading are combined there; a rude
         // or distancing message never raises the relationship.
@@ -1605,6 +1617,10 @@ public class DialogueManager : MonoBehaviour
 
     public void HideDialogue()
     {
+        if (chatRequestInProgress)
+            MysteryGame.Companions.CompanionPlaytestTrace.Record("request_end", GameState.Instance?.GetCurrentScene(),
+                activeNpcId, request: chatTraceRequest, outcome: "cancelled", duration: Time.realtimeSinceStartup - chatTraceStartedAt);
+        PendingCompanionHelp = null;
         ConversationVersion++;
         chatRequestSerial++;
         chatRequestInProgress = false;

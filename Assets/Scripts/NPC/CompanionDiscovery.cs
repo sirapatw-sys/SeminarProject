@@ -50,7 +50,10 @@ namespace MysteryGame.Companions
             var allowed = new HashSet<string>(Pending(scenario, state, roomId).Select(f => f.factId), StringComparer.Ordinal);
             int count = 0;
             foreach (string id in ids.Distinct()) if (allowed.Contains(id))
-            { state.SetFlag(ReportedFlag(scenario, id)); count++; }
+            {
+                state.SetFlag(ReportedFlag(scenario, id)); count++;
+                CompanionPlaytestTrace.Record("report", roomId, scenario.npcId, target: id, outcome: "shown");
+            }
             return count;
         }
 

@@ -37,6 +37,7 @@ namespace MysteryGame.Companions
             var context = NpcKnowledgeContextBuilder.Build(scenario.npcId, roomId, state, true);
             if (query.Kind == ReasoningQueryKind.Report)
             {
+                CompanionPlaytestTrace.Record("evidence_query", roomId, scenario.npcId, outcome: "requested");
                 var facts = CompanionDiscovery.PrioritizePending(scenario, state, roomId,
                     context.KnownFacts.Where(f => f.canShareAsEvidence && !f.isPuzzleAnswer && !f.isPuzzleGuidance))
                     .Take(CompanionDiscovery.ReportLimit).ToList();
@@ -51,6 +52,7 @@ namespace MysteryGame.Companions
             if (context.Npc != null && !context.Npc.givesHints)
             { reply = Reply(context.Npc.refuseHintLine ?? profile.insufficientEvidenceLine); return true; }
             var result = profile.Evaluate(rules[0], new World(context, state));
+            CompanionPlaytestTrace.Record("hypothesis", roomId, scenario.npcId, target: rules[0].id, outcome: result.Outcome.ToString());
             reply = Reply(result.Outcome == ReasoningOutcome.Unavailable ? profile.unavailableLine :
                 string.IsNullOrWhiteSpace(result.Line) ? profile.insufficientEvidenceLine : result.Line, result.ReferencedFacts);
             return true;

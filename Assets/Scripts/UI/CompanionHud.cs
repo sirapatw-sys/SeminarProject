@@ -10,6 +10,7 @@ namespace MysteryGame.Companions
     {
         private NpcCompanionController actor;
         private GUIStyle caption, bubble, bluePad, goldPad, discoveryPad;
+        private bool discoveryWasVisible;
         private readonly System.Collections.Generic.List<Texture2D> textures = new System.Collections.Generic.List<Texture2D>();
         private void Awake() { actor = GetComponent<NpcCompanionController>(); }
         public bool DiscoveryIndicatorVisible
@@ -82,7 +83,14 @@ namespace MysteryGame.Companions
                 float height = Mathf.Clamp(bubble.CalcHeight(new GUIContent(actor.Bubble), width), 40f, 112f);
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, actor.Bubble, bubble, new Vector2(width, height));
             }
-            if (DiscoveryIndicatorVisible)
+            bool discoveryVisible = DiscoveryIndicatorVisible;
+            if (Event.current.type == EventType.Repaint)
+            {
+                if (discoveryVisible && !discoveryWasVisible)
+                    CompanionPlaytestTrace.Record("invitation", actor.RoomId, scenario.npcId, target: "discovery", outcome: "shown");
+                discoveryWasVisible = discoveryVisible;
+            }
+            if (discoveryVisible)
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "...", discoveryPad, new Vector2(40f, 30f));
             else if (!actor.HasBubble && actor.Invitation != null)
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "?", goldPad, new Vector2(32f, 36f));

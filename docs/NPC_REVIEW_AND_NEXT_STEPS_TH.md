@@ -1,5 +1,7 @@
 # รอบตรวจและพัฒนาต่อ: NPC คู่ร่วมมือ
 
+รอบล่าสุดตามแผนคุณค่า NPC: ดู SOL_NPC_VALUE_PROGRESS_TH.md — เพิ่มการถามกลับต่อเนื่องและเครื่องมือ playtest, ผลชุดเต็ม EditMode 1281/1281 และ PlayMode 274/274, Windows offline build ผ่าน ยังไม่มี human playtest
+
 สาขา codex/npc-cothinking ต่อจาก 88c8b55 บนฐาน develop a6c6d23
 ตรวจ develop ตอนเริ่มรอบนี้แล้ว ไม่มี commit ใหม่ที่สาขาขาดอยู่
 

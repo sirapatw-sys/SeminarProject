@@ -48,6 +48,8 @@ namespace MysteryGame.Companions
         private bool followingMoving;
         private Vector2 moveDirection;
         private bool introduced;
+        private int traceTaskRevision = -1;
+        private bool traceTaskClosed = true;
         private readonly Queue<string> reactions = new Queue<string>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -141,6 +143,7 @@ namespace MysteryGame.Companions
             bool follow = Mode == CompanionMode.Following;
             CancelTask(); Mode = CompanionMode.Searching; resumeFollowing = follow;
             TaskRevision++; TaskPhase = CompanionTaskPhase.Moving; LastTaskId = "search";
+            TraceTaskStart();
             searchIndex = -1; AdvanceSearch();
             Say(Scenario.searchRequestLine); return ActiveSearchSpot != null;
         }
@@ -154,6 +157,7 @@ namespace MysteryGame.Companions
             bool follow = resumeFollowing;
             string lastLine = CompanionDiscovery.Pending(Scenario, state, RoomId).Count > 0
                 ? Scenario.discoveryFoundLine : Scenario.searchNoNewLine;
+            TraceTaskEnd("completed");
             CancelTask(); Mode = follow ? CompanionMode.Following : CompanionMode.Waiting;
             TaskPhase = CompanionTaskPhase.Completed;
             Say(lastLine ?? Scenario.searchFinishedLine);
@@ -163,7 +167,7 @@ namespace MysteryGame.Companions
             if (ActiveSearchSpot == null) { AdvanceSearch(); return; }
             elapsedTask += seconds;
             if (elapsedTask > Scenario.taskTimeoutSeconds)
-            { ResetActivity(); LastTaskId = "search"; TaskPhase = CompanionTaskPhase.Failed; Say(Scenario.blockedLine); return; }
+            { TraceTaskEnd("failed"); ResetActivity(); LastTaskId = "search"; TaskPhase = CompanionTaskPhase.Failed; Say(Scenario.blockedLine); return; }
             if (!ConditionRule.AllHold(ActiveSearchSpot.conditions, state)) { AdvanceSearch(); return; }
             if (Vector2.Distance(Feet, ActiveSearchSpot.point) > 0.12f)
             { TaskPhase = CompanionTaskPhase.Moving; searchProgress = 0f; MoveTowards(ActiveSearchSpot.point, seconds); return; }
@@ -227,6 +231,7 @@ namespace MysteryGame.Companions
             bool follow = Mode == CompanionMode.Following || (ActiveStation != null && resumeFollowing);
             CancelTask(); ActiveStation = station; Mode = CompanionMode.GoingToHelp;
             TaskRevision++; LastTaskId = station.id; TaskPhase = CompanionTaskPhase.Moving;
+            TraceTaskStart();
             Invitation = null;
             resumeFollowing = follow;
             Say(RequestLineFor(station)); return true;
@@ -362,7 +367,7 @@ namespace MysteryGame.Companions
                 {
                     // Standing at the station already: "I can't get there" would be untrue.
                     string line = Mode == CompanionMode.Helping && !string.IsNullOrWhiteSpace(Scenario.releaseLine) ? Scenario.releaseLine : Scenario.blockedLine;
-                    string failedTask = ActiveStation.id; ResetActivity(); LastTaskId = failedTask; TaskPhase = CompanionTaskPhase.Failed; Say(line); return;
+                    string failedTask = ActiveStation.id; TraceTaskEnd("failed"); ResetActivity(); LastTaskId = failedTask; TaskPhase = CompanionTaskPhase.Failed; Say(line); return;
                 }
                 if (Vector2.Distance(Feet, ActiveStation.companionPoint) > 0.12f)
                 {
@@ -473,6 +478,7 @@ namespace MysteryGame.Companions
             state.AddJournalEntry(Scenario.CompletedFlag(station), station.title, station.journalText);
             state.AddHistory("Completed companion activity " + Scenario.scenarioId + "/" + station.id);
             Say(station.completedLine);
+            TraceTaskEnd("completed");
             bool follow = resumeFollowing; CancelTask(); Mode = follow ? CompanionMode.Following : CompanionMode.Waiting;
             TaskPhase = CompanionTaskPhase.Completed;
             JournalUI.NotifyNewEntry(); SfxPlayer.Play(SfxPlayer.Cue.Interact);
@@ -510,8 +516,31 @@ namespace MysteryGame.Companions
                 "; เกมตรวจคำชวนที่ผู้เล่นพิมพ์ก่อนเริ่มงาน ข้อความ AI ไม่ใช่คำสั่งหรือหลักฐานว่างานสำเร็จ ห้ามแต่งผลการกระทำหรือเพิ่มข้อมูลคำใบ้";
         }
         private void Say(string text) { Bubble = text; bubbleSeconds = 5f; }
-        private void CancelTask() { if (ActiveStation != null || Mode == CompanionMode.Searching) { TaskRevision++; TaskPhase = CompanionTaskPhase.Cancelled; } ActiveStation = null; ActiveSearchSpot = null; WorkAnimationTime = 0f; Progress = 0f; elapsedTask = 0f; resumeFollowing = false; followingMoving = false; StopMoving(); }
-        private void ResetActivity() { CancelTask(); TaskRevision++; TaskPhase = CompanionTaskPhase.None; LastTaskId = null; Invitation = null; Mode = CompanionMode.Waiting; reactions.Clear(); Bubble = null; bubbleSeconds = 0f; }
+        private void TraceTaskStart()
+        {
+            traceTaskRevision = TaskRevision; traceTaskClosed = false;
+            CompanionPlaytestTrace.Record("action_start", RoomId, Scenario.npcId, LastTaskId, traceTaskRevision.ToString(), "started");
+        }
+        private void TraceTaskEnd(string outcome)
+        {
+            if (traceTaskClosed) return;
+            traceTaskClosed = true;
+            CompanionPlaytestTrace.Record("action_end", RoomId, Scenario?.npcId, LastTaskId, traceTaskRevision.ToString(), outcome);
+        }
+        private void CancelTask()
+        {
+            TraceTaskEnd("cancelled");
+            if (ActiveStation != null || Mode == CompanionMode.Searching) { TaskRevision++; TaskPhase = CompanionTaskPhase.Cancelled; }
+            ActiveStation = null; ActiveSearchSpot = null; WorkAnimationTime = 0f; Progress = 0f;
+            elapsedTask = 0f; resumeFollowing = false; followingMoving = false; StopMoving();
+        }
+        private void ResetActivity()
+        {
+            var dialogue = DialogueManager.Instance;
+            if (dialogue != null && dialogue.PendingCompanionHelp?.Actor == this) dialogue.PendingCompanionHelp = null;
+            CancelTask(); TaskRevision++; TaskPhase = CompanionTaskPhase.None; LastTaskId = null;
+            Invitation = null; Mode = CompanionMode.Waiting; reactions.Clear(); Bubble = null; bubbleSeconds = 0f;
+        }
         private void Unsubscribe()
         {
             if (state != null) { state.StateReset -= ResetActivity; state.StateRestored -= ResetActivity; }

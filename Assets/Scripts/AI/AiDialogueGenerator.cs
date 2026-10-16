@@ -46,7 +46,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     {
         get
         {
-            return enableAiGeneration &&
+            return !MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode && enableAiGeneration &&
                    !string.IsNullOrWhiteSpace(GetApiKey()) &&
                    !string.IsNullOrWhiteSpace(model) &&
                    !string.IsNullOrWhiteSpace(apiUrl);
@@ -659,6 +659,8 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     /// </summary>
     public IEnumerator FetchAvailableModels(Action<string[], string> onComplete)
     {
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode)
+        { onComplete(null, "เดโมนี้เล่นแบบออฟไลน์"); yield break; }
         string url = ModelsUrlForProvider();
         if (string.IsNullOrWhiteSpace(url))
         {

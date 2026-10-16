@@ -480,6 +480,7 @@ namespace MysteryGame.Companions
         {
             reply = null;
             if (dialogue == null || dialogue != DialogueManager.Instance || !DialogueManager.IsDialogueOpen || GameState.Instance == null) return false;
+            if (TryResolveHelpClarification(dialogue, message, out reply)) return true;
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null) return false;
             string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
@@ -525,6 +526,8 @@ namespace MysteryGame.Companions
                     if (!actor.IsCompleted(candidate) && ConditionRule.AllHold(candidate.conditions, GameState.Instance) &&
                         UnityEngine.Vector2.Distance(actor.PlayerFeet, (candidate.playerPoint + candidate.companionPoint) * 0.5f) <= actor.Scenario.activityLabelDistance)
                     { station = candidate; matches++; }
+                if (matches != 1 && actor.CanConverse(dialogue))
+                    return AskHelpTarget(dialogue, actor, out reply);
                 command = matches == 1 ? CompanionCommand.Help : modelCanRead ? CompanionCommand.None : CompanionCommand.Clarify;
                 if (command != CompanionCommand.Help) station = null;
             }
@@ -539,6 +542,58 @@ namespace MysteryGame.Companions
             actor.ApplyDialogueCommand(dialogue, command, station, out text);
             if (command == CompanionCommand.Clarify) text = SearchClarification(dialogue, actor, normalized, text);
             reply = new GeneratedChatReply { reply = text, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
+            return true;
+        }
+
+        private static bool IsExactStationAnswer(string text, CompanionStationData station)
+        {
+            return Names(station).Any(name => {
+                string pattern = TermPattern(name);
+                return pattern != null && Regex.IsMatch(text, @"^\s*" + pattern + CourtesyParticles + SentenceEnd, RegexOptions.CultureInvariant);
+            });
+        }
+
+        private static bool AskHelpTarget(DialogueManager dialogue, NpcCompanionController actor, out GeneratedChatReply reply)
+        {
+            var candidates = actor.Scenario.stations.Where(s => s != null && !actor.IsCompleted(s) &&
+                ConditionRule.AllHold(s.conditions, GameState.Instance)).ToList();
+            string line = "ตอนนี้ยังไม่มีจุดที่ฉันช่วยจับให้ได้ ถ้าพบอะไรที่ต้องช่วยกันค่อยบอกนะ";
+            if (candidates.Count > 0)
+            {
+                var pending = new PendingCompanionHelp { Actor = actor, State = GameState.Instance,
+                    ConversationVersion = dialogue.ConversationVersion, TaskRevision = actor.TaskRevision, RoomId = actor.RoomId };
+                foreach (var station in candidates) pending.CandidateIds.Add(station.id);
+                dialogue.PendingCompanionHelp = pending;
+                CompanionPlaytestTrace.Record("clarification", actor.RoomId, actor.Scenario.npcId,
+                    request: dialogue.ConversationVersion.ToString(), outcome: "asked", target: "help");
+                line = actor.Scenario.helpClarificationLine + "\n" + string.Join(" / ", candidates.Select(s => s.title));
+            }
+            reply = new GeneratedChatReply { reply = line, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
+            return true;
+        }
+
+        private static bool TryResolveHelpClarification(DialogueManager dialogue, string message, out GeneratedChatReply reply)
+        {
+            reply = null;
+            var pending = dialogue.PendingCompanionHelp;
+            dialogue.PendingCompanionHelp = null; // Expire on the very next send, including unrelated talk/refusals.
+            if (pending == null) return false;
+            CompanionPlaytestTrace.Record("clarification_end", pending.RoomId, pending.Actor?.Scenario?.npcId,
+                request: pending.ConversationVersion.ToString(), outcome: "consumed");
+            var actor = pending.Actor;
+            if (actor == null || !actor.CanConverse(dialogue) || pending.State != GameState.Instance ||
+                pending.RoomId != GameState.Instance.GetCurrentScene() || pending.ConversationVersion != dialogue.ConversationVersion ||
+                pending.TaskRevision != actor.TaskRevision) return false;
+            string text = WithoutAddress(Normalize(message), actor.Scenario).Trim();
+            if (RulesVeto(text, CompanionCommand.Help)) return false;
+            var targets = actor.Scenario.stations.Where(s => s != null && pending.CandidateIds.Contains(s.id) &&
+                IsExactStationAnswer(text, s)).ToList();
+            if (targets.Count != 1) return false;
+            string line;
+            actor.ApplyDialogueCommand(dialogue, CompanionCommand.Help, targets[0], out line);
+            CompanionPlaytestTrace.Record("clarification_resolved", actor.RoomId, actor.Scenario.npcId,
+                target: targets[0].id, request: dialogue.ConversationVersion.ToString(), outcome: "matched");
+            reply = new GeneratedChatReply { reply = line, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
             return true;
         }
 
@@ -602,6 +657,11 @@ namespace MysteryGame.Companions
             if (command == CompanionCommand.None) return false;
 
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
+            // A name is an answer only to our pending question, consumed above.
+            // A model proposal cannot turn a bare object name into fresh consent.
+            if ((command == CompanionCommand.Help || command == CompanionCommand.Search) &&
+                actor.Scenario.stations.Any(s => s != null && IsExactStationAnswer(text, s)))
+                return false;
             if (RulesVeto(text, command)) return false;
             text = CurrentRequest(text, actor.Scenario);
             // A model's movement proposal needs a direct movement request.
