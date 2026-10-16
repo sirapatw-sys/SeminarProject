@@ -32,6 +32,9 @@ namespace MysteryGame.Companions
         public bool CanCommand { get { return CanAct && Vector2.Distance(Feet, PlayerFeet) <= Scenario.commandDistance; } }
         public bool CanStop { get { return CanAct && (CanCommand || Mode != CompanionMode.Waiting); } }
         public bool HasBubble { get { return !string.IsNullOrEmpty(Bubble) && bubbleSeconds > 0f; } }
+        public bool HasDiscoveryInvitation { get { return isActiveAndEnabled && state != null && state == GameState.Instance &&
+            Scenario != null && Mode != CompanionMode.Searching && ActiveStation == null &&
+            CompanionDiscovery.Pending(Scenario, state, RoomId).Count > 0; } }
         private Transform player;
         private Collider2D playerArea;
         private Vector2 feetOffset;
@@ -310,6 +313,15 @@ namespace MysteryGame.Companions
             state.SetFlag(Scenario.Flag(station.id + ".invitation_read"));
             return state.GetRelationship(Scenario.npcId) >= 70 && !string.IsNullOrWhiteSpace(station.trustedInvitationLine)
                 ? station.trustedInvitationLine : station.invitationLine;
+        }
+        public string ReadDiscoveryReport()
+        {
+            if (!CanCommand || !HasDiscoveryInvitation) return null;
+            var facts = CompanionDiscovery.Pending(Scenario, state, RoomId);
+            var shown = facts.GetRange(0, Mathf.Min(CompanionDiscovery.ReportLimit, facts.Count));
+            string line = CompanionDiscovery.ReportText(Scenario, shown);
+            CompanionDiscovery.Acknowledge(Scenario, state, RoomId, shown.ConvertAll(f => f.factId));
+            return line;
         }
         public bool IsHolding(string interactionId)
         {

@@ -37,7 +37,9 @@ namespace MysteryGame.Companions
             var context = NpcKnowledgeContextBuilder.Build(scenario.npcId, roomId, state, true);
             if (query.Kind == ReasoningQueryKind.Report)
             {
-                var facts = context.KnownFacts.Where(f => f.canShareAsEvidence && !f.isPuzzleAnswer && !f.isPuzzleGuidance).Take(3).ToList();
+                var facts = CompanionDiscovery.PrioritizePending(scenario, state, roomId,
+                    context.KnownFacts.Where(f => f.canShareAsEvidence && !f.isPuzzleAnswer && !f.isPuzzleGuidance))
+                    .Take(CompanionDiscovery.ReportLimit).ToList();
                 reply = Reply(facts.Count == 0 ? scenario.noEvidenceLine :
                     "...สิ่งที่ฉันตรวจสอบได้ตอนนี้:\n" + string.Join("\n", facts.Select(f => f.statement)),
                     facts.Select(f => f.factId).ToArray());

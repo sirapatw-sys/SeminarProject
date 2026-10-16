@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using MysteryGame.Core;
 using MysteryGame.Knowledge;
+using CompanionFramework;
 
 namespace MysteryGame.Companions
 {
@@ -23,7 +24,12 @@ namespace MysteryGame.Companions
             if (actor == null || !actor.CanConverse(DialogueManager.Instance)) return false;
             var state = GameState.Instance;
             if (CompanionReflection.TryReply(actor.Scenario, state, message, out reply)) return true;
-            if (CompanionReasoning.TryReply(actor.Scenario, state, actor.RoomId, message, out reply)) return true;
+            if (CompanionReasoning.TryReply(actor.Scenario, state, actor.RoomId, message, out reply))
+            {
+                if (ReasoningQueryMatcher.Read(actor.Scenario.reasoningProfile, message).Kind == ReasoningQueryKind.Report)
+                    CompanionDiscovery.Acknowledge(actor.Scenario, state, actor.RoomId, reply.referencedFactIds);
+                return true;
+            }
             var share = Share.Match(message.Trim());
             string line = null;
             if (share.Success)

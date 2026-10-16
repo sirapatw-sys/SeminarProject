@@ -12,6 +12,16 @@ namespace MysteryGame.Companions
         private GUIStyle caption, bubble, bluePad, goldPad;
         private readonly System.Collections.Generic.List<Texture2D> textures = new System.Collections.Generic.List<Texture2D>();
         private void Awake() { actor = GetComponent<NpcCompanionController>(); }
+        public bool DiscoveryIndicatorVisible
+        {
+            get
+            {
+                var events = GetComponent<NpcEventController>();
+                return actor != null && actor.HasDiscoveryInvitation && !actor.HasBubble &&
+                    !InputGate.IsBlocked && !ItemPopupUI.IsBusy &&
+                    (events == null || !events.isActiveAndEnabled || !events.HasPendingEvent);
+            }
+        }
         private Texture2D Background(Color color, int radius)
         { var texture = ModalGui.Rounded(color, radius); textures.Add(texture); return texture; }
         private GUIStyle Style(Color color, int size, TextAnchor alignment, int radius = 12)
@@ -69,7 +79,9 @@ namespace MysteryGame.Companions
                 float height = Mathf.Clamp(bubble.CalcHeight(new GUIContent(actor.Bubble), width), 40f, 112f);
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, actor.Bubble, bubble, new Vector2(width, height));
             }
-            if (!actor.HasBubble && actor.Invitation != null)
+            if (DiscoveryIndicatorVisible)
+                DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "!", goldPad, new Vector2(32f, 36f));
+            else if (!actor.HasBubble && actor.Invitation != null)
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "?", goldPad, new Vector2(32f, 36f));
             GUI.matrix = previous; GUI.color = previousColor; GUI.enabled = previousEnabled; GUI.depth = previousDepth;
         }

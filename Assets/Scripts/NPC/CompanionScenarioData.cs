@@ -103,6 +103,7 @@ namespace MysteryGame.Companions
         public List<CompanionDiscussion> discussions = new List<CompanionDiscussion>();
         public CompanionFramework.ReasoningProfile reasoningProfile;
         [TextArea] public string noEvidenceLine = "ฉันยังไม่มีหลักฐานที่ตรวจสอบได้ เอาสิ่งที่เธอพบมาให้ดู หรือชวนฉันไปสำรวจด้วยกันได้นะ";
+        [TextArea] public string discoveryReportLine = "...ฉันมีสิ่งที่เพิ่งตรวจพบอยากเล่าให้ฟัง:";
         [TextArea] public string unverifiedOutcomeLine = "...ฉันยังไม่ได้เห็นว่าเกิดอะไรขึ้น เล่าให้ฟังหน่อย หรือไปลองดูด้วยกันก่อนนะ";
         public List<CompanionSearchSpot> searchSpots = new List<CompanionSearchSpot>();
         [TextArea] public string searchRequestLine = "ฉันจะสำรวจบริเวณที่เดินถึงและตรวจสิ่งที่เห็น ถ้าเจอหลักฐานจะบอกนะ";
@@ -188,7 +189,7 @@ namespace MysteryGame.Companions
         public IEnumerable<string> SpokenLines()
         {
             foreach (string line in new[] { welcomeLine, followLine, waitLine, blockedLine, releaseLine, comfortLine,
-                comfortRepeatLine, searchRequestLine, searchScopeLine, searchFinishedLine, noEvidenceLine, unverifiedOutcomeLine }) yield return line;
+                comfortRepeatLine, searchRequestLine, searchScopeLine, searchFinishedLine, noEvidenceLine, discoveryReportLine, unverifiedOutcomeLine }) yield return line;
             if (reasoningProfile != null) foreach (string line in reasoningProfile.SpokenLines()) yield return line;
             if (stations != null) foreach (var station in stations) if (station != null)
                 foreach (string line in new[] { station.instructions, station.requestLine, station.holdingLine,

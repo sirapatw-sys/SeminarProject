@@ -324,7 +324,7 @@ public class DialogueManager : MonoBehaviour
         if (!isEvent && companion != null && companion.CanCommand)
         {
             companion.RefreshInvitation();
-            companionInvitation = companion.ReadInvitation();
+            companionInvitation = companion.ReadDiscoveryReport() ?? companion.ReadInvitation();
         }
         ConversationVersion++;
         dialoguePanel.SetActive(true);
