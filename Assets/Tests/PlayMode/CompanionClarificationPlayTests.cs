@@ -23,12 +23,18 @@ public class CompanionClarificationPlayTests
         public bool Available;
         public int Calls;
         public string Action;
+        public string Failure;
         public bool CanGenerate => Available;
         public string LastError => "";
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> done) { done(null); yield break; }
         public IEnumerator GenerateReply(string id, string name, string context, string message,
             Action<GeneratedChatReply> done, string personality = null)
-        { Calls++; done(new GeneratedChatReply { reply = "อืม", companionAction = Action, referencedFactIds = Array.Empty<string>() }); yield break; }
+        {
+            Calls++;
+            if (Failure == "throw") throw new InvalidOperationException("Simulated provider failure");
+            if (Failure == "hang") { while (true) yield return null; }
+            done(Failure == "null" ? null : new GeneratedChatReply { reply = "อืม", companionAction = Action, referencedFactIds = Array.Empty<string>() }); yield break;
+        }
     }
     static void Title(bool v) { typeof(TitleMenu).GetProperty("IsOpen").SetValue(null, v); }
     static void Intro(bool v) { typeof(IntroSequence).GetProperty("IsPlaying").SetValue(null, v); }
@@ -67,6 +73,103 @@ public class CompanionClarificationPlayTests
     { ((TMPro.TMP_InputField)typeof(DialogueManager).GetField("chatInput", Private).GetValue(DialogueManager.Instance)).text = text; DialogueManager.Instance.SendTypedMessage(); }
     void Tick(float seconds) { for (int i = 0; i < seconds / 0.05f; i++) { actor.Tick(0.05f); Physics2D.SyncTransforms(); } }
 
+    [UnityTest]
+    public IEnumerator RecognizedInvitationsDoNotDependOnProviderAvailabilityOrFailure()
+    {
+        Chat();
+        foreach (string failure in new[] { "null", "throw", "hang" })
+        foreach (string message in new[] { "ขอให้เธอมาตรวจหลักฐานเป็นเพื่อนหน่อย", "อยากให้เธอมาอยู่ข้างๆตอนเราดูหลักฐาน", "มาช่วยดูอันนี้ด้วยกันหน่อย", "มาดูอันนี้ด้วยกันหน่อยนะจ๊ะ" })
+        {
+            provider.Available = true; provider.Failure = failure;
+            Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following), message + " / " + failure);
+            Assert.That(provider.Calls, Is.Zero, "A verified local invitation must never start the unreliable provider.");
+            Send("หยุดเดิน"); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        }
+    }
+    [UnityTest]
+    public IEnumerator ModelCanReadValidEvidenceWithoutRequiringEveryWordInTheLocalFiller()
+    {
+        provider.Available = true; provider.Action = "read:desk_note"; State.SetFlag("found_note"); Chat();
+        Send("ช่วยอ่านโน้ตให้ฟังหน่อยนะจ๊ะ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("2 · 9 · 5 · 4"));
+        foreach (string message in new[] { "ช่วยอ่านข้อความในโน้ตนี้ให้เราฟังอีกครั้งได้ไหม", "ช่วยอ่านข้อความที่อยู่บนโน้ตนี้ให้เราฟังอีกครั้งได้ไหม", "ช่วยอ่านข้อความในโน้ตนี้กับเราอีกครั้งได้ไหม" })
+        {
+            int calls = provider.Calls; Send(message); yield return null;
+            Assert.That(provider.Calls, Is.EqualTo(calls + 1), "Exercise semantic model interpretation, not an expanded local filler list.");
+            Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("2 · 9 · 5 · 4"));
+        }
+    }
+    [UnityTest]
+    public IEnumerator ModelCanInterpretInvitationWithNewNonActionWording()
+    {
+        provider.Available = true; provider.Action = "inspect_together"; Chat();
+        Send("ช่วยมาดูด้วยกันสักครู่ได้ไหม"); yield return null;
+        Assert.That(provider.Calls, Is.EqualTo(1)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+    }
+    [UnityTest]
+    public IEnumerator SemanticReadPreservesVerifiedFocusAndAsksBeforeChoosingAmbiguousEvidence()
+    {
+        State.SetFlag("found_note"); provider.Available = true; provider.Action = "read:desk_note"; Chat();
+        Send("โน้ต"); yield return null;
+        Send("ช่วยอ่านอันนี้ให้เราฟังอีกครั้งได้ไหม"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("2 · 9 · 5 · 4"));
+        DialogueManager.Instance.HideDialogue(); State.ResetState(); State.SetFlag("inspected_painting"); State.SetFlag("found_note"); PositionForQuestion(); Chat();
+        Send("ช่วยอ่านอันนี้ให้เราฟังอีกครั้งได้ไหม"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ชิ้นไหน"));
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        Send("โน้ตค่ะ"); yield return null;
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.True);
+    }
+    [UnityTest]
+    public IEnumerator SemanticReadStillRejectsUnseenFactsWrongTargetsAndWrongOperations()
+    {
+        provider.Available = true; provider.Action = "read:desk_note"; Chat();
+        Send("ช่วยอ่านข้อความในโน้ตนี้ให้เราฟังอีกครั้งได้ไหม"); yield return null;
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        State.SetFlag("found_note"); provider.Action = "read:painting_arrow";
+        Send("ช่วยอ่านข้อความในโน้ตนี้ให้เราฟังอีกครั้งได้ไหม"); yield return null;
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "painting_arrow"), Is.False);
+        provider.Action = "show:desk_note";
+        Send("ช่วยอ่านข้อความในโน้ตนี้ให้เราฟังอีกครั้งได้ไหม"); yield return null;
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        provider.Action = "read:drawer_code";
+        Send("ช่วยอ่านข้อความในโน้ตนี้ให้เราฟังอีกครั้งได้ไหม"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain("4592"));
+        Assert.That(State.HasFlag("drawer_opened"), Is.False);
+    }
+    [UnityTest]
+    public IEnumerator SemanticProposalsCannotOverrideSpeechActsOrInventObjectDestinations()
+    {
+        State.SetFlag("found_note"); provider.Available = true; Chat();
+        foreach (string message in new[] { "ไม่ต้องอ่านข้อความในโน้ตนี้ให้ฟังนะจ๊ะ", "ถ้าช่วยอ่านข้อความในโน้ตนี้ให้ฟัง", "\"ช่วยอ่านข้อความในโน้ตนี้ให้ฟัง\"", "ฉันอยากอ่านข้อความในโน้ตนี้", "ช่วยอ่านความรู้สึกจากโน้ตนี้", "ช่วยอ่านโน้ตเล่มอื่นให้ฟัง", "ช่วยอ่านโน้ตแล้วเปิดกล่อง", "ช่วยอ่านโน้ตกับจดหมายหน่อย", "ช่วยอ่านโน้ตออกไหม", "ช่วยอ่านโน้ตจากขวาไปซ้ายให้ฟัง" })
+        {
+            provider.Action = "read:desk_note"; Send(message); yield return null;
+            Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False, message);
+        }
+        foreach (string message in new[] { "ไม่ต้องมาดูด้วยกันสักครู่", "ถ้ามาดูด้วยกันสักครู่", "\"มาดูด้วยกันสักครู่\"", "มาดูประตูด้วยกันสักครู่", "มาดูเก้าอี้ด้วยกันสักครู่", "มาดูด้วยกันสักครู่ที่ประตู", "มาดูด้วยกันแล้วเปิดกล่อง", "มาดูด้วยกันเสร็จแล้วใช่ไหม" })
+        {
+            provider.Action = "inspect_together"; Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message);
+        }
+    }
+    [UnityTest]
+    public IEnumerator SemanticPromptConstructionDoesNotTeachFactsOrGrantHintRights()
+    {
+        State.SetFlag("found_note"); State.SetRelationship("Alice", 10); Chat();
+        foreach (string message in new[] { "ช่วยอ่านข้อความในโน้ตนี้ให้เราฟังอีกครั้งได้ไหม", "ช่วยมาดูด้วยกันสักครู่ได้ไหม" })
+        {
+            var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(context.PlayerAskedForHint, Is.False, message);
+            Assert.That(context.CompanionActions.Any(a => a.Id == "read:desk_note"), Is.True);
+            Assert.That(context.CompanionActions.Any(a => a.Id == "read:drawer_code"), Is.False);
+            Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
+        }
+        Assert.That(AiDialogueGenerator.BuildKnowledgeContext("Alice", "ช่วยอ่านโน้ตจากขวาไปซ้ายได้รหัสอะไร").PlayerAskedForHint, Is.True);
+        yield return null;
+    }
     [UnityTest]
     public IEnumerator NaturalInvitationStartsFollowingAndExplainsWhenMovementBegins()
     {
@@ -187,15 +290,15 @@ public class CompanionClarificationPlayTests
         }
     }
     [UnityTest]
-    public IEnumerator ModelCanInterpretBoundedInvitationAndStopStillCancelsImmediately()
+    public IEnumerator RecognizedInvitationAndStopResolveLocallyEvenWithAnOnlineProvider()
     {
         provider.Available = true; provider.Action = "inspect_together"; Chat();
         Send("ขอให้เธอมาตรวจหลักฐานเป็นเพื่อนหน่อย"); yield return null;
-        Assert.That(provider.Calls, Is.EqualTo(1)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        Assert.That(provider.Calls, Is.Zero); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
         int calls = provider.Calls; Send("หยุดเดิน"); yield return null;
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); Assert.That(provider.Calls, Is.EqualTo(calls));
         Send("อยากให้เธอมาอยู่ข้างๆตอนเราดูหลักฐาน"); yield return null;
-        Assert.That(provider.Calls, Is.EqualTo(calls + 1)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+        Assert.That(provider.Calls, Is.EqualTo(calls)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
     }
     [UnityTest]
     public IEnumerator TypedShowingTeachesOnlyThatEvidenceAndRepeatedShowingHasNoReward()

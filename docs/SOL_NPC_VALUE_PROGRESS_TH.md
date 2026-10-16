@@ -1,4 +1,6 @@
 # ความคืบหน้าแผนคุณค่า NPC
+ล่าสุดแก้ review ของ Natural Companion: แยก semantic proposal จาก local word list และให้คำชวนที่ยืนยันแล้วทำงานทันทีโดยไม่ขึ้นกับ provider ดู [รายงานแก้ไขและเดโมล่าสุด](NATURAL_COMPANION_REVIEW_FIX_20261016_TH.md) ผ่าน EditMode 1281/1281 และ PlayMode 301/301 ใช้ provider จำลอง รุ่น ZIP ก่อนหน้าด้านล่างเป็นประวัติ ไม่รวมการแก้รอบนี้
+
 อัปเดต Natural Companion: เพิ่มคำชวนไปดูด้วยกัน อ่านหลักฐานที่พบแล้วแม้ความสัมพันธ์ต่ำ และบริบท “อันนี้” พร้อมถามกลับเมื่อไม่ชัดเจน ดู [สิ่งที่แก้และหลักฐานล่าสุด](NATURAL_COMPANION_DELIVERY_20261016_TH.md) และ [วิธีลอง](AI_ENABLED_DEMO_TH.md#ลองคุยและสำรวจในห้องแรก) รุ่น source ล่าสุดผ่าน EditMode 1281/1281 และ PlayMode 294/294 ใช้ provider จำลอง ไม่มีผล KKU จริงหรือ local model
 
 อัปเดตเดโม: มีรุ่น AI-Enabled แยกจาก offline แล้ว พร้อมแก้ข้อความบันทึกตั้งค่า ดู [วิธีเปิด AI จริง](AI_ENABLED_DEMO_TH.md) และ [หลักฐานส่งมอบรุ่น AI](AI_ENABLED_DELIVERY_20261016_TH.md) ชุดล่าสุดผ่าน EditMode 1281/1281 และ PlayMode 279/279 โดยยังไม่ได้ยิง provider จริง

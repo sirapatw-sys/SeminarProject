@@ -34,14 +34,47 @@ namespace MysteryGame.Companions
         static readonly Regex JoinLook = R(@"ดู|สำรวจ|ตรวจ|\b(?:look|inspect|explore)\b");
         static readonly Regex JoinTogether = R(@"ด้วยกัน|เป็นเพื่อน|กับ(?:เรา|ฉัน)|ข้าง\s*ๆ|\b(?:together|with\s+me)\b");
         static readonly Regex JoinFiller = R(@"อยากให้|ขอให้|กรุณา|โปรด|ตอน|อยู่|ข้าง\s*ๆ|ช่วย|มา|ไป|เดิน|ตาม|ตรวจ|สำรวจ|ดู|หลักฐาน|ด้วยกัน|เป็นเพื่อน|กับ|เรา|ฉัน|เธอ|คุณ|หน่อย|ที|สิ|นะ|ครับ|ค่ะ|คะ|ได้ไหม|ได้มั้ย|ก่อน|\b(?:please|can|could|would|will|you|come|go|walk|join|accompany|and|look|inspect|explore|together|with|me|us|evidence)\b|[\s.!?…]+");
+        static readonly Regex PoliteTail = R(@"(?:\s*(?:นะ|จ๊ะ|จ้ะ|จ้า|ครับ|ค่ะ|คะ)){1,6}[\s.!?…]*$");
+        static readonly Regex Reference = R(@"อันนี้|ชิ้นนี้|ตรงนี้|\b(?:this|here|it)\b");
+        const string RequestLead = @"(?:(?:เธอ|คุณ|ช่วย|ขอให้|อยากให้|พอจะ|รบกวน|กรุณา|โปรด|แวะ|please|(?:can|could|would|will)\s+you)\s*){0,6}";
+        static readonly Regex DirectRead = R(@"^" + RequestLead + @"(?:อ่าน|ดูข้อความ|ถอดข้อความ|\b(?:read|transcribe)\b)");
+        static readonly Regex DirectShow = R(@"^" + RequestLead + @"(?:ส่ง|เอา|แบ่งปัน|ดู|\b(?:show|share)\b)");
+        static readonly Regex DirectJoin = R(@"^" + RequestLead + @"(?:มา|ไป|เดิน|ตาม|\b(?:come|go|walk|join|accompany)\b)");
+        static readonly Regex JoinLookTarget = R(@"(?:ดู|ตรวจ(?:ดู)?|สำรวจ|\b(?:look|inspect|explore)\b)\s*(?:อันนี้|ชิ้นนี้|ตรงนี้|หลักฐาน|ด้วยกัน|เป็นเพื่อน|กับเรา|กับฉัน|\b(?:this|here|it|evidence|together|with\s+me)\b)");
+        // The model may interpret connective prose, never a second action,
+        // alternative object, figurative reading, or an unsupported destination.
+        static readonly Regex SemanticConflict = R(@"แล้ว|จากนั้น|และ|กับ|หรือ(?!เปล่า)|แทน|อื่น|เปิด|ปิด|หยิบ|จับ|ยก|ค้น|หยุด|ยกเลิก|ตีความ|แปลความ|สรุป|ย่อ|แต่ง|ไม่ออก|ออก(?:ไหม|มั้ย)|ความรู้สึก|อ่านใจ|สีหน้า|อนาคต|\b(?:and|then|or|instead|other|another|different|open|close|hold|lift|search|stop|cancel|interpret|summarize|translate|feelings?|mind|future)\b");
+        static readonly Regex ForeignLocation = R(@"ประตู|ลิ้นชัก|โต๊ะ|เก้าอี้|กล่อง|กำแพง|หน้าต่าง|(?:ไป|มา)(?:ที่|ตรง)|(?:ที่|ตรง|แถว)(?!นี้|นี่)|ข้าง(?!\s*ๆ)|\b(?:door|drawer|chair|painting|at|towards|near)\b");
+        static readonly Regex OtherEvidenceTarget = R(@"ประตู|ลิ้นชัก|โต๊ะ|เก้าอี้|กล่อง|กำแพง|หน้าต่าง|\b(?:door|drawer|chair|painting)\b");
 
         static readonly Regex SelfReading = R(@"(?:เรา|ฉัน|ผม)(?:(?:จะ|อยาก)(?!ให้)|กำลัง|เคย|อ่าน)|ให้(?:เรา|ฉัน|ผม)อ่าน|\bi\s+(?:want(?!\s+you)|will|am|was|read)\b");
         static bool Consent(string message) => !SelfReading.IsMatch(Key(message)) && !CompanionDialogueCommands.RulesVeto(message, CompanionCommand.Help);
-        public static bool IsEvidenceRequest(string message, RoomKnowledgeData room) => room != null && Consent(message) &&
+        static bool IsLocalEvidenceRequest(string message, RoomKnowledgeData room) => room != null && Consent(message) &&
             !Puzzle.IsMatch(Key(message)) && (Read.IsMatch(Key(message)) || Show.IsMatch(Key(message))) &&
             OnlyNames(message, Named(message, room.facts));
+        public static bool IsEvidenceRequest(string message, RoomKnowledgeData room)
+        {
+            if (IsLocalEvidenceRequest(message, room)) return true;
+            if (room == null || !Consent(message) || Puzzle.IsMatch(Key(message)) ||
+                (!DirectRead.IsMatch(Key(message)) && !DirectShow.IsMatch(Key(message)))) return false;
+            var named = Named(message, room.facts);
+            return (named.Count > 0 || Reference.IsMatch(Key(message))) &&
+                !SemanticConflict.IsMatch(JoinTogether.Replace(WithoutNames(message, named), " ")) && !OtherEvidenceTarget.IsMatch(WithoutNames(message, named));
+        }
         public static bool IsJoinRequest(string message) => Consent(message) && JoinMovement.IsMatch(Key(message)) &&
-            JoinLook.IsMatch(Key(message)) && JoinTogether.IsMatch(Key(message)) && JoinFiller.Replace(Key(message), "").Length == 0;
+            JoinLook.IsMatch(Key(message)) && (JoinTogether.IsMatch(Key(message)) || Reference.IsMatch(Key(message))) &&
+            JoinFiller.Replace(Reference.Replace(PoliteTail.Replace(Key(message), ""), ""), "").Length == 0;
+        public static bool CanProposeJoin(string message, RoomKnowledgeData room)
+        {
+            string text = Key(message);
+            if (!Consent(message) || !DirectJoin.IsMatch(text) || !JoinLookTarget.IsMatch(text) ||
+                !(JoinTogether.IsMatch(text) || Reference.IsMatch(text)) || Puzzle.IsMatch(text) ||
+                SemanticConflict.IsMatch(JoinTogether.Replace(text, " ")) || ForeignLocation.IsMatch(text)) return false;
+            // Named scene objects belong to their authored activity, not a
+            // generic accompany-player action. Never substitute destinations.
+            return room == null || room.gameplayTerms == null || !room.gameplayTerms.Any(term =>
+                !string.IsNullOrWhiteSpace(term) && Regex.IsMatch(text, NamePattern(Key(term))));
+        }
 
         static GeneratedChatReply Reply(string line, params string[] facts) => new GeneratedChatReply {
             reply = line, relationshipDelta = 0, referencedFactIds = facts ?? Array.Empty<string>() };
@@ -89,14 +122,10 @@ namespace MysteryGame.Companions
             if (a == null || !a.CanConverse(d)) { d.ReadingContext = null; return false; }
             var old = Valid(d, a, d.ReadingContext) ? d.ReadingContext : null;
             d.ReadingContext = null; // Next unrelated turn, refusal or task change expires the focus/question.
-            if (Consent(message) && JoinFast.IsMatch(Key(message))) return Join(d, a, out reply);
-            // A longer invitation is classified by the provider, not mistaken
-            // for showing evidence because it also contains "ให้...ดู".
-            if (IsJoinRequest(message))
-            {
-                if (DialogueProviders.Current == null || !DialogueProviders.Current.CanGenerate) return Join(d, a, out reply);
-                return false;
-            }
+            if ((Consent(message) && JoinFast.IsMatch(PoliteTail.Replace(Key(message), ""))) || IsJoinRequest(message))
+                return Join(d, a, out reply); // Verified requests never depend on provider health.
+            var room = KnowledgeLibrary.GetRoom(a.RoomId);
+            if (CanProposeJoin(message, room)) return false;
             var available = EvidenceSharing.Available(GameState.Instance, a.Scenario.npcId);
             if (old != null && old.Pending && Consent(message))
             {
@@ -104,8 +133,16 @@ namespace MysteryGame.Companions
                 if (answers.Count == 1 && OnlyNames(message, answers, true))
                     return ReadEvidence(d, a, answers[0], old.Show, out reply);
             }
-            if (IsEvidenceRequest(message, KnowledgeLibrary.GetRoom(a.RoomId)))
+            if (IsLocalEvidenceRequest(message, room))
                 return Resolve(d, a, message, Show.IsMatch(Key(message)) && !Read.IsMatch(Key(message)), old, null, out reply);
+            if (IsEvidenceRequest(message, room))
+            {
+                // Preserve only a verified previous focus during this request;
+                // a pending short-answer authorization is still consumed now.
+                if (old != null && old.FocusId != null)
+                { d.ReadingContext = NewContext(d, a); d.ReadingContext.FocusId = old.FocusId; }
+                return false;
+            }
             // A mention sets focus, not knowledge. Only the very next turn may refer to it.
             if (Consent(message))
             {
@@ -115,21 +152,23 @@ namespace MysteryGame.Companions
             return false;
         }
 
-        static bool OnlyNames(string message, List<RoomFact> facts, bool shortAnswer = false)
+        static string WithoutNames(string message, List<RoomFact> facts)
         {
             string remaining = Key(message);
             foreach (string name in facts.SelectMany(Names).Distinct().OrderByDescending(n => n.Length))
                 remaining = remaining.Replace(name, " ");
-            return (shortAnswer ? ShortFiller : ReadFiller).Replace(remaining, "").Length == 0;
+            return remaining;
         }
+        static bool OnlyNames(string message, List<RoomFact> facts, bool shortAnswer = false) =>
+            (shortAnswer ? ShortFiller : ReadFiller).Replace(PoliteTail.Replace(WithoutNames(message, facts), ""), "").Length == 0;
         static bool Resolve(DialogueManager d, NpcCompanionController a, string message, bool show,
-            CompanionReadingContext old, string proposedId, out GeneratedChatReply reply)
+            CompanionReadingContext old, string proposedId, out GeneratedChatReply reply, bool semantic = false)
         {
             var available = EvidenceSharing.Available(GameState.Instance, a.Scenario.npcId);
             var room = KnowledgeLibrary.GetRoom(a.RoomId);
             var named = Named(message, room.facts);
             // Named but unseen/forbidden evidence is never replaced by an available one.
-            if (named.Any(f => !available.Contains(f)) || !OnlyNames(message, named))
+            if (named.Any(f => !available.Contains(f)) || !semantic && !OnlyNames(message, named))
             { reply = Reply("ฉันยังอ่านสิ่งนั้นให้ไม่ได้ ส่งชื่อหลักฐานที่เธอค้นพบแล้วให้ชัดเจนก่อนนะ"); return true; }
             var candidates = named.Count > 0 ? named : old != null && old.FocusId != null
                 ? available.Where(f => f.factId == old.FocusId).ToList() : available;
@@ -166,15 +205,17 @@ namespace MysteryGame.Companions
         {
             reply = null;
             if (string.IsNullOrWhiteSpace(action) || a == null || !a.CanConverse(d)) return false;
-            if ((action == CompanionActionOption.InspectTogether || action == CompanionActionOption.Follow) && IsJoinRequest(message)) return Join(d, a, out reply);
+            var room = KnowledgeLibrary.GetRoom(a.RoomId);
+            if ((action == CompanionActionOption.InspectTogether || action == CompanionActionOption.Follow) &&
+                (IsJoinRequest(message) || CanProposeJoin(message, room))) return Join(d, a, out reply);
             bool show = action.StartsWith(CompanionActionOption.ShowPrefix, StringComparison.Ordinal);
             if ((!show && !action.StartsWith(CompanionActionOption.ReadPrefix, StringComparison.Ordinal)) ||
-                !IsEvidenceRequest(message, KnowledgeLibrary.GetRoom(a.RoomId))) return false;
+                !IsEvidenceRequest(message, room)) return false;
             string id = action.Substring((show ? CompanionActionOption.ShowPrefix : CompanionActionOption.ReadPrefix).Length);
             // The proposal may not change the player's requested operation or target.
             if (show != (Show.IsMatch(Key(message)) && !Read.IsMatch(Key(message))) ||
                 !EvidenceSharing.Available(GameState.Instance, a.Scenario.npcId).Any(f => f.factId == id)) return false;
-            return Resolve(d, a, message, show, Valid(d, a, d.ReadingContext) ? d.ReadingContext : null, id, out reply);
+            return Resolve(d, a, message, show, Valid(d, a, d.ReadingContext) ? d.ReadingContext : null, id, out reply, true);
         }
     }
 }

@@ -38,7 +38,8 @@ namespace MysteryGame.Knowledge
             }
             var context = Build(npcId, roomId, state,
                 !(companion && (MysteryGame.Companions.CompanionNaturalRequests.IsEvidenceRequest(message, room) ||
-                    MysteryGame.Companions.CompanionNaturalRequests.IsJoinRequest(message))) &&
+                    MysteryGame.Companions.CompanionNaturalRequests.IsJoinRequest(message) ||
+                    MysteryGame.Companions.CompanionNaturalRequests.CanProposeJoin(message, room))) &&
                 PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
             if (companion)
             {
