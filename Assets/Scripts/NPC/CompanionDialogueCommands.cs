@@ -57,6 +57,12 @@ namespace MysteryGame.Companions
         private static readonly Regex FollowProposalVerb = R(
             @"เดิน|ตาม|มา(?:กับ|ด้วย|นี่|ตรงนี้)|ไป(?:กับ|ด้วย|กัน)|\b(?:walk|follow|come|go)\b");
         private static readonly Regex WaitProposalVerb = R(@"รอ|หยุด|พัก|อยู่|ยืน|\b(?:wait|stay|stop|pause|stand)\b");
+        // Proposals may interpret a request, but a target or courtesy particle
+        // alone never grants permission. Keep the action verb in the player's text.
+        private static readonly Regex HelpProposalVerb = R(
+            @"(?:(?:ไป|มา|ลองไป|ลอง)\s*)?(?:ช่วย|จับ|ถือ|ประคอง|ยก|เปิด)|\b(?:help|hold|lift|open)\b");
+        private static readonly Regex SearchProposalVerb = R(
+            @"(?:(?:ไป|มา|ลองไป|ลอง)\s*)?(?:ค้น|หา|สำรวจ|ตรวจ|ดู)|\b(?:search|look|find|inspect|explore)\b");
         // Remove only courtesy conditions, not arbitrary if/hypothetical clauses.
         private static readonly Regex CourtesyCondition = R(
             @"^\s*(?:ถ้าว่าง|ถ้าไม่ยุ่ง)" + CourtesyParticles + @"\s*" +
@@ -628,8 +634,8 @@ namespace MysteryGame.Companions
 
         /// <summary>
         /// The model's reading of a message the rules could not classify. The
-        /// rules can only veto (quoted, hypothetical, confirming questions,
-        /// refusals); the controller then checks range, conditions and modals
+        /// rules veto unsafe speech and require positive action intent; the
+        /// controller then checks range, conditions and modals
         /// exactly as for a parsed command. Returns false to keep the model's
         /// own reply (no proposal, a veto, an unknown id, or a no-op).
         /// </summary>
@@ -657,11 +663,6 @@ namespace MysteryGame.Companions
             if (command == CompanionCommand.None) return false;
 
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
-            // A name is an answer only to our pending question, consumed above.
-            // A model proposal cannot turn a bare object name into fresh consent.
-            if ((command == CompanionCommand.Help || command == CompanionCommand.Search) &&
-                actor.Scenario.stations.Any(s => s != null && IsExactStationAnswer(text, s)))
-                return false;
             if (RulesVeto(text, command)) return false;
             text = CurrentRequest(text, actor.Scenario);
             // A model's movement proposal needs a direct movement request.
@@ -702,6 +703,16 @@ namespace MysteryGame.Companions
                 if (named.Count == 1 && station != named[0] &&
                     (command != CompanionCommand.Search || !SearchVerb.IsMatch(text)))
                 { command = CompanionCommand.Help; station = named[0]; }
+                // Check the final action after target correction. A pending
+                // clarification is consumed only by TryResolveHelpClarification;
+                // the model cannot create fresh consent from "the desk".
+                if (command == CompanionCommand.Help &&
+                    !IsDirectAction(text, HelpProposalVerb, actor.Scenario) &&
+                    (station == null || !HasHelp(text, station, actor.Scenario, true)))
+                    return false;
+                if (command == CompanionCommand.Search &&
+                    !IsDirectAction(text, SearchProposalVerb, actor.Scenario))
+                    return false;
                 // No activity named: the request must not name some other object
                 // either ("ช่วยยกเก้าอี้หน่อย" proposed as the box). A social object
                 // stays conversation; anything else is asked about, not guessed.

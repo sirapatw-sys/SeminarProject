@@ -1,4 +1,18 @@
 # ความคืบหน้าแผนคุณค่า NPC
+## ล่าสุด — ทำตามแผนคุณค่า วันที่ 16 ตุลาคม 2026
+
+- แก้ A: AI proposal ต้องมีเจตนาขอช่วย/ค้นจากข้อความจริง ตรวจหลังแก้ target ด้วย ชื่อสิ่งของพร้อม “นี่/ด้วย/the” ไม่เริ่มงาน คำขอจริงและคำตอบหลังถามกลับยังทำงาน
+- เพิ่ม B รุ่นทดลอง: Alice ชวนทบทวนด้วย ! หลังเห็นการลองลิ้นชักไม่สำเร็จจริง ใช้ MiniEventData/DialogueData เดิม เปิดเมื่อผู้เล่นกดคุยและพิมพ์เอง ไม่มี choice/action/reward จากบทชวน อ่านแล้วไม่ซ้ำ ละเลยไม่มีโทษ และหมดอายุเมื่อปริศนาสำเร็จ
+- ผลสุดท้าย: EditMode 1281/1281, PlayMode 277/277; package ในโปรเจกต์แยก EditMode 22/22 และ PlayMode 1/1 ทั้งหมดจำลอง/ออฟไลน์
+- หลักฐานใหม่อยู่ใน Logs/ValueDelivery_20261016/Verified{EditMode,PlayMode}.xml, Package{EditMode,PlayMode}.xml และ ReviewEventFinal.xml (2/2)
+- เตรียม [คู่มือเดโม](ROOM01_DEMO_RUNBOOK_TH.md), [บทพูด 5 นาที](NPC_PRESENTATION_SCRIPT_TH.md), [หน้าแนะนำโครงการ](NPC_PROJECT_SHOWCASE_TH.md), [ภารกิจผู้พัฒนา](COMPANION_DEVELOPER_TRIAL_TH.md) และ [คู่มือ host integration](../FrameworkPackages/com.mysterygame.companion-reasoning/INTEGRATION.md)
+- C ยังรอผู้เล่นจริง; D ผ่านอัตโนมัติและมีชุดทดลองภายใน แต่ยังรอผู้พัฒนาอื่นลองด้วยตนเอง; B ยังรอ visual/audio QA และ feedback ว่าจังหวะใหม่ช่วยหรือรบกวน
+- รายละเอียด build/ZIP/fingerprints และขั้นถัดไป: [VALUE_DELIVERY_20261016_TH.md](VALUE_DELIVERY_20261016_TH.md)
+
+## ประวัติรอบ 27c1626
+
+ข้อกล่าวว่าชื่อเปล่าไม่เริ่มงานในบันทึกเดิมด้านล่างมีช่องโหว่ที่ probe ภายหลังพบ 6/8 combinations และได้แก้พร้อม regression ในรอบล่าสุดข้างต้นแล้ว ตัวเลข suite ด้านล่างเป็นผลของรอบเดิม
+
 วันที่ 16 ตุลาคม 2026 — ทำต่อจาก code cebeda8 และแผน 5cd24c7 ใน codex/npc-cothinking
 
 ## สิ่งที่ส่งมอบรอบนี้

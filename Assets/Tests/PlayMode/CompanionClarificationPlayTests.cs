@@ -92,11 +92,33 @@ public class CompanionClarificationPlayTests
     [UnityTest]
     public IEnumerator ANameWithoutAQuestionCannotBecomeAModelHelpCommand()
     {
-        provider.Available = true; Chat();
+        provider.Available = true;
         foreach (string action in new[] { "help:desk_support", "search" })
+        foreach (string message in new[] { "ขอบโต๊ะ", "ขอบโต๊ะด้วย", "ขอบโต๊ะนี่", "the desk", "กล่องนี้", "the box", "ห้องนี้", "the room" })
         {
-            provider.Action = action; Send("ขอบโต๊ะ"); yield return null;
-            Assert.That(actor.ActiveStation, Is.Null); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), action);
+            DialogueManager.Instance.HideDialogue(); State.ResetState(); State.SetFlag("inspected_painting"); PositionForQuestion(); Chat();
+            provider.Action = action; int calls = provider.Calls; int revision = actor.TaskRevision;
+            int relationship = State.GetRelationship("Alice");
+            Send(message); yield return null;
+            Assert.That(provider.Calls, Is.EqualTo(calls + 1), "Exercise model proposal: " + message);
+            Assert.That(actor.ActiveStation, Is.Null, message + " / " + action);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message + " / " + action);
+            Assert.That(actor.TaskRevision, Is.EqualTo(revision), message);
+            Assert.That(State.GetRelationship("Alice"), Is.EqualTo(relationship), message);
+        }
+    }
+    [UnityTest]
+    public IEnumerator DirectHelpIntentStillAllowsModelInterpretationAndTargetFirstRequests()
+    {
+        provider.Available = true;
+        foreach (string action in new[] { "help:desk_support", "search" })
+        foreach (string message in new[] { "ไปช่วยตรงโต๊ะหน่อยสิ", "มาช่วยตรงโต๊ะหน่อย", "ขอบโต๊ะมันโยกนะช่วยจับไว้หน่อย", "please hold the desk" })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState(); State.SetFlag("inspected_painting"); PositionForQuestion(); Chat();
+            provider.Action = action; Send(message); yield return null;
+            Assert.That(actor.ActiveStation, Is.SameAs(Desk), message + " / " + action);
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.GoingToHelp), message);
+            Assert.That(State.HasFlag("found_note"), Is.False, "A request never completes the physical task.");
         }
     }
     [UnityTest]

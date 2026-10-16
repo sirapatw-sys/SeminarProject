@@ -4,6 +4,10 @@ This is a reusable **evidence reasoning module**, not the entire Mystery Game ru
 It has no dependency on that game's scenes, Resources, GameState, movement, saves, UI or AI provider.
 Unity 2021.3 is the initial verification target.
 
+After the sample, follow [INTEGRATION.md](INTEGRATION.md) for ownership, host wiring,
+theme changes, disclosure rules and troubleshooting. Package distribution rights
+have not yet been declared; confirm them with the owning team before public redistribution.
+
 ## Install in another Unity project
 
 1. Copy this whole package directory to a permanent location.
