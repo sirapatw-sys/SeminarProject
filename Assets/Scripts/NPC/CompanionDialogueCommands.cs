@@ -143,6 +143,7 @@ namespace MysteryGame.Companions
             if (scenario == null || string.IsNullOrWhiteSpace(message) || message.Length > 1000) return CompanionCommand.None;
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), scenario), " ");
             if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text)) return CompanionCommand.None;
+            text = CurrentRequest(text, scenario);
             if (StayRequest.IsMatch(text)) return CompanionCommand.Wait;
             string[] clauses = Clauses.Split(text);
             foreach (string clause in clauses)
@@ -335,18 +336,35 @@ namespace MysteryGame.Companions
                 command == CompanionCommand.Search && actor.Mode == CompanionMode.Searching;
         }
 
-        private static bool EndsWithWithdrawal(string text)
+        // Pure decomposition: cancellation and the remaining request are distinct.
+        // The trusted send path applies the former before evaluating the latter.
+        private static bool TryReadWithdrawal(string text, out string remaining)
         {
-            // An explicit final cancellation can follow a question or an earlier
-            // request, but must never escape quotation/reported/hypothetical speech.
+            remaining = text;
             if (Quoted.IsMatch(text) || NonDirectContext.IsMatch(text)) return false;
-            string last = Clauses.Split(text).LastOrDefault(c => !string.IsNullOrWhiteSpace(c));
-            if (last == null) return false;
-            if (Withdrawal.IsMatch(last)) return true;
-            for (int i = 1; i < last.Length; i++)
-                if (char.IsWhiteSpace(last[i - 1]) && !char.IsWhiteSpace(last[i]) && Withdrawal.IsMatch(last.Substring(i)))
-                    return true;
-            return false;
+            string[] clauses = Clauses.Split(text);
+            int last = -1;
+            for (int i = 0; i < clauses.Length; i++)
+            {
+                bool withdraws = Withdrawal.IsMatch(clauses[i]);
+                for (int c = 1; !withdraws && c < clauses[i].Length; c++)
+                    if (char.IsWhiteSpace(clauses[i][c - 1]) && !char.IsWhiteSpace(clauses[i][c]))
+                    {
+                        string lead = clauses[i].Substring(0, c);
+                        withdraws = !Decline.IsMatch(lead) && !InformationClause.IsMatch(lead) &&
+                            !InformationRequest.IsMatch(lead) && !ActionConfirmation.IsMatch(lead) &&
+                            Withdrawal.IsMatch(clauses[i].Substring(c));
+                    }
+                if (!withdraws) continue;
+                // "cancel that, right?" asks about cancellation, not to do it.
+                int next = i + 1;
+                while (next < clauses.Length && string.IsNullOrWhiteSpace(clauses[next])) next++;
+                if (next < clauses.Length && ConfirmationTag.IsMatch(clauses[next])) continue;
+                last = i;
+            }
+            if (last < 0) return false;
+            remaining = string.Join(", ", clauses, last + 1, clauses.Length - last - 1).Trim();
+            return true;
         }
 
         private static string Normalize(string message)
@@ -392,10 +410,13 @@ namespace MysteryGame.Companions
         // spoken afterwards. Quotes/hypotheticals still veto the whole message.
         private static string AfterLastWithdrawal(string text)
         {
-            string[] clauses = Clauses.Split(text);
-            int last = -1;
-            for (int i = 0; i < clauses.Length; i++) if (Withdrawal.IsMatch(clauses[i])) last = i;
-            return last < 0 ? text : string.Join(", ", clauses, last + 1, clauses.Length - last - 1).Trim();
+            string remaining;
+            return TryReadWithdrawal(text, out remaining) ? remaining : text;
+        }
+
+        private static string CurrentRequest(string text, CompanionScenarioData scenario)
+        {
+            return CourtesyCondition.Replace(WithoutAddress(AfterLastWithdrawal(text), scenario), " ").Trim();
         }
 
         /// <summary>True when a help/search request names something other than
@@ -443,7 +464,25 @@ namespace MysteryGame.Companions
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null) return false;
             string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
-            bool vagueStop = StopWork.IsMatch(normalized) || EndsWithWithdrawal(normalized) || AmbiguousStop.IsMatch(normalized);
+            string remaining;
+            if (actor.CanConverse(dialogue) && TryReadWithdrawal(normalized, out remaining))
+            {
+                bool active = actor.Mode != CompanionMode.Waiting;
+                string stopped = null;
+                if (active) actor.ApplyDialogueCommand(dialogue, CompanionCommand.Wait, null, out stopped);
+                if (string.IsNullOrWhiteSpace(remaining))
+                {
+                    if (!active) return false; // Idle vague refusals remain ordinary conversation.
+                    reply = new GeneratedChatReply { reply = stopped, referencedFactIds = Array.Empty<string>() };
+                    return true;
+                }
+                // Do not let a refused task, conversation or a slow/unavailable
+                // provider undo the cancellation. Only a valid NEW request may
+                // start new work, through the same controller guards as before.
+                normalized = CurrentRequest(remaining, actor.Scenario);
+                message = normalized;
+            }
+            bool vagueStop = StopWork.IsMatch(normalized) || AmbiguousStop.IsMatch(normalized);
             if (vagueStop && actor.Mode == CompanionMode.Waiting) return false;
             if (actor.CanConverse(dialogue) && (vagueStop || CancelsActiveRequest(normalized, actor)))
             {
@@ -499,6 +538,7 @@ namespace MysteryGame.Companions
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null || actor.Scenario == null) return false;
             string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
+            normalized = CurrentRequest(normalized, actor.Scenario);
             if (!IsUnclearActionRequest(normalized) ||
                 AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message).PlayerAskedForHint) return false;
             string line;
@@ -540,7 +580,7 @@ namespace MysteryGame.Companions
 
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
             if (RulesVeto(text, command)) return false;
-            text = AfterLastWithdrawal(text);
+            text = CurrentRequest(text, actor.Scenario);
             // A model's movement proposal needs a direct movement request.
             // Greetings, hand-holding and other social talk do not authorize it.
             if (command == CompanionCommand.Follow && !IsDirectAction(text, FollowProposalVerb, actor.Scenario) ||

@@ -4,6 +4,22 @@ using NUnit.Framework;
 
 public class CompanionCommandTargetTests
 {
+    [TestCase("ยกเลิก, ตามมา", CompanionCommand.Follow)]
+    [TestCase("ยกเลิก, อลิซ ตามมา", CompanionCommand.Follow)]
+    [TestCase("ตามมา ยกเลิก, รอตรงนี้", CompanionCommand.Wait)]
+    [TestCase("follow me scratch that, wait here", CompanionCommand.Wait)]
+    [TestCase("ตามมา, ยกเลิก, ช่วยเปิดกล่อง", CompanionCommand.Help)]
+    [TestCase("ยกเลิก, ช่วยยกเก้าอี้หน่อย", CompanionCommand.None)]
+    [TestCase("ยกเลิก, เธอสบายดีไหม", CompanionCommand.None)]
+    [TestCase("อย่า ยกเลิก", CompanionCommand.None)]
+    [TestCase("ยกเลิก, ใช่ไหม", CompanionCommand.None)]
+    [TestCase("เขาบอกว่า ยกเลิก, ตามมา", CompanionCommand.None)]
+    public void WithdrawalAndRemainingPlanAreParsedWithoutExecutingCancellation(string message, CompanionCommand expected)
+    {
+        CompanionStationData station;
+        Assert.That(CompanionDialogueCommands.Parse(message, KnowledgeLibrary.GetRoom("Room01").companionScenario, out station), Is.EqualTo(expected));
+    }
+
     [TestCase("ช่วยจับขอบโต๊ะกับตู้หนังสือหน่อย")]
     [TestCase("ช่วยจับขอบโต๊ะกับโคมไฟหน่อย")]
     [TestCase("ช่วยยกกล่องกับเก้าอี้หน่อย")]
