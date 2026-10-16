@@ -44,8 +44,6 @@ namespace MysteryGame.Companions
         private float repath, elapsedTask, bubbleSeconds;
         private int searchIndex;
         private float searchProgress;
-        private bool foundSearchEvidence;
-        private string searchReport;
         private bool resumeFollowing;
         private bool followingMoving;
         private Vector2 moveDirection;
@@ -143,7 +141,7 @@ namespace MysteryGame.Companions
             bool follow = Mode == CompanionMode.Following;
             CancelTask(); Mode = CompanionMode.Searching; resumeFollowing = follow;
             TaskRevision++; TaskPhase = CompanionTaskPhase.Moving; LastTaskId = "search";
-            searchIndex = -1; foundSearchEvidence = false; searchReport = null; AdvanceSearch();
+            searchIndex = -1; AdvanceSearch();
             Say(Scenario.searchRequestLine); return ActiveSearchSpot != null;
         }
         private void AdvanceSearch()
@@ -154,7 +152,8 @@ namespace MysteryGame.Companions
                 if (ConditionRule.AllHold(Scenario.searchSpots[searchIndex].conditions, state))
                 { ActiveSearchSpot = Scenario.searchSpots[searchIndex]; TaskPhase = CompanionTaskPhase.Moving; return; }
             bool follow = resumeFollowing;
-            string lastLine = foundSearchEvidence ? searchReport : "ฉันตรวจบริเวณที่ไปถึงแล้ว รอบนี้ยังไม่พบหลักฐานใหม่ที่ยืนยันได้";
+            string lastLine = CompanionDiscovery.Pending(Scenario, state, RoomId).Count > 0
+                ? Scenario.discoveryFoundLine : Scenario.searchNoNewLine;
             CancelTask(); Mode = follow ? CompanionMode.Following : CompanionMode.Waiting;
             TaskPhase = CompanionTaskPhase.Completed;
             Say(lastLine ?? Scenario.searchFinishedLine);
@@ -183,10 +182,11 @@ namespace MysteryGame.Companions
                 state.SetFlag(flag);
                 if (fact.IsRevealed(state))
                 {
+                    bool observed = NpcObservation.Knows(state, Scenario.npcId, RoomId, fact.factId);
                     state.SetFlag(NpcObservation.Flag(Scenario.npcId, RoomId, fact.factId));
-                    foundSearchEvidence = true;
-                    searchReport = (previous ? "ตรวจยืนยันได้ว่า... " : "เจอแล้ว... ") + fact.statement;
-                    Say(searchReport);
+                    // Keep the room reaction short. Canonical details stay in
+                    // the journal and a player-triggered conversation.
+                    if (!observed && fact.canShareAsEvidence) Say(Scenario.discoveryFoundLine);
                     if (state.AddJournalEntry(flag, "หลักฐานที่ " + Scenario.displayName + " พบ: " + fact.EvidenceTitle, fact.statement))
                     {
                         state.AddNpcMemory(Scenario.npcId, Scenario.displayName + " สำรวจและพบหลักฐานด้วยตัวเอง: " + fact.statement);

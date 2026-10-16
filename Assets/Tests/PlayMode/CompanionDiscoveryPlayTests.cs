@@ -75,7 +75,10 @@ public class CompanionDiscoveryPlayTests
         Chat(); Send("ช่วยหาหลักฐานหน่อย"); yield return null; DialogueManager.Instance.HideDialogue(); Tick(40f);
         Assert.That(State.HasFlag(actor.Scenario.SearchFlag("companion_box_marks")), Is.True);
         Assert.That(actor.HasDiscoveryInvitation, Is.True); Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+        Assert.That(actor.Bubble, Is.EqualTo(actor.Scenario.discoveryFoundLine));
+        Assert.That(actor.Bubble, Does.Not.Contain(KnowledgeLibrary.GetRoom("Room01").FindFact("companion_box_marks").statement));
         ClearBubble(); Assert.That(actor.GetComponent<CompanionHud>().DiscoveryIndicatorVisible, Is.True);
+        Assert.That(actor.GetComponent<NPCInteraction>().FocusPrompt, Does.Contain("เพื่อฟังสิ่งที่"));
         PlayerAt(actor.Feet + Vector2.right * 0.8f); int score = State.GetRelationship("Alice"); Chat();
         Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain(KnowledgeLibrary.GetRoom("Room01").FindFact("companion_box_marks").statement));
         Assert.That(actor.HasDiscoveryInvitation, Is.False);
@@ -121,6 +124,8 @@ public class CompanionDiscoveryPlayTests
         DialogueManager.Instance.HideDialogue(); Tick(40f);
         Assert.That(actor.HasDiscoveryInvitation, Is.False); Assert.That(State.GetJournal(), Has.Count.EqualTo(entries));
         Assert.That(State.GetRelationship("Alice"), Is.EqualTo(score));
+        Assert.That(actor.Bubble, Is.EqualTo(actor.Scenario.searchNoNewLine));
+        ClearBubble(); Assert.That(actor.GetComponent<NPCInteraction>().FocusPrompt, Does.Not.Contain("เพื่อฟังสิ่งที่"));
     }
     [UnityTest]
     public IEnumerator HiddenAndOutOfRangeInvitationsCannotBeConsumed()
@@ -142,7 +147,10 @@ public class CompanionDiscoveryPlayTests
         var desk = UnityEngine.Object.FindObjectsOfType<ObjectInteraction>().First(o =>
             ((InteractionData)typeof(ObjectInteraction).GetField("interactionData", Private).GetValue(o)).interactionId == "inspect_desk");
         desk.Interact(); yield return new WaitForSeconds(2.3f); RoomTransitionManager.CloseRoomOverlays();
-        Assert.That(actor.HasDiscoveryInvitation, Is.True); Chat();
+        Assert.That(actor.HasDiscoveryInvitation, Is.True);
+        Assert.That(actor.Bubble, Does.Not.Contain("ลูกศร"));
+        Assert.That(actor.Bubble, Does.Not.Contain("ขวาไปซ้าย"));
+        Chat();
         string text = State.GetConversationLog("Alice").Last().Text;
         Assert.That(text, Does.Contain(KnowledgeLibrary.GetRoom("Room01").FindFact("note_direction").statement));
         Assert.That(text, Does.Not.Contain("2 · 9 · 5 · 4")); Assert.That(text, Does.Not.Contain("4592"));
@@ -161,6 +169,7 @@ public class CompanionDiscoveryPlayTests
             typeof(NpcEventController).GetField("pendingEvent", Private).SetValue(events, beat);
             typeof(NpcEventController).GetField("pendingUntil", Private).SetValue(events, Time.time + 1000f);
             Assert.That(actor.GetComponent<CompanionHud>().DiscoveryIndicatorVisible, Is.False);
+            Assert.That(actor.GetComponent<NPCInteraction>().FocusPrompt, Does.Not.Contain("เพื่อฟังสิ่งที่"));
             actor.GetComponent<NPCInteraction>().Interact();
             Assert.That(DialogueManager.IsDialogueOpen, Is.True); Assert.That(actor.HasDiscoveryInvitation, Is.True);
             DialogueManager.Instance.HideDialogue(); events.enabled = false; Chat();
@@ -168,6 +177,16 @@ public class CompanionDiscoveryPlayTests
         }
         finally { events.enabled = false; UnityEngine.Object.DestroyImmediate(beat); }
         yield return null;
+    }
+    [UnityTest]
+    public IEnumerator RecheckingUnreadEvidenceStillInvitesWithoutRepeatingDetails()
+    {
+        SeedBoxObservation(); Chat(true); Send("ช่วยหาหลักฐานหน่อย"); yield return null;
+        DialogueManager.Instance.HideDialogue(); Tick(40f);
+        Assert.That(actor.HasDiscoveryInvitation, Is.True);
+        Assert.That(actor.Bubble, Is.EqualTo(actor.Scenario.discoveryFoundLine));
+        Assert.That(State.HasFlag(CompanionDiscovery.ReportedFlag(actor.Scenario, "companion_box_marks")), Is.False);
+        Assert.That(actor.Bubble, Does.Not.Contain(KnowledgeLibrary.GetRoom("Room01").FindFact("companion_box_marks").statement));
     }
     [UnityTest]
     public IEnumerator PlayerClaimsDoNotCreateAnInvitationOrEvidence()

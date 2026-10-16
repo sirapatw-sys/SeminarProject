@@ -89,6 +89,19 @@ namespace MysteryGame.Tests
             Assert.That(CompanionDiscovery.Acknowledge(Scenario, State, "Room01", new[] { "note_direction" }), Is.Zero);
         }
         [Test]
+        public void ShortDiscoverySpeechIsValidatedAndCannotContainControls()
+        {
+            var copy = Object.Instantiate(Scenario);
+            try
+            {
+                copy.discoveryFoundLine = "กด E";
+                Assert.That(copy.ValidateConfiguration(), Has.Some.Contains("game controls"));
+                copy.discoveryFoundLine = Scenario.discoveryFoundLine; copy.searchNoNewLine = "กด E";
+                Assert.That(copy.ValidateConfiguration(), Has.Some.Contains("game controls"));
+            }
+            finally { Object.DestroyImmediate(copy); }
+        }
+        [Test]
         public void ReportHeaderIsIncludedInAuthoredSpeechValidation()
         {
             var copy = Object.Instantiate(Scenario);

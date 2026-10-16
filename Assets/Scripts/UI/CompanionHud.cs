@@ -9,7 +9,7 @@ namespace MysteryGame.Companions
     public class CompanionHud : MonoBehaviour
     {
         private NpcCompanionController actor;
-        private GUIStyle caption, bubble, bluePad, goldPad;
+        private GUIStyle caption, bubble, bluePad, goldPad, discoveryPad;
         private readonly System.Collections.Generic.List<Texture2D> textures = new System.Collections.Generic.List<Texture2D>();
         private void Awake() { actor = GetComponent<NpcCompanionController>(); }
         public bool DiscoveryIndicatorVisible
@@ -37,6 +37,9 @@ namespace MysteryGame.Companions
             bubble = Style(new Color(0.03f, 0.08f, 0.12f, 0.96f), 18, TextAnchor.MiddleCenter);
             bluePad = Style(new Color(0.12f, 0.65f, 0.77f, 0.8f), 14, TextAnchor.MiddleCenter, 14);
             goldPad = Style(new Color(0.68f, 0.46f, 0.12f, 0.85f), 14, TextAnchor.MiddleCenter, 14);
+            discoveryPad = Style(new Color(0.04f, 0.35f, 0.43f, 0.96f), 18, TextAnchor.MiddleCenter, 14);
+            discoveryPad.padding = new RectOffset(4, 4, 2, 2);
+            discoveryPad.wordWrap = false;
         }
         // The prop stays in the room, but its labels are contextual, not a
         // permanent tutorial card. Finished activities never retain a banner.
@@ -80,7 +83,7 @@ namespace MysteryGame.Companions
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, actor.Bubble, bubble, new Vector2(width, height));
             }
             if (DiscoveryIndicatorVisible)
-                DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "!", goldPad, new Vector2(32f, 36f));
+                DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "...", discoveryPad, new Vector2(40f, 30f));
             else if (!actor.HasBubble && actor.Invitation != null)
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "?", goldPad, new Vector2(32f, 36f));
             GUI.matrix = previous; GUI.color = previousColor; GUI.enabled = previousEnabled; GUI.depth = previousDepth;
