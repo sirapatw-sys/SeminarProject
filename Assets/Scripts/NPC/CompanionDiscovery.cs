@@ -20,21 +20,33 @@ namespace MysteryGame.Companions
             if (scenario == null || state == null || state.GetCurrentScene() != roomId) return result;
             var room = KnowledgeLibrary.GetRoom(roomId);
             if (room == null || room.companionScenario != scenario) return result;
-            var sources = new HashSet<string>(StringComparer.Ordinal);
-            if (scenario.worldTargets != null) foreach (var target in scenario.worldTargets)
-                if (target?.discoveredFactIds != null) foreach (string id in target.discoveredFactIds) sources.Add(id);
-            if (scenario.searchSpots != null) foreach (var spot in scenario.searchSpots)
-                if (spot != null && !string.IsNullOrWhiteSpace(spot.factId)) sources.Add(spot.factId);
-            if (scenario.stations != null) foreach (var station in scenario.stations)
-                if (station?.discoveredFactIds != null) foreach (string id in station.discoveredFactIds)
-                    if (!string.IsNullOrWhiteSpace(id)) sources.Add(id);
-            var context = NpcKnowledgeContextBuilder.Build(scenario.npcId, roomId, state, false);
-            foreach (var fact in context.KnownFacts)
-                if (fact != null && sources.Contains(fact.factId) && fact.canShareAsEvidence &&
-                    !fact.isPuzzleAnswer && !fact.isPuzzleGuidance &&
-                    NpcObservation.Knows(state, scenario.npcId, roomId, fact.factId) &&
-                    !state.HasFlag(ReportedFlag(scenario, fact.factId))) result.Add(fact);
+            var profile = KnowledgeLibrary.GetNpc(scenario.npcId);
+            if (room.facts != null) foreach (var fact in room.facts)
+                if (CanReport(scenario, state, roomId, profile, fact)) result.Add(fact);
             return result;
+        }
+        public static bool HasPending(CompanionScenarioData scenario, GameState state, string roomId)
+        {
+            if (scenario == null || state == null || state.GetCurrentScene() != roomId) return false;
+            var room = KnowledgeLibrary.GetRoom(roomId);
+            if (room == null || room.companionScenario != scenario || room.facts == null) return false;
+            var profile = KnowledgeLibrary.GetNpc(scenario.npcId);
+            foreach (var fact in room.facts) if (CanReport(scenario, state, roomId, profile, fact)) return true;
+            return false;
+        }
+        static bool CanReport(CompanionScenarioData scenario, GameState state, string roomId, NpcProfileData profile, RoomFact fact) =>
+            fact != null && !string.IsNullOrWhiteSpace(fact.factId) && fact.canShareAsEvidence && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance &&
+            IsSource(scenario, fact.factId) && fact.IsRevealed(state) && (profile == null || !profile.IsForbidden(fact.factId)) &&
+            NpcObservation.Knows(state, scenario.npcId, roomId, fact.factId) && !state.HasFlag(ReportedFlag(scenario, fact.factId));
+        static bool IsSource(CompanionScenarioData scenario, string id)
+        {
+            if (scenario.worldTargets != null) foreach (var target in scenario.worldTargets)
+                if (target?.discoveredFactIds != null && target.discoveredFactIds.Contains(id)) return true;
+            if (scenario.searchSpots != null) foreach (var spot in scenario.searchSpots)
+                if (spot != null && spot.factId == id) return true;
+            if (scenario.stations != null) foreach (var station in scenario.stations)
+                if (station?.discoveredFactIds != null && station.discoveredFactIds.Contains(id)) return true;
+            return false;
         }
 
         public static IEnumerable<RoomFact> PrioritizePending(CompanionScenarioData scenario, GameState state,

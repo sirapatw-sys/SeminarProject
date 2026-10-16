@@ -42,7 +42,7 @@ namespace MysteryGame.Companions
         public bool HasBubble { get { return !string.IsNullOrEmpty(Bubble) && bubbleSeconds > 0f; } }
         public bool HasDiscoveryInvitation { get { return isActiveAndEnabled && state != null && state == GameState.Instance &&
             Scenario != null && Mode != CompanionMode.Searching && Mode != CompanionMode.WorldTask && ActiveStation == null &&
-            CompanionDiscovery.Pending(Scenario, state, RoomId).Count > 0; } }
+            CompanionDiscovery.HasPending(Scenario, state, RoomId); } }
         private Transform player;
         private Collider2D playerArea;
         private Vector2 feetOffset;
@@ -59,10 +59,16 @@ namespace MysteryGame.Companions
         private int traceTaskRevision = -1;
         private bool traceTaskClosed = true;
         private readonly Queue<string> reactions = new Queue<string>();
+        private static readonly List<NpcCompanionController> instances = new List<NpcCompanionController>();
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetInstances() { instances.Clear(); }
+        private void RegisterInstance() { if (!instances.Contains(this)) instances.Add(this); }
+        private void Awake() { RegisterInstance(); }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
+            foreach (var actor in FindObjectsOfType<NpcCompanionController>()) actor.RegisterInstance();
             SceneManager.sceneLoaded -= InstallInScene;
             SceneManager.sceneLoaded += InstallInScene;
             InstallInScene(SceneManager.GetActiveScene(), LoadSceneMode.Single);
@@ -82,12 +88,15 @@ namespace MysteryGame.Companions
         }
         public static NpcCompanionController Find(string npcId, string roomId)
         {
-            foreach (var actor in FindObjectsOfType<NpcCompanionController>())
-                if (actor.Scenario != null && actor.Scenario.npcId == npcId && actor.RoomId == roomId) return actor;
-            return null;
+            NpcCompanionController result = null;
+            foreach (var actor in instances)
+                if (actor != null && actor.gameObject.activeInHierarchy && actor.Scenario != null && actor.Scenario.npcId == npcId && actor.RoomId == roomId &&
+                    (result == null || actor.GetInstanceID() < result.GetInstanceID())) result = actor;
+            return result;
         }
         public void Configure(CompanionScenarioData scenario)
         {
+            RegisterInstance();
             Unsubscribe(); Scenario = scenario;
             if (scenario == null || scenario.ValidateConfiguration().Count != 0)
             { Scenario = null; ResetActivity(); return; }
@@ -601,7 +610,7 @@ namespace MysteryGame.Companions
             InteractionSignals.Completed -= Observe;
         }
         private void OnDisable() { ResetActivity(); Unsubscribe(); }
-        private void OnEnable() { if (Scenario != null) Configure(Scenario); }
-        private void OnDestroy() { Unsubscribe(); }
+        private void OnEnable() { RegisterInstance(); if (Scenario != null) Configure(Scenario); }
+        private void OnDestroy() { instances.Remove(this); Unsubscribe(); }
     }
 }

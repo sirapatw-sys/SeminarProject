@@ -34,7 +34,10 @@ namespace MysteryGame.Companions
         public bool IsVisible(GameState state) => isActiveAndEnabled && Definition != null &&
             state != null && state.GetCurrentScene() == RoomId && ConditionRule.AllHold(Definition.visibleWhen, state);
         public void Configure(CompanionWorldDefinition definition, ObjectInteraction interaction)
-        { Definition = definition; Interaction = interaction; }
+        { Definition = definition; Interaction = interaction; RoomWorldRegistry.Register(this); }
+        void OnEnable() { RoomWorldRegistry.Register(this); }
+        void OnDisable() { RoomWorldRegistry.Unregister(this); }
+        void OnDestroy() { RoomWorldRegistry.Unregister(this); }
         public bool Allows(CompanionWorldVerb verb) => Definition != null &&
             (verb == CompanionWorldVerb.Move || ReferenceEquals(Interaction, null) || Interaction != null && Interaction.isActiveAndEnabled) &&
             (verb == CompanionWorldVerb.Move || verb == CompanionWorldVerb.Inspect && Definition.allowInspect ||

@@ -379,4 +379,123 @@ public class CompanionWorldPlayTests
         chat.Submit("อ่านอันนี้หน่อย"); chat.Submit("สวัสดี"); chat.Submit("โน้ต");
         Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.False);
     }
+    [Test]
+    public void MeasureCompanionHotPathsWithoutUsingAProvider()
+    {
+        State.SetFlag("found_note"); State.SetFlag(actor.Scenario.SearchFlag("note_direction"));
+        State.SetFlag(NpcObservation.Flag("Alice", "Room01", "note_direction"));
+        int checksum = 0;
+        var allocationMethod = typeof(GC).GetMethod("GetAllocatedBytesForCurrentThread", Type.EmptyTypes);
+        var allocated = allocationMethod == null ? null : (Func<long>)Delegate.CreateDelegate(typeof(Func<long>), allocationMethod);
+        if (allocated != null)
+        {
+            long probeStart = allocated(); var probe = new byte[4096]; long probeBytes = allocated() - probeStart;
+            GC.KeepAlive(probe); if (probeBytes <= 0) allocated = null; // Some Unity Mono runtimes expose a zero-returning stub.
+        }
+        TestContext.WriteLine("PERF_ALLOCATION_COUNTER_SUPPORTED=" + (allocated != null));
+        Action<string, int, Action> measure = (label, count, action) => {
+            for (int i = 0; i < 10; i++) action();
+            for (int sample = 0; sample < 3; sample++)
+            {
+                var timer = new System.Diagnostics.Stopwatch(); long before = allocated != null ? allocated() : 0;
+                timer.Start(); for (int i = 0; i < count; i++) action(); timer.Stop();
+                long bytes = allocated != null ? allocated() - before : -1;
+                TestContext.WriteLine("PERF|" + label + "|sample=" + sample + "|count=" + count + "|ms=" +
+                    timer.Elapsed.TotalMilliseconds.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) + "|bytes=" + bytes);
+            }
+        };
+        measure("discovery_pending", 100, () => checksum += CompanionDiscovery.Pending(actor.Scenario, State, "Room01").Count);
+        measure("discovery_indicator", 100, () => checksum += actor.HasDiscoveryInvitation ? 1 : 0);
+        measure("world_find", 500, () => checksum += RoomWorldRegistry.Find("Room01", State, "room01.desk") != null ? 1 : 0);
+        measure("npc_find", 500, () => checksum += NpcCompanionController.Find("Alice", "Room01") != null ? 1 : 0);
+        chat.OpenSession();
+        var addLine = (Action<string>)Delegate.CreateDelegate(typeof(Action<string>), chat,
+            typeof(CompanionChatPanel).GetMethod("AddLine", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic));
+        measure("chat_message_burst", 100, () => addLine("ข้อความทดสอบ"));
+        Assert.That(checksum, Is.GreaterThan(0)); Assert.That(State.HasFlag("drawer_opened"), Is.False);
+    }
+    [Test]
+    public void RegisteredTargetsReflectVisibilityDuplicatesReconfigurationAndDestructionImmediately()
+    {
+        var first = new GameObject("RegistryFirst"); var second = new GameObject("RegistrySecond");
+        try
+        {
+            var target = first.AddComponent<CompanionWorldTarget>();
+            target.Configure(new CompanionWorldDefinition { id = "perf.target", title = "วัตถุทดลอง", approachPoint = new Vector2(2, -2),
+                visibleWhen = new System.Collections.Generic.List<ConditionRule> { new ConditionRule { type = ConditionType.HasFlag, targetId = "perf.visible" } } }, null);
+            Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.target"), Is.Null);
+            State.SetFlag("perf.visible"); Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.target"), Is.SameAs(target));
+            target.enabled = false; Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.target"), Is.Null);
+            target.enabled = true; Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.target"), Is.SameAs(target));
+            var duplicate = second.AddComponent<CompanionWorldTarget>();
+            duplicate.Configure(new CompanionWorldDefinition { id = "perf.target", title = "อีกชิ้น", approachPoint = new Vector2(2, -2) }, null);
+            Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.target"), Is.Null);
+            Assert.That(RoomWorldRegistry.Available("Room01", State).Any(t => t.Definition.id == "perf.target"), Is.False);
+            second.SetActive(false); Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.target"), Is.SameAs(target));
+            target.Configure(new CompanionWorldDefinition { id = "perf.changed", title = "เปลี่ยนชื่อ", approachPoint = new Vector2(2, -2) }, null);
+            Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.target"), Is.Null);
+            var snapshot = RoomWorldRegistry.Available("Room01", State); snapshot.Clear();
+            Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.changed"), Is.SameAs(target));
+            UnityEngine.Object.DestroyImmediate(first); Assert.That(RoomWorldRegistry.Find("Room01", State, "perf.changed"), Is.Null);
+        }
+        finally { if (first != null) UnityEngine.Object.DestroyImmediate(first); UnityEngine.Object.DestroyImmediate(second); }
+    }
+    [Test]
+    public void NpcLookupRetainsSceneLookupSemanticsAcrossDisableEnableAndDestroy()
+    {
+        Assert.That(NpcCompanionController.Find("Alice", "Room01"), Is.SameAs(actor));
+        actor.enabled = false;
+        Assert.That(NpcCompanionController.Find("Alice", "Room01"), Is.SameAs(actor));
+        Assert.That(actor.CanReceiveRoomCommand, Is.False); actor.enabled = true;
+        var go = new GameObject("RegistryNpc");
+        try
+        {
+            var other = go.AddComponent<NpcCompanionController>(); other.Configure(actor.Scenario);
+            var originalOrder = UnityEngine.Object.FindObjectsOfType<NpcCompanionController>().First(a => a.Scenario?.npcId == "Alice" && a.RoomId == "Room01");
+            Assert.That(NpcCompanionController.Find("Alice", "Room01"), Is.SameAs(originalOrder));
+            actor.gameObject.SetActive(false); Assert.That(NpcCompanionController.Find("Alice", "Room01"), Is.SameAs(other));
+            UnityEngine.Object.DestroyImmediate(go); Assert.That(NpcCompanionController.Find("Alice", "Room01"), Is.Null);
+        }
+        finally { if (go != null) UnityEngine.Object.DestroyImmediate(go); actor.gameObject.SetActive(true); }
+        Assert.That(NpcCompanionController.Find("Alice", "Room01"), Is.SameAs(actor));
+    }
+    [Test]
+    public void DiscoveryIndicatorRechecksPermissionsAndSnapshotRestoreWithoutCachedAnswers()
+    {
+        State.SetFlag("found_note"); State.SetFlag(actor.Scenario.SearchFlag("note_direction"));
+        State.SetFlag(NpcObservation.Flag("Alice", "Room01", "note_direction"));
+        var profile = KnowledgeLibrary.GetNpc("Alice"); var forbidden = profile.forbiddenFactIds;
+        var fact = KnowledgeLibrary.GetRoom("Room01").FindFact("note_direction"); bool shareable = fact.canShareAsEvidence;
+        var unread = State.CreateSnapshot();
+        try
+        {
+            Assert.That(actor.HasDiscoveryInvitation, Is.True);
+            profile.forbiddenFactIds = new System.Collections.Generic.List<string> { "note_direction" };
+            Assert.That(actor.HasDiscoveryInvitation, Is.False);
+            profile.forbiddenFactIds = forbidden; fact.canShareAsEvidence = false;
+            Assert.That(actor.HasDiscoveryInvitation, Is.False); fact.canShareAsEvidence = shareable;
+            Assert.That(actor.HasDiscoveryInvitation, Is.True);
+            CompanionDiscovery.Acknowledge(actor.Scenario, State, "Room01", new[] { "note_direction" });
+            Assert.That(actor.HasDiscoveryInvitation, Is.False);
+            State.ResetState(); Assert.That(actor.HasDiscoveryInvitation, Is.False);
+            State.RestoreSnapshot(unread); Assert.That(actor.HasDiscoveryInvitation, Is.True);
+            Assert.That(CompanionDiscovery.Pending(actor.Scenario, State, "Room01").Select(f => f.factId), Is.EqualTo(new[] { "note_direction" }));
+        }
+        finally { profile.forbiddenFactIds = forbidden; fact.canShareAsEvidence = shareable; }
+    }
+    [UnityTest]
+    public IEnumerator BatchedChatShowsLatestMessagesAndHiddenTaskResultsWhenReopened()
+    {
+        chat.OpenSession(); chat.Submit("ไปยืนกลางห้องหน่อย"); chat.Close(); Tick();
+        string result = chat.LastReply; Assert.That(result, Does.Contain("ถึง"));
+        chat.OpenSession(); yield return null;
+        var text = (TMPro.TMP_Text)typeof(CompanionChatPanel).GetField("transcript", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(chat);
+        Assert.That(text.text, Does.Contain(result));
+        chat.Submit("หยุดก่อน"); chat.Submit("ไปยืนข้างขวาของภาพวาดหน่อย"); string latest = chat.LastReply;
+        yield return null;
+        Assert.That(text.text, Does.Contain(latest)); Assert.That(text.text, Does.Contain("ไปยืนข้างขวาของภาพวาดหน่อย"));
+        Assert.That(text.richText, Is.False);
+        var scroll = (UnityEngine.UI.ScrollRect)typeof(CompanionChatPanel).GetField("historyScroll", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(chat);
+        if (scroll.content.rect.height > scroll.viewport.rect.height) Assert.That(scroll.verticalNormalizedPosition, Is.EqualTo(0f).Within(0.02f));
+    }
 }

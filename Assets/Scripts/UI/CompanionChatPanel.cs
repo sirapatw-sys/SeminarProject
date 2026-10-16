@@ -27,7 +27,7 @@ namespace MysteryGame.Companions
         AiRequestOperation operation;
         GameState boundState;
         int serial, sceneRevision, pendingTaskRevision;
-        bool open, pending;
+        bool open, pending, historyDirty;
         float deadline;
         public string LastReply { get; private set; }
         public bool RequestPending => pending;
@@ -54,7 +54,7 @@ namespace MysteryGame.Companions
             if (openPanel != null && openPanel != this) openPanel.Close();
             if (canvas == null) Build();
             boundState = GameState.Instance; sceneRevision = boundState.SceneRevision;
-            session.Clear(); open = true; openPanel = this; canvas.SetActive(true);
+            session.Clear(); open = true; openPanel = this; canvas.SetActive(true); historyDirty = true;
             input.ActivateInputField(); return true;
         }
         public void Close()
@@ -164,8 +164,16 @@ namespace MysteryGame.Companions
         void AddLine(string text)
         {
             lines.Enqueue(text); while (lines.Count > 6) lines.Dequeue();
-            if (transcript != null) transcript.text = string.Join("\n\n", lines);
-            if (historyScroll != null) { Canvas.ForceUpdateCanvases(); historyScroll.verticalNormalizedPosition = 0f; }
+            historyDirty = true;
+        }
+        void LateUpdate()
+        {
+            if (!open || !historyDirty || transcript == null || historyScroll == null) return;
+            // Merge messages from the same frame and rebuild only this history,
+            // instead of flushing every Canvas (including hidden UI) per message.
+            transcript.text = string.Join("\n\n", lines);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(transcript.rectTransform);
+            historyScroll.verticalNormalizedPosition = 0f; historyDirty = false;
         }
         void Build()
         {
@@ -203,7 +211,7 @@ namespace MysteryGame.Companions
             input.characterLimit = 500; input.lineType = TMP_InputField.LineType.SingleLine;
             input.onSubmit.AddListener(valueText => { input.text = ""; Submit(valueText); input.ActivateInputField(); });
             status = Text(panel.transform, "Enter ส่ง · Esc ปิด · NPC ทำงานต่อระหว่างคุย", new Vector2(16, 8), new Vector2(518, 24), 15, font);
-            Canvas.ForceUpdateCanvases(); historyScroll.verticalNormalizedPosition = 0f;
+            historyDirty = true;
         }
         static TMP_Text Text(Transform parent, string value, Vector2 position, Vector2 size, float points, TMP_FontAsset font)
         {
