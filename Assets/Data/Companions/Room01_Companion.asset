@@ -16,6 +16,74 @@ MonoBehaviour:
   npcId: Alice
   displayName: Alice
   addressNames: ["อลิซ", "อลิส", "Alice"]
+  worldTargets:
+  - id: room01.painting
+    title: "ภาพวาดบนผนัง"
+    aliases: ["ภาพวาด", "กรอบภาพ", "painting", "picture"]
+    sceneObject: Painting
+    approachPoint: {x: 0, y: 1.1}
+    workSeconds: 1.5
+    allowInspect: 1
+    visibleDescription: "กรอบภาพแขวนบนผนังด้านบน"
+    inspectLine: "กรอบภาพแขวนเอียงอยู่บนผนัง"
+    discoveredFactIds: [painting_arrow]
+  - id: room01.desk
+    title: "โต๊ะทำงาน"
+    aliases: ["โต๊ะ", "desk", "table"]
+    sceneObject: Desk
+    approachPoint: {x: -4.1, y: -1.15}
+    workSeconds: 2
+    allowInspect: 1
+    visibleDescription: "โต๊ะไม้ทางซ้ายของห้อง"
+    inspectLine: "โต๊ะไม้เก่าอยู่ทางซ้ายของห้อง"
+    discoveredFactIds: [desk_note, note_direction]
+  - id: room01.drawer
+    title: "ลิ้นชัก"
+    aliases: ["drawer"]
+    sceneObject: Drawer
+    approachPoint: {x: -2.15, y: -0.8}
+    workSeconds: 1.5
+    allowInspect: 1
+    allowOpen: 1
+    visibleDescription: "ลิ้นชักอยู่ถัดจากโต๊ะ มีแม่กุญแจรหัส"
+    inspectLine: "ลิ้นชักมีแม่กุญแจรหัส ฉันช่วยดูได้ แต่ให้เธอเป็นคนเลือกรหัสและลองเองนะ"
+    discoveredFactIds: [drawer_key]
+  - id: room01.door
+    title: "ประตูทางออก"
+    aliases: ["ประตู", "door", "exit"]
+    sceneObject: Door
+    approachPoint: {x: 5.1, y: 0.7}
+    workSeconds: 1.5
+    allowInspect: 1
+    allowOpen: 1
+    visibleDescription: "ประตูที่ผนังด้านบนขวาของห้อง"
+    inspectLine: "ฉันตรวจประตูแล้ว ถ้าจะออกจากห้องให้เธอเป็นคนเปิดเอง ฉันจะไปด้วย"
+    discoveredFactIds: []
+  - id: room01.center
+    title: "กลางห้อง"
+    aliases: ["กลางห้อง", "กลาง", "center", "middle"]
+    approachPoint: {x: 1.6, y: -1.8}
+    visibleDescription: "พื้นที่ว่างกลางห้อง"
+  - id: room01.lower_left
+    title: "มุมล่างซ้าย"
+    aliases: ["มุมซ้ายล่าง", "bottom left", "lower left"]
+    approachPoint: {x: -6, y: -2.5}
+    visibleDescription: "พื้นที่ว่างมุมล่างซ้าย"
+  - id: room01.lower_right
+    title: "มุมล่างขวา"
+    aliases: ["มุมขวาล่าง", "bottom right", "lower right"]
+    approachPoint: {x: 6, y: -3.3}
+    visibleDescription: "พื้นที่ว่างมุมล่างขวา"
+  - id: room01.upper_left
+    title: "มุมบนซ้าย"
+    aliases: ["มุมซ้ายบน", "top left", "upper left"]
+    approachPoint: {x: -6, y: 0.6}
+    visibleDescription: "พื้นที่ว่างมุมบนซ้าย"
+  - id: room01.upper_right
+    title: "มุมบนขวา"
+    aliases: ["มุมขวาบน", "top right", "upper right"]
+    approachPoint: {x: 6, y: 0.6}
+    visibleDescription: "พื้นที่ว่างมุมบนขวา"
   walkBounds:
     serializedVersion: 2
     x: -7.8

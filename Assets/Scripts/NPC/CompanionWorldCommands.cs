@@ -1,0 +1,154 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using MysteryGame.Core;
+using MysteryGame.Knowledge;
+
+namespace MysteryGame.Companions
+{
+    public sealed class CompanionWorldSession
+    {
+        public string FocusId;
+        public List<string> Candidates;
+        public CompanionWorldVerb PendingVerb;
+        public string PendingRelation;
+        internal GameState State;
+        internal string Room;
+        internal int SceneRevision, TaskRevision;
+        public void Clear() { FocusId = null; Candidates = null; State = null; }
+        internal bool Valid(NpcCompanionController actor) => State == GameState.Instance && State != null &&
+            Room == actor.RoomId && SceneRevision == State.SceneRevision && TaskRevision == actor.TaskRevision;
+        internal void Remember(NpcCompanionController actor)
+        { State = GameState.Instance; Room = actor.RoomId; SceneRevision = State.SceneRevision; TaskRevision = actor.TaskRevision; }
+    }
+
+    public static class CompanionWorldCommands
+    {
+        static readonly Regex Move = new Regex(@"เดิน|ไปยืน|ไปที่|ไปตรง|ไปข้าง|ไปอยู่|ขยับ|move|walk|go\s+to|stand", RegexOptions.IgnoreCase);
+        static readonly Regex Inspect = new Regex(@"ตรวจ|สำรวจ|เช็ค|เช็ก|ค้น|ดู|สังเกต|inspect|check|look|examine|search", RegexOptions.IgnoreCase);
+        static readonly Regex Open = new Regex(@"เปิด|open|unlock", RegexOptions.IgnoreCase);
+        static readonly Regex Request = new Regex(@"^(?:ช่วย|ลอง|ขอ|อยากให้|รบกวน|เธอ|คุณ|เดิน|ไป|มา|ตรวจ|สำรวจ|เช็ค|เช็ก|ดู|เปิด|ขยับ|ยืน|please\b|can\s+you\b|could\s+you\b|would\s+you\b|go\b|walk\b|move\b|inspect\b|check\b|look\b|open\b)", RegexOptions.IgnoreCase);
+        static readonly Regex Reference = new Regex(@"อันนี้|อันนั้น|ตรงนั้น|ตรงนี้|ตัวนั้น|ตัวเดิม|มัน|ที่เดิม|\b(it|that|there|same)\b", RegexOptions.IgnoreCase);
+        static readonly Regex MultiAction = new Regex(@"แล้ว.*(?:เปิด|ตรวจ|เดิน|ไป)|จากนั้น|;|\bthen\b|\band\s+(open|inspect|go|walk)\b", RegexOptions.IgnoreCase);
+        static readonly Regex Stop = new Regex(@"^(?:หยุด(?:ก่อน|เดิน|เลย)?|พอแล้ว|ยกเลิก|ไม่ต้อง(?:ทำ|ตาม|เดิน)(?:แล้ว)?|รอ(?:ก่อน|ตรงนี้)?|stop|cancel|wait)(?:\s|นะ|หน่อย|ครับ|ค่ะ|คะ|ได้แล้ว|$)", RegexOptions.IgnoreCase);
+        public static bool IsStop(string text) => !CompanionDialogueCommands.RulesVeto(text, CompanionCommand.Wait) && Stop.IsMatch((text ?? "").Trim());
+        static string Normalize(string text, CompanionScenarioData scenario)
+        {
+            string value = (text ?? "").Trim();
+            foreach (string name in scenario?.addressNames ?? new List<string>())
+                if (!string.IsNullOrWhiteSpace(name)) value = Regex.Replace(value, "^" + Regex.Escape(name) + @"(?:\s+|[,，]\s*|(?=ช่วย|ลอง|เดิน|ไป|ตรวจ|เปิด))", "", RegexOptions.IgnoreCase);
+            return Regex.Replace(value, @"^ไม่ใช่(?:อันนั้น|ตัวนั้น|ตรงนั้น)[ ,，]*", "");
+        }
+        public static bool IsRequest(string text, string room)
+        {
+            text = Normalize(text, KnowledgeLibrary.GetRoom(room)?.companionScenario);
+            if (string.IsNullOrWhiteSpace(text) || CompanionDialogueCommands.RulesVeto(text, CompanionCommand.Follow) || !Request.IsMatch(text.Trim())) return false;
+            return (Move.IsMatch(text) || Inspect.IsMatch(text) || Open.IsMatch(text)) &&
+                (Named(text, RoomWorldRegistry.Available(room, GameState.Instance)).Count > 0 || Reference.IsMatch(text));
+        }
+        static List<CompanionWorldTarget> Named(string text, IEnumerable<CompanionWorldTarget> targets)
+        {
+            string value = (text ?? "").ToLowerInvariant();
+            return targets.Where(t => new[] { t.Definition.id, t.Definition.title }.Concat(t.Definition.aliases ?? new List<string>())
+                .Any(n => !string.IsNullOrWhiteSpace(n) && (n.Any(c => c >= 'ก' && c <= '๛')
+                    ? value.Contains(n.ToLowerInvariant()) : Regex.IsMatch(value, @"(?<![\p{L}\p{N}_])" + Regex.Escape(n.ToLowerInvariant()) + @"(?![\p{L}\p{N}_])")))).ToList();
+        }
+        static string Relation(string message) => Regex.IsMatch(message, @"ทางซ้าย|ด้านซ้าย|ข้างซ้าย|\bleft\b", RegexOptions.IgnoreCase) ? "left" :
+            Regex.IsMatch(message, @"ทางขวา|ด้านขวา|ข้างขวา|\bright\b", RegexOptions.IgnoreCase) ? "right" :
+            Regex.IsMatch(message, @"ข้างหน้า|ด้านหน้า|\bin\s+front\b", RegexOptions.IgnoreCase) ? "front" : "at";
+        static CompanionWorldVerb Verb(string text) => Open.IsMatch(text) ? CompanionWorldVerb.Open :
+            Inspect.IsMatch(text) ? CompanionWorldVerb.Inspect : CompanionWorldVerb.Move;
+        public static string Id(CompanionWorldVerb verb, string target, string relation = "at") =>
+            "world:" + verb.ToString().ToLowerInvariant() + ":" + relation + ":" + target;
+
+        public static void FillActions(NpcKnowledgeContext context)
+        {
+            foreach (var target in RoomWorldRegistry.Available(context.Room.roomId, GameState.Instance))
+            {
+                string location = " [ตำแหน่งบนจอ " + target.Definition.approachPoint.x.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                    target.Definition.approachPoint.y.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "]";
+                foreach (string relation in new[] { "at", "left", "right", "front" })
+                    context.CompanionActions.Add(new CompanionActionOption { Id = Id(CompanionWorldVerb.Move, target.Definition.id, relation),
+                        Description = "เดินไป " + relation + " ของ «" + target.Definition.title + "» " + target.Definition.visibleDescription + location });
+                foreach (var verb in new[] { CompanionWorldVerb.Inspect, CompanionWorldVerb.Open })
+                    if (target.Allows(verb)) context.CompanionActions.Add(new CompanionActionOption {
+                        Id = Id(verb, target.Definition.id), Description = (verb == CompanionWorldVerb.Open ? "ลองเปิด " : "เดินไปตรวจ ") + target.Definition.title +
+                            " (ต้องไปถึงและผ่านเงื่อนไขจริง จึงรู้ผล)" + location });
+            }
+        }
+
+        public static bool TryLocal(NpcCompanionController actor, CompanionWorldSession session, string text, out GeneratedChatReply reply)
+        {
+            reply = null;
+            if (actor == null || session == null) return false;
+            text = Normalize(text, actor.Scenario);
+            if (!session.Valid(actor)) session.Clear();
+            if (IsStop(text))
+            {
+                session.Clear();
+                bool stopped = actor.CanReceiveRoomCommand ? actor.ApplyRoomCommand(CompanionCommand.Wait) :
+                    actor.ApplyDialogueCommand(DialogueManager.Instance, CompanionCommand.Wait, null, out _);
+                if (!stopped) return false;
+                reply = Reply(actor.Bubble); return true;
+            }
+            var targets = RoomWorldRegistry.Available(actor.RoomId, GameState.Instance);
+            var named = Named(text, targets);
+            if (session.Candidates != null)
+            {
+                var answers = named.Where(t => session.Candidates.Contains(t.Definition.id)).ToList();
+                if (answers.Count == 1 && !Move.IsMatch(text) && !Inspect.IsMatch(text) && !Open.IsMatch(text) &&
+                    !CompanionDialogueCommands.RulesVeto(text, CompanionCommand.Follow))
+                {
+                    var verb = session.PendingVerb; string relation = session.PendingRelation;
+                    session.Candidates = null;
+                    return Dispatch(actor, session, answers[0], verb, relation, out reply);
+                }
+                session.Candidates = null;
+            }
+            if (!IsRequest(text, actor.RoomId)) { session.FocusId = null; return false; }
+            if (MultiAction.IsMatch(text)) { reply = Reply("ขอทำทีละอย่างก่อนนะ อยากให้ฉันไปที่ไหนหรือตรวจอะไรเป็นอย่างแรก?"); return true; }
+            var requestVerb = Verb(text); string requestRelation = requestVerb == CompanionWorldVerb.Move ? Relation(text) : "at";
+            if (named.Count == 0 && Reference.IsMatch(text) && session.FocusId != null)
+            { var focus = targets.FirstOrDefault(t => t.Definition.id == session.FocusId); if (focus != null) named.Add(focus); }
+            if (named.Count == 0 || named.Count > 1)
+            {
+                var candidates = named.Count > 1 ? named : targets.Where(t => t.Allows(requestVerb)).ToList();
+                session.Remember(actor); session.Candidates = candidates.Select(t => t.Definition.id).ToList();
+                session.PendingVerb = requestVerb; session.PendingRelation = requestRelation;
+                reply = Reply("หมายถึงตรงไหน: " + string.Join(" หรือ ", candidates.Select(t => t.Definition.title)) + "? พิมพ์ชื่อให้ฉันได้เลย"); return true;
+            }
+            return Dispatch(actor, session, named[0], requestVerb, requestRelation, out reply);
+        }
+
+        public static bool TryProposal(NpcCompanionController actor, CompanionWorldSession session, string text, string actionId, out GeneratedChatReply reply)
+        {
+            reply = null;
+            if (actor == null || session == null || string.IsNullOrWhiteSpace(actionId) || !actionId.StartsWith("world:", StringComparison.Ordinal)) return false;
+            text = Normalize(text, actor.Scenario);
+            if (CompanionDialogueCommands.RulesVeto(text, CompanionCommand.Follow) || !Request.IsMatch((text ?? "").Trim()) || MultiAction.IsMatch(text)) return false;
+            string[] parts = actionId.Split(':');
+            if (parts.Length != 4 || !Enum.TryParse(parts[1], true, out CompanionWorldVerb verb) || !Enum.IsDefined(typeof(CompanionWorldVerb), verb)) return false;
+            if (actionId != Id(verb, parts[3], parts[2])) return false;
+            var target = RoomWorldRegistry.Find(actor.RoomId, GameState.Instance, parts[3]);
+            if (target == null || !target.Allows(verb)) return false;
+            var named = Named(text, RoomWorldRegistry.Available(actor.RoomId, GameState.Instance));
+            if (named.Count > 1 || named.Count == 1 && named[0] != target) return false;
+            // A model may expand wording, but cannot promote a clear look request to opening.
+            if (Open.IsMatch(text) && verb != CompanionWorldVerb.Open || !Open.IsMatch(text) && Inspect.IsMatch(text) && verb != CompanionWorldVerb.Inspect ||
+                !Open.IsMatch(text) && !Inspect.IsMatch(text) && Move.IsMatch(text) && verb != CompanionWorldVerb.Move) return false;
+            if (Reference.IsMatch(text) && named.Count == 0 && (!session.Valid(actor) || session.FocusId != target.Definition.id)) return false;
+            return Dispatch(actor, session, target, verb, parts[2], out reply);
+        }
+        static bool Dispatch(NpcCompanionController actor, CompanionWorldSession session, CompanionWorldTarget target,
+            CompanionWorldVerb verb, string relation, out GeneratedChatReply reply)
+        {
+            if (!target.Allows(verb)) { reply = Reply("ฉันยังทำแบบนั้นกับ " + target.Definition.title + " ไม่ได้ ลองให้ฉันไปดูแทนได้นะ"); return true; }
+            bool started = actor.BeginWorldTask(target, verb, relation);
+            session.Remember(actor); session.FocusId = target.Definition.id; session.Candidates = null;
+            reply = Reply(started ? actor.Bubble : "ตอนนี้ไปทำตรงนั้นไม่ได้ มีทางเดินหรือเงื่อนไขที่ยังไม่พร้อม");
+            return true;
+        }
+        public static GeneratedChatReply Reply(string text) => new GeneratedChatReply { reply = text, referencedFactIds = Array.Empty<string>(), relationshipDelta = 0 };
+    }
+}

@@ -6,6 +6,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36255b07bb73faf4fae200dd065a6dad, type: 3}
   m_Name: Desk_Margin
   interactionId: inspect_note_margin
+  allowCompanionExecution: 1
+  companionMessage: "ฉันตรวจรอยจางบนกระดาษแล้ว พบลูกศรเล็ก ๆ เก็บข้อความที่ตรวจพบไว้ในสมุดแล้วนะ"
   displayName: "ขอบกระดาษบนโต๊ะ"
   soloPreparationSeconds: 2
   preparationLabel: "กำลังตรวจรอยจางบนกระดาษ"

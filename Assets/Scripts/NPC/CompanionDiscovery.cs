@@ -21,6 +21,8 @@ namespace MysteryGame.Companions
             var room = KnowledgeLibrary.GetRoom(roomId);
             if (room == null || room.companionScenario != scenario) return result;
             var sources = new HashSet<string>(StringComparer.Ordinal);
+            if (scenario.worldTargets != null) foreach (var target in scenario.worldTargets)
+                if (target?.discoveredFactIds != null) foreach (string id in target.discoveredFactIds) sources.Add(id);
             if (scenario.searchSpots != null) foreach (var spot in scenario.searchSpots)
                 if (spot != null && !string.IsNullOrWhiteSpace(spot.factId)) sources.Add(spot.factId);
             if (scenario.stations != null) foreach (var station in scenario.stations)

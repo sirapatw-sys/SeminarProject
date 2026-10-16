@@ -214,8 +214,9 @@ public class CharacterVisualController : MonoBehaviour
             (companion.Mode == CompanionMode.Helping && companion.ActiveStation != null));
         if (working && !isMoving)
         {
-            Vector2 attention = companion.IsInspecting ? Vector2.right : companion.ActiveStation.playerPoint - companion.Feet;
-            currentDirection = attention.x >= 0f ? Direction.Right : Direction.Left;
+            Vector2 attention = companion.IsInspecting ? companion.InspectionPoint - companion.Feet : companion.ActiveStation.playerPoint - companion.Feet;
+            currentDirection = Mathf.Abs(attention.x) >= Mathf.Abs(attention.y) ?
+                (attention.x >= 0f ? Direction.Right : Direction.Left) : (attention.y >= 0f ? Direction.Up : Direction.Down);
             worldDelta.x = attention.x >= 0f ? 0.001f : -0.001f;
         }
         if (HasWalkFrames)

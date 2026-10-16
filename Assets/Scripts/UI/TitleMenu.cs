@@ -273,7 +273,7 @@ public class TitleMenu : MonoBehaviour
         if (!string.IsNullOrEmpty(toast) && Time.unscaledTime < toastUntil)
             GUI.Label(new Rect(x, UiScale.Height - 112f, width, 36f), toast, noteStyle);
         GUI.Label(new Rect(x, UiScale.Height - 70f, width, 30f),
-                  "ระหว่างเล่น: F5 บันทึก · F9 โหลด · F10 ตั้งค่า · กด Space หรือ Enter เพื่อเริ่ม",
+                  "ระหว่างเล่น: C คุยกับเพื่อนในห้องแรก · F5 บันทึก · F9 โหลด · F10 ตั้งค่า · Space หรือ Enter เริ่ม",
                   noteStyle);
         GUI.color = previous;
     }

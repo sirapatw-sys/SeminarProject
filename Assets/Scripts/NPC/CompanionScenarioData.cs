@@ -109,6 +109,8 @@ namespace MysteryGame.Companions
         [TextArea] public string helpClarificationLine = "...อยากให้ฉันช่วยจับตรงไหน บอกชื่อสิ่งนั้นได้เลยนะ";
         [TextArea] public string unverifiedOutcomeLine = "...ฉันยังไม่ได้เห็นว่าเกิดอะไรขึ้น เล่าให้ฟังหน่อย หรือไปลองดูด้วยกันก่อนนะ";
         public List<CompanionSearchSpot> searchSpots = new List<CompanionSearchSpot>();
+        [Tooltip("Visible room objects/areas NPCs can approach and act on. Stable IDs; no hidden puzzle text.")]
+        public List<CompanionWorldDefinition> worldTargets = new List<CompanionWorldDefinition>();
         [TextArea] public string searchRequestLine = "ฉันจะสำรวจบริเวณที่เดินถึงและตรวจสิ่งที่เห็น ถ้าเจอหลักฐานจะบอกนะ";
         [TextArea] public string searchScopeLine = "...ฉันยังค้นเฉพาะจุดหรือทำหลายอย่างพร้อมกันไม่ได้ ถ้าจะให้ช่วยสำรวจรอบห้อง บอกฉันอีกครั้งนะ";
         [TextArea] public string searchFinishedLine = "สำรวจรอบนี้เสร็จแล้ว หลักฐานที่ยืนยันได้อยู่ในสมุด เราคุยทบทวนกันต่อได้";
@@ -138,6 +140,14 @@ namespace MysteryGame.Companions
                 (walkBounds.width / cellSize + 1f) * (walkBounds.height / cellSize + 1f) > 5000f)
                 errors.Add("Companion navigation settings are invalid or too large.");
             var ids = new HashSet<string>(StringComparer.Ordinal);
+            if (worldTargets != null) foreach (var target in worldTargets)
+            {
+                if (target == null || string.IsNullOrWhiteSpace(target.id) || target.id.Contains(":") || !ids.Add(target.id) ||
+                    string.IsNullOrWhiteSpace(target.title) || !Finite(target.approachPoint.x) || !Finite(target.approachPoint.y) ||
+                    !walkBounds.Contains(target.approachPoint) || !Finite(target.workSeconds) || target.workSeconds < 0.5f ||
+                    target.workSeconds >= taskTimeoutSeconds) errors.Add("World target identity/position/timing is invalid.");
+            }
+            ids.Clear();
             if (stations == null || stations.Count == 0) errors.Add("Companion has no stations.");
             else foreach (var station in stations)
             {

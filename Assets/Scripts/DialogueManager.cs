@@ -109,6 +109,7 @@ public class DialogueManager : MonoBehaviour
 
     public int ConversationVersion { get; private set; }
     public string ActiveNpcId { get { return activeNpcId; } }
+    internal readonly MysteryGame.Companions.CompanionWorldSession WorldCommandSession = new MysteryGame.Companions.CompanionWorldSession();
 
     public bool CanShareEvidence
     {
@@ -1624,6 +1625,7 @@ public class DialogueManager : MonoBehaviour
                 activeNpcId, request: chatTraceRequest, outcome: "cancelled", duration: Time.realtimeSinceStartup - chatTraceStartedAt);
         PendingCompanionHelp = null;
         ReadingContext = null;
+        WorldCommandSession.Clear();
         ConversationVersion++;
         chatRequestSerial++;
         chatRequestInProgress = false;

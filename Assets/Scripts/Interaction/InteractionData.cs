@@ -9,6 +9,10 @@ public class InteractionData : ScriptableObject
 {
     [Header("Identity")]
     public string interactionId;
+    [Header("Companion access")]
+    [Tooltip("Explicit opt-in. NPC execution never reads acceptedAnswers or starts a scene transition.")]
+    public bool allowCompanionExecution;
+    [TextArea] public string companionMessage;
     public string displayName;
     public InputPuzzleData inputPuzzle;
     [Tooltip("Hide from focus selection until conditions hold (e.g. a guarded door).")]

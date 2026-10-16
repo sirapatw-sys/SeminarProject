@@ -36,8 +36,9 @@ namespace MysteryGame.Knowledge
                 if (MysteryGame.Companions.CompanionDialogueCommands.IsActivityQuestion(message, station))
                     subjects.AddRange(MysteryGame.Companions.CompanionDialogueCommands.MatchingNames(message, station));
             }
+            bool worldRequest = companion && MysteryGame.Companions.CompanionWorldCommands.IsRequest(message, roomId);
             var context = Build(npcId, roomId, state,
-                !(companion && (MysteryGame.Companions.CompanionNaturalRequests.IsEvidenceRequest(message, room) ||
+                !worldRequest && !(companion && (MysteryGame.Companions.CompanionNaturalRequests.IsEvidenceRequest(message, room) ||
                     MysteryGame.Companions.CompanionNaturalRequests.IsJoinRequest(message) ||
                     MysteryGame.Companions.CompanionNaturalRequests.CanProposeJoin(message, room))) &&
                 PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
@@ -47,6 +48,7 @@ namespace MysteryGame.Knowledge
                 context.RecentMemories.AddRange(NpcMemoryRecall.Select(state.GetNpcMemory(npcId), message, scenario, MemoryLimit));
             }
             if (!companion || context.PlayerAskedForHint) return context;
+            if (worldRequest) return context;
             foreach (var station in scenario.stations)
             {
                 if (station == null) continue;
@@ -137,6 +139,7 @@ namespace MysteryGame.Knowledge
             if (actor == null || state != GameState.Instance || actor.Scenario != scenario) return;
             context.CompanionActionScope = actor.Mode != MysteryGame.Companions.CompanionMode.Waiting;
             string status = actor.Mode == MysteryGame.Companions.CompanionMode.Following ? "กำลังเดินตามผู้เล่น" :
+                actor.Mode == MysteryGame.Companions.CompanionMode.WorldTask ? "กำลังเดินไปหรือทำงานกับวัตถุตามคำขอ ยังไม่ยืนยันผลจนกว่าจะเสร็จ" :
                 actor.Mode == MysteryGame.Companions.CompanionMode.Searching ? "กำลังสำรวจตามคำขอผู้เล่น ยังไม่ยืนยันว่าพบหลักฐานใหม่" :
                 actor.Mode == MysteryGame.Companions.CompanionMode.GoingToHelp ? "กำลังเดินไปช่วยกิจกรรมที่ผู้เล่นขอ ยังไม่สำเร็จ" :
                 actor.Mode == MysteryGame.Companions.CompanionMode.Helping ? "กำลังช่วยจับกลไก รอผู้เล่นทำอีกด้าน ยังไม่สำเร็จ" : "กำลังรออยู่";
@@ -153,6 +156,7 @@ namespace MysteryGame.Knowledge
         {
             context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Follow,
                 Description = "เดินตามผู้เล่นไปด้วยกัน" });
+            MysteryGame.Companions.CompanionWorldCommands.FillActions(context);
             context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.InspectTogether,
                 Description = "ผู้เล่นชวนมาดูหรือสำรวจด้วยกัน: ตามผู้เล่นหลังจบบทคุย ไม่ใช่ค้นพบหลักฐานอัตโนมัติ" });
             foreach (var fact in EvidenceSharing.Available(state, context.NpcId))

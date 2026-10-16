@@ -32,7 +32,7 @@ namespace MysteryGame.Companions
                 (actor.Mode == CompanionMode.Helping && actor.ActiveStation != null));
             for (int i = 0; i < 2; i++) { arms[i].enabled = hands[i].enabled = IsWorking; }
             if (!IsWorking) return;
-            Vector2 target = actor.IsInspecting ? actor.ActiveSearchSpot.point + Vector2.right * 0.4f :
+            Vector2 target = actor.IsInspecting ? actor.InspectionPoint :
                 (actor.ActiveStation.companionPoint + actor.ActiveStation.playerPoint) * 0.5f;
             Vector2 direction = (target - actor.Feet).normalized;
             if (direction.sqrMagnitude < 0.01f) direction = Vector2.right;

@@ -650,6 +650,7 @@ namespace MysteryGame.Companions
                 dialogue == null || dialogue != DialogueManager.Instance || !DialogueManager.IsDialogueOpen || GameState.Instance == null) return false;
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null || actor.Scenario == null) return false;
+            if (CompanionWorldCommands.TryProposal(actor, dialogue.WorldCommandSession, message, actionId, out reply)) return true;
 
             CompanionCommand command = CompanionCommand.None;
             if (CompanionNaturalRequests.TryApplyProposal(dialogue, actor, message, actionId, out reply)) return true;

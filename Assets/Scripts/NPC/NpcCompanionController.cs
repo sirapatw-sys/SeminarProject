@@ -6,7 +6,7 @@ using UnityEngine.SceneManagement;
 
 namespace MysteryGame.Companions
 {
-    public enum CompanionMode { Waiting, Following, GoingToHelp, Helping, Searching }
+    public enum CompanionMode { Waiting, Following, GoingToHelp, Helping, Searching, WorldTask }
     public enum CompanionTaskPhase { None, Moving, Working, Completed, Cancelled, Failed }
 
     public class NpcCompanionController : MonoBehaviour
@@ -23,17 +23,25 @@ namespace MysteryGame.Companions
         public CompanionStationData Invitation { get; private set; }
         public CompanionSearchSpot ActiveSearchSpot { get; private set; }
         public float WorkAnimationTime { get; private set; }
-        public bool IsInspecting { get { return Mode == CompanionMode.Searching && TaskPhase == CompanionTaskPhase.Working; } }
+        public bool IsInspecting { get { return (Mode == CompanionMode.Searching || Mode == CompanionMode.WorldTask) && TaskPhase == CompanionTaskPhase.Working; } }
+        private CompanionTaskExecutor worldTask;
+        public CompanionTaskResult LastWorldResult { get; private set; }
+        public Vector2 InspectionPoint => worldTask != null ? worldTask.LookPoint : ActiveSearchSpot != null ? ActiveSearchSpot.point + Vector2.right * 0.4f : Feet;
+        public event System.Action<CompanionTaskResult> WorldTaskFinished;
+        public bool CanReceiveRoomCommand => isActiveAndEnabled && Scenario != null && state != null &&
+            state == GameState.Instance && player != null && state.GetCurrentScene() == RoomId &&
+            InputGate.IsGameplayActive && !DialogueManager.IsDialogueOpen && !AiSettingsPanel.IsOpen &&
+            !KeypadLockUI.IsOpen && !JournalUI.IsOpen && !ItemPopupUI.IsBusy;
         public string RoomId { get { return gameObject.scene.name; } }
         public Vector2 Feet { get { return (Vector2)transform.position + feetOffset; } }
         public Vector2 PlayerFeet { get { return playerArea != null ? (Vector2)playerArea.bounds.center : player != null ? (Vector2)player.position : Vector2.positiveInfinity; } }
         private bool CanAct { get { return isActiveAndEnabled && Scenario != null && state != null && player != null &&
-            state.GetCurrentScene() == RoomId && !InputGate.IsBlocked && !ItemPopupUI.IsBusy; } }
+            state.GetCurrentScene() == RoomId && !InputGate.BlocksCompanionSimulation && !ItemPopupUI.IsBusy; } }
         public bool CanCommand { get { return CanAct && Vector2.Distance(Feet, PlayerFeet) <= Scenario.commandDistance; } }
         public bool CanStop { get { return CanAct && (CanCommand || Mode != CompanionMode.Waiting); } }
         public bool HasBubble { get { return !string.IsNullOrEmpty(Bubble) && bubbleSeconds > 0f; } }
         public bool HasDiscoveryInvitation { get { return isActiveAndEnabled && state != null && state == GameState.Instance &&
-            Scenario != null && Mode != CompanionMode.Searching && ActiveStation == null &&
+            Scenario != null && Mode != CompanionMode.Searching && Mode != CompanionMode.WorldTask && ActiveStation == null &&
             CompanionDiscovery.Pending(Scenario, state, RoomId).Count > 0; } }
         private Transform player;
         private Collider2D playerArea;
@@ -102,6 +110,9 @@ namespace MysteryGame.Companions
                 body.interpolation = RigidbodyInterpolation2D.None;
             }
             state = GameState.Instance;
+            RoomWorldRegistry.Install(scenario, gameObject.scene);
+            if (scenario.worldTargets != null && scenario.worldTargets.Count > 0 && GetComponent<CompanionChatPanel>() == null)
+                gameObject.AddComponent<CompanionChatPanel>();
             if (state != null) { state.StateReset += ResetActivity; state.StateRestored += ResetActivity; }
             InteractionSignals.Completed += Observe;
             introduced = false;
@@ -128,6 +139,44 @@ namespace MysteryGame.Companions
         {
             if (!CanStop) return false;
             return WaitCore();
+        }
+        public bool ApplyRoomCommand(CompanionCommand command, CompanionStationData station = null)
+        {
+            if (!CanReceiveRoomCommand) return false;
+            if (command == CompanionCommand.Wait) return WaitCore();
+            if (command == CompanionCommand.Follow) return FollowCore();
+            if (command == CompanionCommand.Search) return SearchCore();
+            if (command == CompanionCommand.Help && Scenario.stations != null && Scenario.stations.Contains(station) && StationAvailable(station, false)) return HelpCore(station);
+            if (command == CompanionCommand.Comfort) return ComfortCore();
+            return false;
+        }
+        public bool BeginWorldTask(CompanionWorldTarget target, CompanionWorldVerb verb, string relation = "at")
+        {
+            bool allowed = CanReceiveRoomCommand || CanConverse(DialogueManager.Instance);
+            if (!allowed || target == null || target.RoomId != RoomId || !target.IsVisible(state) || !target.Allows(verb)) return false;
+            if (RoomWorldRegistry.Find(RoomId, state, target.Definition.id) != target) return false;
+            Vector2 goal = target.Definition.approachPoint;
+            if (relation != "at" && verb != CompanionWorldVerb.Move) return false;
+            if (relation == "left") goal += Vector2.left * 0.7f;
+            else if (relation == "right") goal += Vector2.right * 0.7f;
+            else if (relation == "front") goal += Vector2.down * 0.7f;
+            else if (relation != "at") return false;
+            var route = new List<Vector2>();
+            if (!CompanionNavigator.TryPath(Feet, goal, Scenario.walkBounds, Scenario.cellSize, IsFree, IsClear, route)) return false;
+            CancelTask(); LastWorldResult = null; Mode = CompanionMode.WorldTask;
+            TaskRevision++; LastTaskId = "world:" + target.Definition.id; TaskPhase = CompanionTaskPhase.Moving;
+            worldTask = new CompanionTaskExecutor(this, target, verb, goal); TraceTaskStart();
+            Say("ได้ ฉันจะ" + (verb == CompanionWorldVerb.Move ? "ไปที่ " : verb == CompanionWorldVerb.Open ? "ไปลองเปิด " : "ไปตรวจ ") + target.Definition.title);
+            return true;
+        }
+        internal void MoveToWorld(Vector2 point, float seconds) { MoveTowards(point, seconds); }
+        internal void StopWorldMovement() { StopMoving(); }
+        internal void WorldPhase(CompanionTaskPhase phase, float seconds = 0f) { TaskPhase = phase; if (phase == CompanionTaskPhase.Working) WorkAnimationTime += seconds; }
+        internal void FinishWorldTask(CompanionTaskResult result)
+        {
+            TraceTaskEnd(result.Success ? "completed" : "failed"); worldTask = null; StopMoving();
+            Mode = CompanionMode.Waiting; TaskPhase = result.Success ? CompanionTaskPhase.Completed : CompanionTaskPhase.Failed;
+            LastWorldResult = result; Say(result.Message); WorldTaskFinished?.Invoke(result);
         }
         private bool WaitCore()
         {
@@ -305,7 +354,7 @@ namespace MysteryGame.Companions
         public void RefreshInvitation()
         {
             Invitation = null;
-            if (!CanAct || ActiveStation != null || Scenario.stations == null) return;
+            if (!CanAct || ActiveStation != null || worldTask != null || Scenario.stations == null) return;
             foreach (var station in Scenario.stations)
                 if (!string.IsNullOrWhiteSpace(station.invitationLine) && StationAvailable(station) &&
                     !state.HasFlag(Scenario.Flag(station.id + ".invitation_read")))
@@ -342,6 +391,7 @@ namespace MysteryGame.Companions
         {
             if (!CanAct) { MovementSpeed = 0f; return; }
             if (seconds <= 0f || float.IsNaN(seconds) || float.IsInfinity(seconds)) return;
+            if (worldTask != null) { worldTask.Tick(seconds); return; }
             if (Mode == CompanionMode.Searching) { TickSearch(seconds); return; }
             if (Mode == CompanionMode.Following)
             {
@@ -510,6 +560,7 @@ namespace MysteryGame.Companions
         {
             return "สถานะเพื่อนร่วมสำรวจที่เกมยืนยัน: " + Scenario.displayName + " " +
                 (Mode == CompanionMode.Following ? "กำลังเดินตามผู้เล่น" :
+                 Mode == CompanionMode.WorldTask ? "กำลังทำงานกับวัตถุตามที่ผู้เล่นขอ ยังไม่ยืนยันผลจนกว่าจะทำเสร็จ" :
                  Mode == CompanionMode.Searching ? "กำลังสำรวจพื้นที่ตามที่ผู้เล่นขอ ยังไม่ยืนยันว่าเจอหลักฐาน" :
                  Mode == CompanionMode.GoingToHelp ? "กำลังเดินไปช่วยงานที่ผู้เล่นขอ ยังไม่สำเร็จ" :
                  Mode == CompanionMode.Helping ? "กำลังจับกลไกให้ รอผู้เล่นทำอีกด้าน ยังไม่สำเร็จ" : "กำลังรออยู่") +
@@ -530,7 +581,8 @@ namespace MysteryGame.Companions
         private void CancelTask()
         {
             TraceTaskEnd("cancelled");
-            if (ActiveStation != null || Mode == CompanionMode.Searching) { TaskRevision++; TaskPhase = CompanionTaskPhase.Cancelled; }
+            if (ActiveStation != null || Mode == CompanionMode.Searching || worldTask != null) { TaskRevision++; TaskPhase = CompanionTaskPhase.Cancelled; }
+            worldTask = null;
             ActiveStation = null; ActiveSearchSpot = null; WorkAnimationTime = 0f; Progress = 0f;
             elapsedTask = 0f; resumeFollowing = false; followingMoving = false; StopMoving();
         }
@@ -540,6 +592,7 @@ namespace MysteryGame.Companions
             if (dialogue != null && dialogue.PendingCompanionHelp?.Actor == this) dialogue.PendingCompanionHelp = null;
             if (dialogue != null && dialogue.ReadingContext?.Actor == this) dialogue.ReadingContext = null;
             CancelTask(); TaskRevision++; TaskPhase = CompanionTaskPhase.None; LastTaskId = null;
+            LastWorldResult = null;
             Invitation = null; Mode = CompanionMode.Waiting; reactions.Clear(); Bubble = null; bubbleSeconds = 0f;
         }
         private void Unsubscribe()

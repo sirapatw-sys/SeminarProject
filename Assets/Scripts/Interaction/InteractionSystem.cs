@@ -37,26 +37,50 @@ public class InteractionSystem : MonoBehaviour
 
     public bool TryExecute(InteractionData data, out string responseMessage, string answer = null)
     {
+        return Execute(data, out responseMessage, answer, null);
+    }
+
+    public CompanionInteractionResult TryExecuteCompanion(InteractionData data, string npcId)
+    {
+        var result = new CompanionInteractionResult { InteractionId = data != null ? data.interactionId : null };
+        // NPCs cannot solve input puzzles, run player preparation/holds alone, or leave the room.
+        if (data == null || !data.allowCompanionExecution || string.IsNullOrWhiteSpace(npcId) ||
+            data.inputPuzzle != null || data.endsDemo || !string.IsNullOrWhiteSpace(data.transitionScene))
+        { result.Message = "ตรงนี้ต้องให้เธอเป็นคนลงมือเอง ฉันช่วยดูหรือรอข้าง ๆ ได้นะ"; return result; }
+        string message;
+        result.Success = Execute(data, out message, null, npcId);
+        result.Message = result.Success && !string.IsNullOrWhiteSpace(data.companionMessage) ? data.companionMessage : message;
+        return result;
+    }
+
+    private bool Execute(InteractionData data, out string responseMessage, string answer, string actorNpcId)
+    {
         GameState state = GameState.Instance;
         var availability = CheckAvailability(data, state, out responseMessage);
         if (availability != InteractionAvailability.Ready)
         {
             // A blocked attempt is observable; re-reading a finished object or
             // missing runtime data is not a new failed gameplay attempt.
-            if (availability == InteractionAvailability.Blocked) InteractionSignals.Publish(data, false);
+            if (availability == InteractionAvailability.Blocked) Publish(data, false, actorNpcId);
             return false;
         }
         if (data.inputPuzzle != null && !data.inputPuzzle.TrySolve(state, answer))
         {
             responseMessage = data.inputPuzzle.failureMessage;
-            InteractionSignals.Publish(data, false);
+            Publish(data, false, actorNpcId);
             return false;
         }
         foreach (ActionCommand action in data.actions) action?.Execute(state);
         if (!data.repeatable) state.SetFlag("interaction." + data.interactionId + ".completed");
         responseMessage = data.interactionMessage;
-        InteractionSignals.Publish(data, true);
+        Publish(data, true, actorNpcId);
         return true;
+    }
+
+    private static void Publish(InteractionData data, bool success, string npcId)
+    {
+        if (npcId == null) InteractionSignals.Publish(data, success);
+        else InteractionSignals.PublishCompanion(data, success, npcId);
     }
 }
 
@@ -64,7 +88,9 @@ public class InteractionSystem : MonoBehaviour
 public static class InteractionSignals
 {
     public static event System.Action<InteractionData, bool> Completed;
+    public static event System.Action<InteractionData, bool, string> CompanionCompleted;
     public static void Publish(InteractionData data, bool success) { Completed?.Invoke(data, success); }
+    public static void PublishCompanion(InteractionData data, bool success, string npcId) { CompanionCompleted?.Invoke(data, success, npcId); }
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void Reset() { Completed = null; }
+    private static void Reset() { Completed = null; CompanionCompleted = null; }
 }

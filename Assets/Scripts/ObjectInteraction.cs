@@ -95,7 +95,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
     }
 
     /// <summary>The interaction this object offers right now.</summary>
-    private InteractionData ActiveData
+    public InteractionData ActiveData
     {
         get
         {
