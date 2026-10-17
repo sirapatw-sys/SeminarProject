@@ -518,6 +518,47 @@ public class CompanionWorldPlayTests
         Assert.That(prompt, Does.Not.Contain("worldIntent").And.Not.Contain("world:move:").And.Not.Contain("ตำแหน่งบนจอ"));
         Assert.That(prompt.Length, Is.LessThan(5000));
     }
+    [TestCase("วันนี้เธอดูเหนื่อยนะ")]
+    [TestCase("ขอบคุณที่ช่วยนะ")]
+    [TestCase("อยากให้เราช่วยอะไรไหม")]
+    [TestCase("เธอดูเหนื่อยนะ")]
+    [TestCase("thanks for helping")]
+    [TestCase("you look tired")]
+    public void SocialMentionsOfActionWordsDoNotDumpWorldCapabilities(string message)
+    {
+        var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+        Assert.That(context.CompanionActions, Is.Empty);
+        string prompt = AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", message, null, context);
+        Assert.That(prompt, Does.Not.Contain("worldIntent").And.Not.Contain("world:move:"));
+        Assert.That(prompt.Length, Is.LessThan(5000));
+        TestContext.WriteLine("ROUTED_SOCIAL|" + message + "|actions=" + context.CompanionActions.Count + "|promptChars=" + prompt.Length);
+    }
+    [TestCase("พิจารณาภาพวาดให้ที")]
+    [TestCase("ภาพวาดนั่น พิจารณารายละเอียดหน่อย")]
+    [TestCase("Assess the painting for me")]
+    [TestCase("พิจารณาของที่แขวนเอียงให้ที")]
+    public void SemanticRequestsDoNotNeedAListedActionVerb(string message)
+    {
+        var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+        var intent = new CompanionSemanticIntent {
+            speechAct = "request", verb = "inspect", targetId = "room01.painting", relation = "at", referenceId = "" };
+        Assert.That(intent.IsOffered(AiDialogueGenerator.CompanionActionIds(context)), Is.True);
+        GeneratedChatReply reply;
+        Assert.That(CompanionWorldCommands.TrySemantic(actor, new CompanionWorldSession(), message, intent, out reply), Is.True);
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.WorldTask));
+        Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.False);
+        Assert.That(actor.LastWorldResult?.TargetId, Is.EqualTo("room01.painting"));
+    }
+    [UnityTest]
+    public IEnumerator RoomChatExecutesAModelRequestWithoutAListedActionVerb()
+    {
+        DialogueProviders.Override = new Provider { Intent = new CompanionSemanticIntent {
+            speechAct = "request", verb = "inspect", targetId = "room01.painting", relation = "at", referenceId = "" } };
+        Assert.That(chat.OpenSession(), Is.True);
+        chat.Submit("พิจารณาภาพวาดให้ที"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.WorldTask), chat.LastReply);
+        Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.False);
+    }
     [Test]
     public void FullDialogueSynchronouslyClosesRoomChatAndCancelsItsPendingRequest()
     {

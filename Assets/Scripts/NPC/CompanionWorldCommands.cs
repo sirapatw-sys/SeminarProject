@@ -111,13 +111,24 @@ namespace MysteryGame.Companions
                             " (เกมตรวจเงื่อนไขจริง)" });
             }
         }
-        static readonly Regex ActionTopic = new Regex(@"ช่วย|ฝาก|รบกวน|เดิน|ยืน|ขยับ|ตรวจ|สำรวจ|เช็ค|เช็ก|ดู|เปิด|ค้น|อ่าน|หยุด|ตามมา|จับ|ถือ|ประคอง|ยก|" +
-            @"\b(?:help|please|follow|walk|move|stand|inspect|check|look|explore|find|examine|search|read|open|stop|come|go|hold|lift|could|would)\b", RegexOptions.IgnoreCase);
+        // Routing is not action authorization. A named target remains available even
+        // with an unfamiliar verb; the semantic executor still validates the proposal.
+        // Without a target, use request structure, not an action word anywhere in prose.
+        static readonly Regex RequestForm = new Regex(
+            @"^(?:(?:เธอ|คุณ)\s*(?=ช่วย|ฝาก|รบกวน|กรุณา|โปรด|ขอให้|อยากให้|ลอง))?(?:ช่วย|ฝาก|รบกวน|กรุณา|โปรด|ขอให้|อยากให้(?!\s*(?:เรา|ฉัน|ผม))|ลอง|เดิน|ยืน|ขยับ|ตรวจ|สำรวจ|เช็ค|เช็ก|ดู|เปิด|ค้น|อ่าน|หยุด|รอ|ตาม|ไป|มา|จับ|ถือ|ประคอง|ยก|" +
+            @"please\b|(?:can|could|would|will)\s+you\b|help\b|follow\b|walk\b|move\b|stand\b|inspect\b|check\b|look\b|explore\b|find\b|examine\b|search\b|read\b|open\b|stop\b|come\b|go\b|hold\b|lift\b)|" +
+            @"(?:ให้(?:เรา|ฉัน|ผม)?(?:หน่อย|ที)|ให้(?:ได้ไหม|ได้มั้ย)|หน่อย(?:ได้ไหม|ได้มั้ย))(?:นะ|ครับ|ค่ะ|คะ|สิ|ซิ|\s|[.!?…])*$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         public static void ScopeActions(NpcKnowledgeContext context, string message)
         {
-            if (context.PlayerAskedForHint || !ActionTopic.IsMatch(message ?? "")) { context.CompanionActions.Clear(); return; }
+            if (context.PlayerAskedForHint) { context.CompanionActions.Clear(); return; }
             if (context.Room == null) return;
-            var named = Named(message, RoomWorldRegistry.Available(context.Room.roomId, GameState.Instance));
+            string text = Normalize(message, context.Room.companionScenario);
+            var named = Named(text, RoomWorldRegistry.Available(context.Room.roomId, GameState.Instance));
+            CompanionStationData station;
+            if (named.Count == 0 && !RequestForm.IsMatch(text) &&
+                CompanionDialogueCommands.Parse(text, context.Room.companionScenario, out station) == CompanionCommand.None)
+            { context.CompanionActions.Clear(); return; }
             if (named.Count == 0) return; // Unfamiliar descriptions/deictic requests still get the compact visible-object list.
             var ids = new HashSet<string>(named.Select(t => t.Definition.id), StringComparer.Ordinal);
             context.CompanionActions.RemoveAll(a => a.Id.StartsWith("world:", StringComparison.Ordinal) &&
