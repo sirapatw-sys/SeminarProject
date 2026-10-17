@@ -559,7 +559,7 @@ public class CompanionWorldPlayTests
         Assert.That(context.CompanionActions.Any(a => a.Id.StartsWith("world:")), Is.False, message);
         string prompt = AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", message, null, context);
         Assert.That(prompt, Does.Not.Contain("worldIntent").And.Contain(CompanionActionOption.Follow));
-        Assert.That(prompt.Length, Is.LessThan(6000));
+        Assert.That(prompt.Length, Is.LessThan(5000)); // the same budget as a greeting
         TestContext.WriteLine("ROUTED_MOVE|" + message + "|actions=" + context.CompanionActions.Count + "|promptChars=" + prompt.Length);
     }
     [TestCase("พิจารณาภาพวาดให้ที")]

@@ -31,6 +31,7 @@ public class CompanionCommandTargetTests
     [TestCase("follow me to the door please")]
     [TestCase("รอตรงนี้ที่ประตู")]
     [TestCase("wait here by the window please")]
+    [TestCase("ตามมาแล้วเปิดกล่อง")]
     public void RecognizedActionCannotSilentlyDropAnUnsupportedTarget(string message)
     {
         CompanionStationData station;
@@ -64,6 +65,14 @@ public class CompanionCommandTargetTests
     [TestCase("เดินเป็นเพื่อนกันหน่อยนะ", CompanionCommand.Follow)]
     [TestCase("มาเป็นเพื่อนหน่อย", CompanionCommand.Follow)]
     [TestCase("อยู่เป็นเพื่อนหน่อยนะ", CompanionCommand.None)]
+    // Playtest round 2: a dropped tone mark and a reversed guard phrase.
+    [TestCase("เดินเป็นเพือนหน่อยสิ", CompanionCommand.Follow)]
+    [TestCase("ตามมาหน่อยนะ ที่นี่น่ากลัว", CompanionCommand.Follow)]
+    [TestCase("เฝ้าอยู่ตรงนี้ก่อนนะ", CompanionCommand.Wait)]
+    [TestCase("ช่วยเฝ้าตรงนี้หน่อย", CompanionCommand.Wait)]
+    [TestCase("อยู่นี่ก่อนนะ", CompanionCommand.Wait)]
+    [TestCase("ผมเฝ้าอยู่นะ", CompanionCommand.None)]
+    [TestCase("ฉันรออยู่นะ", CompanionCommand.None)]
     public void ExistingSupportedTargetsRemainUsable(string message, CompanionCommand expected)
     {
         CompanionStationData station;

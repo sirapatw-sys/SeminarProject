@@ -354,6 +354,21 @@ namespace MysteryGame.Knowledge
             return sb.ToString();
         }
 
+        /// <summary>
+        /// The plain follow/wait/search menu in two lines, for the short chat prompt.
+        /// The game still validates every proposal, so the rules here only steer.
+        /// </summary>
+        public string ToCompactActionSection()
+        {
+            if (CompanionActions.Count == 0 || PlayerAskedForHint) return string.Empty;
+            var options = new List<string>();
+            foreach (CompanionActionOption option in CompanionActions) options.Add(option.Id + "=" + option.Description);
+            options.Add(CompanionActionOption.None + "=ไม่ได้ขอให้ทำ");
+            return "companionAction: " + string.Join(" | ", options) + "\n" +
+                   "ใส่รหัสเฉพาะเมื่อผู้เล่นขอให้ทำตอนนี้ชัดเจน คำถาม เล่าเรื่อง สมมติ ปฏิเสธ หรือยกคำพูด ให้ใส่ " + CompanionActionOption.None +
+                   " เกมตรวจและลงมือเอง ห้ามบอกว่าทำเสร็จแล้ว\n";
+        }
+
         public string ToPromptSection()
         {
             if (!HasData)

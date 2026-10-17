@@ -87,7 +87,7 @@ namespace MysteryGame.Companions
             @"ของ|\b(?:hold|lift|open|side|other|of)\b|" + RequestFiller + @")");
         // Follow means accompany the player; wait means stop at the current
         // position. Neither action supports arbitrary destinations or objects.
-        private static readonly Regex MovementFiller = R(@"(?:เป็นเพื่อน|ด้วยกัน|ทางนี้|ข้าง\s*ๆ?|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว|สำรวจ|แล้ว(?:ก็)?|และ|" +
+        private static readonly Regex MovementFiller = R(@"(?:เป็นเพื่?อน|ด้วยกัน|ทางนี้|ข้าง\s*ๆ?|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว|สำรวจ|แล้ว(?:ก็)?|และ|" +
             @"เดิน|ตาม|รอ|หยุด|พัก|อยู่|ยืน|กับ|ไป|มา|ต่อ|เถอะ|เร็ว|" +
             @"\b(?:following|walking|moving|walk|follow|come|go|wait|stay|stop|pause|stand|beside|along|over|a\s+moment)\b|" + RequestFiller + @")");
         private static readonly Regex SearchFiller = R(@"(?:ได้(?:หรือ|รึ)เปล่า|แล้ว|ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|ทั่ว(?:ทั้ง)?|ทั้ง|ใน|เฉพาะ|เท่านั้น|แค่|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
@@ -95,6 +95,11 @@ namespace MysteryGame.Companions
         private static readonly Regex WaitDestination = R(
             @"(?:ไป|เดินไป)\s*(?:รอ|ยืน|อยู่|เฝ้า)|(?:รอ|ยืน|อยู่|เฝ้า)[^,.!?;:]{0,12}?(?:ที่|ตรง|ข้าง|หน้า|หลัง|ใกล้)(?!\s*(?:นี้|นี่|ที่นี่|ๆ))|" +
             @"\b(?:wait|stay|stand)\b[^,.!?;:]{0,16}?\b(?:at|by|near|next\s+to|in\s+front\s+of|behind)\b");
+        private static readonly Regex FollowConflict = R(
+            @"ที่|ตรง|ถึง|หน้า|หลัง|ใกล้|ซ้าย|ขวา|มุม|เปิด|ปิด|จับ|ถือ|ยก|หยิบ|อ่าน|ค้น|หา|ตรวจ|ดู|ช่วย|รอ|หยุด|" +
+            @"ประตู|ลิ้นชัก|โต๊ะ|เก้าอี้|กล่อง|หน้าต่าง|ภาพ|โซฟา|ตู้|ผนัง|กำแพง|" +
+            @"\b(?:to|towards|into|at|by|near|open|close|hold|lift|take|read|search|check|look|help|wait|stop|" +
+            @"door|drawer|desk|table|chair|box|window|painting|picture|sofa|wall)\b");
         private static readonly Regex SearchVerb = R(@"ค้น|หา|สำรวจ|ตรวจ|ดู|\b(?:search|look|find|inspect|explore)\b");
         // Only split coordinated actions after classifying the enclosing
         // clause. A question about two actions must not execute its first half.
@@ -119,10 +124,11 @@ namespace MysteryGame.Companions
             @"(?:เดิน|ไป|มา)(?:สำรวจ)?(?:ไป|มา)?ด้วยกัน|มากับ(?:เรา|ฉัน|ผม)|ไปกันเถอะ|มาทางนี้|(?:เดิน)?ตาม(?:เรา|ฉัน|ผม|มา)|" +
             // Short spoken invitations; the lookahead keeps idioms such as "ไปกันใหญ่" out.
             @"มา(?:นี่|ตรงนี้)(?=\s*(?:สิ|ซิ|หน่อย|เร็ว|นะ|ที)*\s*$)|ไปกัน(?:เลย|ต่อ)?(?=\s*(?:นะ|สิ|ซิ|เถอะ)*\s*$)|" +
-            @"(?:มา|ไป)ด้วย(?=\s*(?:นะ|สิ|ซิ|หน่อย|ครับ|ค่ะ|คะ)*\s*$)|(?:เดิน|มา|ไป)\s*(?:ไป\s*)?เป็นเพื่อน|" +
+            @"(?:มา|ไป)ด้วย(?=\s*(?:นะ|สิ|ซิ|หน่อย|ครับ|ค่ะ|คะ)*\s*$)|(?:เดิน|มา|ไป)\s*(?:ไป\s*)?เป็นเพื่?อน|" + // tolerate a dropped tone mark (เพือน)
             @"\b(?:follow\s+(?:me|us)|(?:come|walk|go)\s+with\s+(?:me|us))\b");
         private static readonly Regex Wait = R(
-            @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว)|อยู่\s*(?:เฝ้า|รอ)?\s*(?:ตรงนี้|ที่นี่)|อยู่\s*(?:เฝ้า|รอ)(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ|$))|เฝ้า(?:ตรงนี้|ที่นี่|ไว้)|ยืนรอ|อยู่นิ่ง(?:ๆ)?|หยุด(?:เดิน(?:ตาม)?|ตาม|เคลื่อนที่|สำรวจ|ค้นหา|หา(?:หลักฐาน|เบาะแส))|หยุด(?=\s*(?:ก่อน|หน่อย|นะ|ครับ|ค่ะ|คะ|$))|" +
+            @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว)|อยู่\s*(?:เฝ้า|รอ)?\s*(?:ตรงนี้|ที่นี่)|อยู่\s*(?:เฝ้า|รอ)(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ|$))|เฝ้า\s*(?:อยู่|รอ)?\s*(?:ตรงนี้|ที่นี่|ไว้|(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ)*\s*$))|" +
+            @"(?:อยู่|รอ)\s*(?:นี่|นี้)\s*ก่อน|ยืนรอ|อยู่นิ่ง(?:ๆ)?|หยุด(?:เดิน(?:ตาม)?|ตาม|เคลื่อนที่|สำรวจ|ค้นหา|หา(?:หลักฐาน|เบาะแส))|หยุด(?=\s*(?:ก่อน|หน่อย|นะ|ครับ|ค่ะ|คะ|$))|" +
             @"พักก่อน|พอแล้ว|ไม่ต้อง(?:เดิน)?ตาม(?:มา|เรา|ฉัน|ผม)?(?:แล้ว|ก่อน|(?=\s*$))|ไม่ต้องเดิน(?:แล้ว|ก่อน)|" +
             @"\b(?:wait\s+(?:here|for\s+(?:me|us))|wait(?=\s*(?:please|a\s+moment|$))|stay\s+here|stop\s+(?:following|walking|moving)(?:\s+(?:me|us))?|stop(?=\s*(?:please|here|$)))\b");
         private static readonly Regex Search = R(
@@ -483,7 +489,9 @@ namespace MysteryGame.Companions
                 { remaining = text.Substring(match.Index); break; }
             remaining = action.Replace(remaining, " ");
             remaining = MovementFiller.Replace(remaining, string.Empty);
-            return Regex.Replace(remaining, @"\p{M}", string.Empty).Length > 0;
+            // Leftover words alone (a typo, "สิ", a feeling) are not a destination;
+            // only a place, an object or a second action is ("ตามมาที่ประตู").
+            return FollowConflict.IsMatch(remaining);
         }
 
         // Called only from the trusted player-send path, never from a provider,

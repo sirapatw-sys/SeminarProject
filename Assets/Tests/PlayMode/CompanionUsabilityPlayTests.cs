@@ -393,6 +393,26 @@ public class CompanionUsabilityPlayTests
     }
 
     [UnityTest]
+    public IEnumerator UnfamiliarStopWordingCanStillStopAFollowingCompanion()
+    {
+        // Playtest: "เฝ้าอยู่ตรงนี้ก่อนนะ" got a friendly reply but she kept following,
+        // because wording the rules missed reached the model with no wait option.
+        foreach (string message in new[] { "อยู่เฉยๆ สักพักนะ", "พักขาสักครู่นะ" })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState();
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+            Assert.That(actor.RequestFollow(), Is.True); Chat();
+            var knowledge = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(AiDialogueGenerator.CompanionActionIds(knowledge), Does.Contain(CompanionActionOption.Wait), message);
+            // Being able to stop must not cost more than ordinary chat.
+            Assert.That(AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", message, null, knowledge).Length, Is.LessThan(5000), message);
+            provider.Text = "...อืม"; provider.ProposedAction = "wait";
+            Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message);
+        }
+    }
+
+    [UnityTest]
     public IEnumerator ReviewLegitimateNegativeStopsRemainCommands()
     {
         foreach (string message in new[] { "อย่าเพิ่งไป", "อย่าเพิ่งเดินไปไหน", "please don't go away", "don't leave yet" })

@@ -137,7 +137,12 @@ namespace MysteryGame.Companions
             CompanionStationData station;
             if (named.Count == 0 && !RequestForm.IsMatch(text) &&
                 CompanionDialogueCommands.Parse(text, context.Room.companionScenario, out station) == CompanionCommand.None)
-            { context.CompanionActions.Clear(); return; }
+            {
+                // While the companion is following or working, stopping must stay possible for
+                // wording the rules miss ("เฝ้าอยู่ตรงนี้ก่อนนะ"); the proposal still needs a stop verb.
+                context.CompanionActions.RemoveAll(a => !(context.CompanionActionScope && a.Id == CompanionActionOption.Wait));
+                return;
+            }
             if (named.Count == 0)
             {
                 // Unfamiliar descriptions/deictic requests still get the compact visible-object list.
