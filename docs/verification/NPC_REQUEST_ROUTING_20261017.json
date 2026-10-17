@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-17",
+  "branch": "codex/npc-cothinking",
+  "baseline_commit": "0897dba",
+  "runtime_commit": "74291498b70a83870f7c1982bf5563992765d326",
+  "unity": "2021.3.16f1",
+  "tests": {
+    "playmode": {
+      "total": 374,
+      "passed": 374,
+      "failed": 0,
+      "skipped": 0,
+      "path": "Logs/NpcRequestRouting_20261017/PlayMode.xml",
+      "sha256": "73F702E94A47D2FE6A2C3C80F52833A28E19C5D43EB52222979F93220AA2AC85"
+    },
+    "editmode": {
+      "total": 1296,
+      "passed": 1296,
+      "failed": 0,
+      "skipped": 0,
+      "path": "Logs/NpcRequestRouting_20261017/EditMode.xml",
+      "sha256": "335200CCAF1D5DCAF4EC91526497EA012DBECA35138F54D25832C38FCAD3F2C8"
+    },
+    "accepted_unique_total": 1670,
+    "new_cases": 11
+  },
+  "measurements": {
+    "method": "Fresh Room01, default relationship, empty supplemental context; actual prompt builder, no HTTP or tokenizer",
+    "samples": [
+      {
+        "prompt_chars_before": 10995,
+        "prompt_chars_after": 2890,
+        "actions_after": 0,
+        "message": "วันนี้เธอดูเหนื่อยนะ",
+        "actions_before": 34
+      },
+      {
+        "prompt_chars_before": 10990,
+        "prompt_chars_after": 2885,
+        "actions_after": 0,
+        "message": "ขอบคุณที่ช่วยนะ",
+        "actions_before": 34
+      },
+      {
+        "prompt_chars_before": 10996,
+        "prompt_chars_after": 2891,
+        "actions_after": 0,
+        "message": "อยากให้เราช่วยอะไรไหม",
+        "actions_before": 34
+      }
+    ]
+  },
+  "build": {
+    "result": "Succeeded",
+    "errors": 0,
+    "exit_code": 0,
+    "directory": "Logs/CompanionAiBuilds/20261017-080247-f2a953",
+    "log": "Logs/NpcRequestRouting_20261017/Build.log",
+    "log_sha256": "BAF2E958E0A9A41BB8B3DF3829007C15644E2185D32A3F0CE42F9DD75236D8FF",
+    "runtime_verified": "RequestForm present; old ActionTopic absent"
+  },
+  "package": {
+    "path": "Logs/CompanionAiBuilds/MysteryGame-AI-Enabled-RequestRouting-20261017.zip",
+    "bytes": 74212760,
+    "sha256": "98D3D7A5203678BDFFB442CAD7A62075E9C3EF2F1454335AD7AD27D208C68001",
+    "entries": 178,
+    "all_entries_read_to_end": true
+  },
+  "not_verified": [
+    "Real provider token/quota/latency",
+    "Manual visual QA",
+    "CI"
+  ],
+  "publication": "Local only; no push or PR changes"
+}
