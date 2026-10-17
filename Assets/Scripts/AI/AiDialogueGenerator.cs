@@ -1173,9 +1173,9 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                "\"items\":{\"type\":\"string\"}}," +
                "\"emotion\":{\"type\":\"string\"}," +
                "\"playerTone\":{\"type\":\"string\",\"enum\":[\"hostile\",\"cold\",\"neutral\",\"friendly\",\"kind\"]}" +
-               (actions ? ",\"companionAction\":{\"type\":\"string\",\"enum\":[" + enumValues + "]}" : "") + worldSchema + "}," +
+               (actions ? ",\"actionQuote\":{\"type\":\"string\"},\"companionAction\":{\"type\":\"string\",\"enum\":[" + enumValues + "]}" : "") + worldSchema + "}," +
                "\"required\":[\"reply\",\"relationshipDelta\"," +
-               "\"referencedFactIds\",\"emotion\",\"playerTone\"" + (actions ? ",\"companionAction\"" : "") +
+               "\"referencedFactIds\",\"emotion\",\"playerTone\"" + (actions ? ",\"actionQuote\",\"companionAction\"" : "") +
                (worldSchema.Length > 0 ? ",\"worldIntent\"" : "") + "]," +
                "\"additionalProperties\":false}";
     }
@@ -1185,7 +1185,8 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     {
         string format = "Return only JSON with reply, relationshipDelta (-15 to 10), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string) and playerTone (hostile, cold, neutral, friendly or kind)";
         if (actionIds != null && actionIds.Count > 0)
-            format += " and companionAction (exactly one of: " + string.Join(", ", actionIds) + ")";
+            format += " and companionAction (exactly one of: " + string.Join(", ", actionIds) + ")" +
+                " and actionQuote (the player's exact words that ask for that action, or an empty string)";
         if (CompanionSemanticIntent.OfferedTargets(actionIds).Count > 0)
             format += " and worldIntent {speechAct: none/request/question/chat/unclear, verb: none/move/inspect/open, " +
                 "targetId: an offered world target ID or empty string, relation: at/near/left/right/front/behind/between, " +
@@ -1303,6 +1304,13 @@ public class GeneratedChatReply
     /// manager validates it against live game state before anything happens.
     /// </summary>
     public string companionAction;
+
+    /// <summary>
+    /// The player's own words that ask for companionAction, copied verbatim.
+    /// The game checks they really are in the message before trusting a
+    /// movement proposal whose wording the rules do not know.
+    /// </summary>
+    public string actionQuote;
     public CompanionSemanticIntent worldIntent;
 
     public bool IsValid()

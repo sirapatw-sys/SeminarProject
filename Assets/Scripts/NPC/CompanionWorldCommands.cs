@@ -138,9 +138,13 @@ namespace MysteryGame.Companions
             if (named.Count == 0 && !RequestForm.IsMatch(text) &&
                 CompanionDialogueCommands.Parse(text, context.Room.companionScenario, out station) == CompanionCommand.None)
             {
-                // While the companion is following or working, stopping must stay possible for
-                // wording the rules miss ("เฝ้าอยู่ตรงนี้ก่อนนะ"); the proposal still needs a stop verb.
-                context.CompanionActions.RemoveAll(a => !(context.CompanionActionScope && a.Id == CompanionActionOption.Wait));
+                // Any chat can still ask her to come along or to stay, in wording the rules
+                // miss ("เฝ้าดูตรงนี้ก่อน"). Only those two cheap options remain; the game
+                // accepts them only with a movement verb or the model's verified quote.
+                var actor = NpcCompanionController.Find(context.NpcId, context.Room.roomId);
+                bool following = actor != null && actor.Mode == CompanionMode.Following;
+                context.CompanionActions.RemoveAll(a => !(context.CompanionActionScope && a.Id == CompanionActionOption.Wait ||
+                    actor != null && !following && a.Id == CompanionActionOption.Follow));
                 return;
             }
             if (named.Count == 0)

@@ -116,7 +116,7 @@ namespace MysteryGame.Companions
                         actor.ApplyRoomCommand(CompanionCommand.Follow)) { Say(actor.Bubble); return; }
                     if (reply?.companionAction != null && reply.companionAction.StartsWith("world:", StringComparison.Ordinal))
                     { Say("ฉันยังทำตามคำขอนั้นไม่ได้ ลองบอกสิ่งที่อยากให้ทำกับชื่อเป้าหมายอีกครั้งนะ"); return; }
-                    if (CompanionDialogueCommands.TryApplyRoomProposedAction(actor, message, reply?.companionAction, out applied))
+                    if (CompanionDialogueCommands.TryApplyRoomProposedAction(actor, message, reply?.companionAction, out applied, reply?.actionQuote))
                     { Say(applied.reply); return; }
                     var knowledge = AiDialogueGenerator.BuildKnowledgeContext(actor.Scenario.npcId, message);
                     GeneratedChatReply grounded;

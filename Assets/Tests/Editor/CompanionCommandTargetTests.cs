@@ -73,6 +73,12 @@ public class CompanionCommandTargetTests
     [TestCase("อยู่นี่ก่อนนะ", CompanionCommand.Wait)]
     [TestCase("ผมเฝ้าอยู่นะ", CompanionCommand.None)]
     [TestCase("ฉันรออยู่นะ", CompanionCommand.None)]
+    // Playtest round 3: "เฝ้าดู" and "คอย" mean stay here too.
+    [TestCase("เฝ้าดูตรงนี้ก่อน เดียวผมมา", CompanionCommand.Wait)]
+    [TestCase("เฝ้าดูไว้นะ เดี๋ยวกลับมา", CompanionCommand.Wait)]
+    [TestCase("คอยอยู่ตรงนี้นะ", CompanionCommand.Wait)]
+    [TestCase("คอยดูนะ", CompanionCommand.None)]
+    [TestCase("ผมคอยอยู่นะ", CompanionCommand.None)]
     public void ExistingSupportedTargetsRemainUsable(string message, CompanionCommand expected)
     {
         CompanionStationData station;

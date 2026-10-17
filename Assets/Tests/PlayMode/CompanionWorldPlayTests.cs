@@ -526,10 +526,12 @@ public class CompanionWorldPlayTests
         finally { UnityEngine.Object.DestroyImmediate(area); }
     }
     [Test]
-    public void GreetingDoesNotOfferAnyActionsOrWorldSchema()
+    public void GreetingOffersOnlyFollowAndNoWorldSchema()
     {
+        // Ordinary chat keeps one cheap movement option so wording the rules miss can still
+        // ask her along; world targets, stations and evidence stay out.
         var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "สวัสดี Alice");
-        Assert.That(context.CompanionActions, Is.Empty);
+        Assert.That(context.CompanionActions.Select(a => a.Id), Is.EqualTo(new[] { CompanionActionOption.Follow }));
         string prompt = AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", "สวัสดี Alice", null, context);
         Assert.That(prompt, Does.Not.Contain("worldIntent").And.Not.Contain("world:move:").And.Not.Contain("ตำแหน่งบนจอ"));
         Assert.That(prompt.Length, Is.LessThan(5000));
@@ -543,7 +545,7 @@ public class CompanionWorldPlayTests
     public void SocialMentionsOfActionWordsDoNotDumpWorldCapabilities(string message)
     {
         var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
-        Assert.That(context.CompanionActions, Is.Empty);
+        Assert.That(context.CompanionActions.Select(a => a.Id), Is.EqualTo(new[] { CompanionActionOption.Follow }), message);
         string prompt = AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", message, null, context);
         Assert.That(prompt, Does.Not.Contain("worldIntent").And.Not.Contain("world:move:"));
         Assert.That(prompt.Length, Is.LessThan(5000));

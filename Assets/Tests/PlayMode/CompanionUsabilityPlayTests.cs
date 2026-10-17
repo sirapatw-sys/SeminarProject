@@ -22,12 +22,12 @@ public class CompanionUsabilityPlayTests
     {
         public int Calls;
         public string Text = "หยุดแล้ว ฉันเจอรหัส 4592";
-        public string ProposedAction;
+        public string ProposedAction, ProposedQuote;
         public bool CanGenerate { get { return true; } }
         public string LastError { get { return ""; } }
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> done) { Calls++; done(null); yield break; }
         public IEnumerator GenerateReply(string id, string name, string context, string message, Action<GeneratedChatReply> done, string personality = null)
-        { Calls++; done(new GeneratedChatReply { reply = Text, referencedFactIds = Array.Empty<string>(), companionAction = ProposedAction }); yield break; }
+        { Calls++; done(new GeneratedChatReply { reply = Text, referencedFactIds = Array.Empty<string>(), companionAction = ProposedAction, actionQuote = ProposedQuote }); yield break; }
     }
     private class Unavailable : IAiDialogueProvider
     {
@@ -397,7 +397,8 @@ public class CompanionUsabilityPlayTests
     {
         // Playtest: "เฝ้าอยู่ตรงนี้ก่อนนะ" got a friendly reply but she kept following,
         // because wording the rules missed reached the model with no wait option.
-        foreach (string message in new[] { "อยู่เฉยๆ สักพักนะ", "พักขาสักครู่นะ" })
+        // "เฝ้า"/"hang on" were understood by the model but failed the stop-verb check.
+        foreach (string message in new[] { "อยู่เฉยๆ สักพักนะ", "พักขาสักครู่นะ", "เฝ้าสักครู่นะ", "hang on a sec" })
         {
             DialogueManager.Instance.HideDialogue(); State.ResetState();
             ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
@@ -409,6 +410,28 @@ public class CompanionUsabilityPlayTests
             provider.Text = "...อืม"; provider.ProposedAction = "wait";
             Send(message); yield return null;
             Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator ModelQuotedMovementWordsWorkWithoutAVerbList()
+    {
+        // The model, not a word list, reads the request; the game checks its quote is real.
+        foreach (var c in new[] {
+            new { Msg = "ปักหลักตรงนี้ก่อน", Quote = "ปักหลักตรงนี้", Action = "wait", Following = true, Expect = CompanionMode.Waiting },
+            new { Msg = "ประกบผมไว้นะ", Quote = "ประกบผมไว้", Action = "follow", Following = false, Expect = CompanionMode.Following },
+            // Not in the message, only courtesy, negated or hypothetical: no movement.
+            new { Msg = "สวัสดี", Quote = "หยุดเดิน", Action = "wait", Following = true, Expect = CompanionMode.Following },
+            new { Msg = "ขอบคุณนะ", Quote = "นะ", Action = "wait", Following = true, Expect = CompanionMode.Following },
+            new { Msg = "อย่าปักหลักตรงนี้นะ", Quote = "ปักหลักตรงนี้", Action = "wait", Following = true, Expect = CompanionMode.Following },
+            new { Msg = "ถ้าประกบผมไว้ล่ะ", Quote = "ประกบผมไว้", Action = "follow", Following = false, Expect = CompanionMode.Waiting } })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState();
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+            if (c.Following) Assert.That(actor.RequestFollow(), Is.True);
+            Chat(); provider.Text = "...อืม"; provider.ProposedAction = c.Action; provider.ProposedQuote = c.Quote;
+            Send(c.Msg); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(c.Expect), c.Msg + " / " + c.Quote);
         }
     }
 

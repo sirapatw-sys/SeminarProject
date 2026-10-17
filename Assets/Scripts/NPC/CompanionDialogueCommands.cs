@@ -56,7 +56,7 @@ namespace MysteryGame.Companions
             @"(?:don't|dont|do\s+not)\s+(?:go\s+away|leave(?:\s+yet)?))" + CourtesyParticles + SentenceEnd);
         private static readonly Regex FollowProposalVerb = R(
             @"เดิน|ตาม|มา(?:กับ|ด้วย|นี่|ตรงนี้)|ไป(?:กับ|ด้วย|กัน)|\b(?:walk|follow|come|go)\b");
-        private static readonly Regex WaitProposalVerb = R(@"รอ|หยุด|พัก|อยู่|ยืน|\b(?:wait|stay|stop|pause|stand)\b");
+        private static readonly Regex WaitProposalVerb = R(@"รอ|หยุด|พัก|อยู่|ยืน|เฝ้า|คอย|นิ่ง|\b(?:wait|stay|stop|pause|stand|guard|hold\s+on|hang\s+on)\b");
         // Proposals may interpret a request, but a target or courtesy particle
         // alone never grants permission. Keep the action verb in the player's text.
         private static readonly Regex HelpProposalVerb = R(
@@ -93,7 +93,7 @@ namespace MysteryGame.Companions
         private static readonly Regex SearchFiller = R(@"(?:ได้(?:หรือ|รึ)เปล่า|แล้ว|ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|ทั่ว(?:ทั้ง)?|ทั้ง|ใน|เฉพาะ|เท่านั้น|แค่|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
             @"\b(?:search|look|find|inspect|explore|clues?|evidence|room|around|in|only|just|throughout)\b|" + RequestFiller + @")");
         private static readonly Regex WaitDestination = R(
-            @"(?:ไป|เดินไป)\s*(?:รอ|ยืน|อยู่|เฝ้า)|(?:รอ|ยืน|อยู่|เฝ้า)[^,.!?;:]{0,12}?(?:ที่|ตรง|ข้าง|หน้า|หลัง|ใกล้)(?!\s*(?:นี้|นี่|ที่นี่|ๆ))|" +
+            @"(?:ไป|เดินไป)\s*(?:รอ|ยืน|อยู่|เฝ้า|คอย)|(?:รอ|ยืน|อยู่|เฝ้า|คอย)[^,.!?;:]{0,12}?(?:ที่|ตรง|ข้าง|หน้า|หลัง|ใกล้)(?!\s*(?:นี้|นี่|ที่นี่|ๆ))|" +
             @"\b(?:wait|stay|stand)\b[^,.!?;:]{0,16}?\b(?:at|by|near|next\s+to|in\s+front\s+of|behind)\b");
         private static readonly Regex FollowConflict = R(
             @"ที่|ตรง|ถึง|หน้า|หลัง|ใกล้|ซ้าย|ขวา|มุม|เปิด|ปิด|จับ|ถือ|ยก|หยิบ|อ่าน|ค้น|หา|ตรวจ|ดู|ช่วย|รอ|หยุด|" +
@@ -127,7 +127,7 @@ namespace MysteryGame.Companions
             @"(?:มา|ไป)ด้วย(?=\s*(?:นะ|สิ|ซิ|หน่อย|ครับ|ค่ะ|คะ)*\s*$)|(?:เดิน|มา|ไป)\s*(?:ไป\s*)?เป็นเพื่?อน|" + // tolerate a dropped tone mark (เพือน)
             @"\b(?:follow\s+(?:me|us)|(?:come|walk|go)\s+with\s+(?:me|us))\b");
         private static readonly Regex Wait = R(
-            @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว)|อยู่\s*(?:เฝ้า|รอ)?\s*(?:ตรงนี้|ที่นี่)|อยู่\s*(?:เฝ้า|รอ)(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ|$))|เฝ้า\s*(?:อยู่|รอ)?\s*(?:ตรงนี้|ที่นี่|ไว้|(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ)*\s*$))|" +
+            @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว)|อยู่\s*(?:เฝ้า|รอ)?\s*(?:ตรงนี้|ที่นี่)|อยู่\s*(?:เฝ้า|รอ)(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ|$))|(?:เฝ้า|คอย)\s*ดู\s*(?:ตรงนี้|ที่นี่|ไว้)|(?:เฝ้า|คอย)\s*(?:อยู่|รอ)?\s*(?:ตรงนี้|ที่นี่|ไว้|(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ)*\s*$))|" +
             @"(?:อยู่|รอ)\s*(?:นี่|นี้)\s*ก่อน|ยืนรอ|อยู่นิ่ง(?:ๆ)?|หยุด(?:เดิน(?:ตาม)?|ตาม|เคลื่อนที่|สำรวจ|ค้นหา|หา(?:หลักฐาน|เบาะแส))|หยุด(?=\s*(?:ก่อน|หน่อย|นะ|ครับ|ค่ะ|คะ|$))|" +
             @"พักก่อน|พอแล้ว|ไม่ต้อง(?:เดิน)?ตาม(?:มา|เรา|ฉัน|ผม)?(?:แล้ว|ก่อน|(?=\s*$))|ไม่ต้องเดิน(?:แล้ว|ก่อน)|" +
             @"\b(?:wait\s+(?:here|for\s+(?:me|us))|wait(?=\s*(?:please|a\s+moment|$))|stay\s+here|stop\s+(?:following|walking|moving)(?:\s+(?:me|us))?|stop(?=\s*(?:please|here|$)))\b");
@@ -659,7 +659,8 @@ namespace MysteryGame.Companions
         /// exactly as for a parsed command. Returns false to keep the model's
         /// own reply (no proposal, a veto, an unknown id, or a no-op).
         /// </summary>
-        public static bool TryApplyProposedAction(DialogueManager dialogue, string message, string actionId, out GeneratedChatReply reply)
+        public static bool TryApplyProposedAction(DialogueManager dialogue, string message, string actionId, out GeneratedChatReply reply,
+            string actionQuote = null)
         {
             reply = null;
             if (string.IsNullOrWhiteSpace(actionId) || actionId == CompanionActionOption.None ||
@@ -669,14 +670,27 @@ namespace MysteryGame.Companions
             if (CompanionWorldCommands.TryProposal(actor, dialogue.WorldCommandSession, message, actionId, out reply)) return true;
 
             if (CompanionNaturalRequests.TryApplyProposal(dialogue, actor, message, actionId, out reply)) return true;
-            return TryApplyCommonProposal(dialogue, actor, message, actionId, out reply);
+            return TryApplyCommonProposal(dialogue, actor, message, actionId, actionQuote, out reply);
         }
-        public static bool TryApplyRoomProposedAction(NpcCompanionController actor, string message, string actionId, out GeneratedChatReply reply)
+        public static bool TryApplyRoomProposedAction(NpcCompanionController actor, string message, string actionId, out GeneratedChatReply reply,
+            string actionQuote = null)
         {
             reply = null;
             if (actor == null || !actor.CanReceiveRoomCommand || string.IsNullOrWhiteSpace(actionId) || actionId == CompanionActionOption.None) return false;
-            return TryApplyCommonProposal(null, actor, message, actionId, out reply);
+            return TryApplyCommonProposal(null, actor, message, actionId, actionQuote, out reply);
         }
+        // The model read a follow/wait request in wording the verb lists do not know
+        // ("เฝ้าดูตรงนี้ก่อน"). Trust that reading only when the words it quotes are
+        // really in the player's current request and are not themselves vetoed.
+        private static bool QuoteGrounds(string quote, string currentRequest, CompanionCommand command, CompanionScenarioData scenario)
+        {
+            if (string.IsNullOrWhiteSpace(quote)) return false;
+            string core = Regex.Replace(CourtesyCondition.Replace(WithoutAddress(Normalize(quote), scenario), " "), @"\s+", " ").Trim();
+            string request = Regex.Replace(currentRequest ?? "", @"\s+", " ");
+            if (Regex.Replace(core, @"[\s\p{P}\p{M}]", "").Length < 2 || request.IndexOf(core, StringComparison.Ordinal) < 0) return false;
+            return !RulesVeto(core, command) && !QuoteOnlyCourtesy.IsMatch(core);
+        }
+        private static readonly Regex QuoteOnlyCourtesy = R(@"^(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|จ๊ะ|หน่อย|สิ|ที|please|thanks?|ok(?:ay)?|ได้(?:ไหม|มั้ย)?|สวัสดี(?:ครับ|ค่ะ)?|hi|hello)(?:\s*(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|หน่อย|สิ))*$");
         private static bool ApplyForSurface(NpcCompanionController actor, DialogueManager dialogue, CompanionCommand command,
             CompanionStationData station, out string line)
         {
@@ -685,7 +699,7 @@ namespace MysteryGame.Companions
             line = applied ? actor.Bubble : actor.Scenario.helpClarificationLine; return applied;
         }
         private static bool TryApplyCommonProposal(DialogueManager dialogue, NpcCompanionController actor,
-            string message, string actionId, out GeneratedChatReply reply)
+            string message, string actionId, string actionQuote, out GeneratedChatReply reply)
         {
             reply = null;
             CompanionCommand command = CompanionCommand.None;
@@ -706,10 +720,13 @@ namespace MysteryGame.Companions
             string text = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
             if (RulesVeto(text, command)) return false;
             text = CurrentRequest(text, actor.Scenario);
-            // A model's movement proposal needs a direct movement request.
+            // A model's movement proposal needs a direct movement request: a known
+            // movement verb, or the request words the model quotes from this message.
             // Greetings, hand-holding and other social talk do not authorize it.
-            if (command == CompanionCommand.Follow && !IsDirectAction(text, FollowProposalVerb, actor.Scenario) ||
-                command == CompanionCommand.Wait && !StayRequest.IsMatch(text) && !IsDirectAction(text, WaitProposalVerb, actor.Scenario))
+            bool quoted = (command == CompanionCommand.Follow || command == CompanionCommand.Wait) &&
+                QuoteGrounds(actionQuote, text, command, actor.Scenario);
+            if (command == CompanionCommand.Follow && !quoted && !IsDirectAction(text, FollowProposalVerb, actor.Scenario) ||
+                command == CompanionCommand.Wait && !quoted && !StayRequest.IsMatch(text) && !IsDirectAction(text, WaitProposalVerb, actor.Scenario))
                 return false;
             if ((command == CompanionCommand.Follow || command == CompanionCommand.Wait) && HasMovementTargetConflict(text, command))
             {

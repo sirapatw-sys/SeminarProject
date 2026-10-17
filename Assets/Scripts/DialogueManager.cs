@@ -1462,7 +1462,7 @@ public class DialogueManager : MonoBehaviour
         if (companionCommand == null && generated != null &&
             generated.worldIntent == null &&
             MysteryGame.Companions.CompanionDialogueCommands.TryApplyProposedAction(
-                this, playerMessage, generated.companionAction, out proposedAction))
+                this, playerMessage, generated.companionAction, out proposedAction, generated.actionQuote))
         {
             companionCommand = proposedAction;
             generated = null;

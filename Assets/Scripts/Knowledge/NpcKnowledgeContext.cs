@@ -348,6 +348,7 @@ namespace MysteryGame.Knowledge
             sb.AppendLine("ถ้าผู้เล่นขอให้ทำสิ่งที่ไม่มีในรายการนี้ (เช่นขอให้ช่วยที่วัตถุอื่น) ให้ใส่ " + CompanionActionOption.None +
                           " ห้ามเลือกรหัสที่ใกล้เคียงแทน แล้วตอบตามบุคลิกว่าตอนนี้ยังช่วยเรื่องนั้นไม่ได้");
             sb.AppendLine("เกมจะตรวจเองว่าทำได้จริงหรือไม่ก่อนลงมือ ใน reply ให้ตอบรับหรือถามกลับสั้นๆ ตามบุคลิก ห้ามบอกว่าทำสำเร็จแล้ว");
+            sb.AppendLine(QuoteRule);
             if (CompanionActions.Exists(a => a.Id.StartsWith("world:", System.StringComparison.Ordinal)))
                 sb.AppendLine(MysteryGame.Companions.CompanionSemanticIntent.Instructions);
             sb.AppendLine();
@@ -365,9 +366,11 @@ namespace MysteryGame.Knowledge
             foreach (CompanionActionOption option in CompanionActions) options.Add(option.Id + "=" + option.Description);
             options.Add(CompanionActionOption.None + "=ไม่ได้ขอให้ทำ");
             return "companionAction: " + string.Join(" | ", options) + "\n" +
-                   "ใส่รหัสเฉพาะเมื่อผู้เล่นขอให้ทำตอนนี้ชัดเจน คำถาม เล่าเรื่อง สมมติ ปฏิเสธ หรือยกคำพูด ให้ใส่ " + CompanionActionOption.None +
-                   " เกมตรวจและลงมือเอง ห้ามบอกว่าทำเสร็จแล้ว\n";
+                   "อ่านเจตนาจากความหมาย ไม่ใช่คำ: ขอให้อยู่/เฝ้า/คอย/ไม่ต้องตาม = wait, ชวนไปด้วยกัน/อยู่ข้างๆ ตอนเดิน = follow " +
+                   "ใส่รหัสเฉพาะเมื่อผู้เล่นขอให้ทำตอนนี้ คำถาม เล่าเรื่อง สมมติ ปฏิเสธ หรือยกคำพูด ให้ใส่ " + CompanionActionOption.None +
+                   " เกมตรวจและลงมือเอง ห้ามบอกว่าทำเสร็จแล้ว\n" + QuoteRule + "\n";
         }
+        const string QuoteRule = "actionQuote: คัดลอกคำในข้อความผู้เล่นที่ขอให้ทำแบบตรงตัวทุกตัวอักษร (ไม่แปล ไม่สรุป) ถ้า none ให้เป็นสตริงว่าง";
 
         public string ToPromptSection()
         {
