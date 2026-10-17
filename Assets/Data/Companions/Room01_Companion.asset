@@ -21,6 +21,7 @@ MonoBehaviour:
     title: "ภาพวาดบนผนัง"
     aliases: ["ภาพวาด", "กรอบภาพ", "painting", "picture"]
     sceneObject: Painting
+    useSceneGeometry: 1
     approachPoint: {x: 0, y: 1.1}
     workSeconds: 1.5
     allowInspect: 1
@@ -31,6 +32,7 @@ MonoBehaviour:
     title: "โต๊ะทำงาน"
     aliases: ["โต๊ะ", "desk", "table"]
     sceneObject: Desk
+    useSceneGeometry: 1
     approachPoint: {x: -4.1, y: -1.15}
     workSeconds: 2
     allowInspect: 1
@@ -41,6 +43,7 @@ MonoBehaviour:
     title: "ลิ้นชัก"
     aliases: ["drawer"]
     sceneObject: Drawer
+    useSceneGeometry: 1
     approachPoint: {x: -2.15, y: -0.8}
     workSeconds: 1.5
     allowInspect: 1
@@ -52,6 +55,7 @@ MonoBehaviour:
     title: "ประตูทางออก"
     aliases: ["ประตู", "door", "exit"]
     sceneObject: Door
+    useSceneGeometry: 1
     approachPoint: {x: 5.1, y: 0.7}
     workSeconds: 1.5
     allowInspect: 1
@@ -84,6 +88,69 @@ MonoBehaviour:
     aliases: ["มุมขวาบน", "top right", "upper right"]
     approachPoint: {x: 6, y: 0.6}
     visibleDescription: "พื้นที่ว่างมุมบนขวา"
+  - id: room01.sofa
+    title: "โซฟา"
+    aliases: ["โซฟา", "เก้าอี้ยาว", "sofa", "couch"]
+    sceneObject: Obstacle_Sofa
+    useSceneGeometry: 1
+    approachPoint: {x: 4.7, y: -3.5}
+    allowInspect: 1
+    visibleDescription: "โซฟาทางขวาล่างของห้อง เป็นของตกแต่งที่มองเห็น"
+    inspectLine: "ฉันดูบริเวณโซฟาแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.side_table
+    title: "โต๊ะข้างโซฟา"
+    aliases: ["โต๊ะเล็ก", "โต๊ะข้างโซฟา", "side table"]
+    sceneObject: Obstacle_SideTable
+    useSceneGeometry: 1
+    approachPoint: {x: 4.7, y: -1.8}
+    allowInspect: 1
+    visibleDescription: "โต๊ะเล็กใกล้โซฟาทางขวาของห้อง"
+    inspectLine: "ฉันดูโต๊ะเล็กแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.plant
+    title: "ต้นไม้ด้านขวา"
+    aliases: ["ต้นไม้", "กระถางด้านขวา", "plant"]
+    sceneObject: Obstacle_Plant
+    useSceneGeometry: 1
+    approachPoint: {x: 7, y: 0.6}
+    allowInspect: 1
+    visibleDescription: "ต้นไม้ในกระถางทางขวาบนของห้อง"
+    inspectLine: "ฉันดูต้นไม้แล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.plant_pot
+    title: "กระถางมุมซ้ายล่าง"
+    aliases: ["กระถางซ้ายล่าง", "left plant pot"]
+    sceneObject: Obstacle_PlantPot
+    useSceneGeometry: 1
+    approachPoint: {x: -6.9, y: -2.5}
+    allowInspect: 1
+    visibleDescription: "กระถางที่มุมล่างซ้ายของห้อง"
+    inspectLine: "ฉันดูกระถางแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.book_pile
+    title: "กองหนังสือ"
+    aliases: ["หนังสือ", "กองหนังสือ", "books", "book pile"]
+    sceneObject: Obstacle_BookPile
+    useSceneGeometry: 1
+    approachPoint: {x: -5.8, y: -2.5}
+    allowInspect: 1
+    visibleDescription: "กองหนังสือทางซ้ายล่างของห้อง"
+    inspectLine: "ฉันดูกองหนังสือแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.shelves
+    title: "ชั้นหนังสือ"
+    aliases: ["ชั้นหนังสือ", "ชั้นวาง", "shelves", "bookshelf"]
+    sceneObject: Obstacle_BackShelves
+    useSceneGeometry: 1
+    approachPoint: {x: -6.3, y: 1.3}
+    allowInspect: 1
+    visibleDescription: "ชั้นวางทางผนังด้านบนซ้ายของห้อง"
+    inspectLine: "ฉันดูชั้นวางแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.sideboard
+    title: "ตู้ริมผนัง"
+    aliases: ["ตู้ริมผนัง", "ตู้เก็บของ", "sideboard", "cabinet"]
+    sceneObject: Obstacle_Sideboard
+    useSceneGeometry: 1
+    approachPoint: {x: 3.1, y: 1.2}
+    allowInspect: 1
+    visibleDescription: "ตู้ริมผนังด้านบนขวาของห้อง"
+    inspectLine: "ฉันดูตู้ริมผนังแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
   walkBounds:
     serializedVersion: 2
     x: -7.8

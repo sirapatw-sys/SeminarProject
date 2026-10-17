@@ -334,6 +334,8 @@ namespace MysteryGame.Knowledge
             sb.AppendLine("ถ้าผู้เล่นขอให้ทำสิ่งที่ไม่มีในรายการนี้ (เช่นขอให้ช่วยที่วัตถุอื่น) ให้ใส่ " + CompanionActionOption.None +
                           " ห้ามเลือกรหัสที่ใกล้เคียงแทน แล้วตอบตามบุคลิกว่าตอนนี้ยังช่วยเรื่องนั้นไม่ได้");
             sb.AppendLine("เกมจะตรวจเองว่าทำได้จริงหรือไม่ก่อนลงมือ ใน reply ให้ตอบรับหรือถามกลับสั้นๆ ตามบุคลิก ห้ามบอกว่าทำสำเร็จแล้ว");
+            if (CompanionActions.Exists(a => a.Id.StartsWith("world:", System.StringComparison.Ordinal)))
+                sb.AppendLine(MysteryGame.Companions.CompanionSemanticIntent.Instructions);
             sb.AppendLine();
             return sb.ToString();
         }

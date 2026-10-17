@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using MysteryGame.Core;
 using MysteryGame.Knowledge;
+using MysteryGame.Companions;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -511,9 +512,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                 else
                 {
                     result.reply = ScrubGateWord(result.reply);
-                    // Only an id the prompt offered survives; anything else is "none".
-                    if (actionIds == null || !actionIds.Contains(result.companionAction))
-                        result.companionAction = null;
+                    CompanionSemanticIntent.SanitizeProposal(result, actionIds);
                 }
 
                 string offendingFactId = null;
@@ -526,8 +525,8 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                     // The wording is unusable, but a proposed action is still the
                     // model's reading of the request. The dialogue manager re-checks
                     // it and answers with the companion's authored line instead.
-                    if (string.IsNullOrEmpty(result.companionAction) ||
-                        result.companionAction == CompanionActionOption.None) result = null;
+                    if ((string.IsNullOrEmpty(result.companionAction) || result.companionAction == CompanionActionOption.None) &&
+                        result.worldIntent?.speechAct != "request") result = null;
                 }
             }
             else
@@ -1116,6 +1115,7 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
     public static string ReplySchemaJson(IList<string> actionIds)
     {
         bool actions = actionIds != null && actionIds.Count > 0;
+        string worldSchema = CompanionSemanticIntent.Schema(actionIds);
         var enumValues = new StringBuilder();
         if (actions)
             foreach (string id in actionIds)
@@ -1129,9 +1129,10 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
                "\"items\":{\"type\":\"string\"}}," +
                "\"emotion\":{\"type\":\"string\"}," +
                "\"playerTone\":{\"type\":\"string\",\"enum\":[\"hostile\",\"cold\",\"neutral\",\"friendly\",\"kind\"]}" +
-               (actions ? ",\"companionAction\":{\"type\":\"string\",\"enum\":[" + enumValues + "]}" : "") + "}," +
+               (actions ? ",\"companionAction\":{\"type\":\"string\",\"enum\":[" + enumValues + "]}" : "") + worldSchema + "}," +
                "\"required\":[\"reply\",\"relationshipDelta\"," +
-               "\"referencedFactIds\",\"emotion\",\"playerTone\"" + (actions ? ",\"companionAction\"" : "") + "]," +
+               "\"referencedFactIds\",\"emotion\",\"playerTone\"" + (actions ? ",\"companionAction\"" : "") +
+               (worldSchema.Length > 0 ? ",\"worldIntent\"" : "") + "]," +
                "\"additionalProperties\":false}";
     }
 
@@ -1141,6 +1142,10 @@ public class AiDialogueGenerator : MonoBehaviour, IAiDialogueProvider
         string format = "Return only JSON with reply, relationshipDelta (-15 to 10), referencedFactIds (array of canon fact ids you used) and emotion (one of the listed emotion ids, or an empty string) and playerTone (hostile, cold, neutral, friendly or kind)";
         if (actionIds != null && actionIds.Count > 0)
             format += " and companionAction (exactly one of: " + string.Join(", ", actionIds) + ")";
+        if (CompanionSemanticIntent.OfferedTargets(actionIds).Count > 0)
+            format += " and worldIntent {speechAct: none/request/question/chat/unclear, verb: none/move/inspect/open, " +
+                "targetId: an offered world target ID or empty string, relation: at/near/left/right/front/behind/between, " +
+                "referenceId: a second target ID for between only, otherwise empty string}";
         return format + ".";
     }
 
@@ -1254,6 +1259,7 @@ public class GeneratedChatReply
     /// manager validates it against live game state before anything happens.
     /// </summary>
     public string companionAction;
+    public CompanionSemanticIntent worldIntent;
 
     public bool IsValid()
     {

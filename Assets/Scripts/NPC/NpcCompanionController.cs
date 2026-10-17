@@ -159,23 +159,18 @@ namespace MysteryGame.Companions
             if (command == CompanionCommand.Comfort) return ComfortCore();
             return false;
         }
-        public bool BeginWorldTask(CompanionWorldTarget target, CompanionWorldVerb verb, string relation = "at")
+        public bool BeginWorldTask(CompanionWorldTarget target, CompanionWorldVerb verb, string relation = "at", CompanionWorldTarget reference = null)
         {
             bool allowed = CanReceiveRoomCommand || CanConverse(DialogueManager.Instance);
             if (!allowed || target == null || target.RoomId != RoomId || !target.IsVisible(state) || !target.Allows(verb)) return false;
             if (RoomWorldRegistry.Find(RoomId, state, target.Definition.id) != target) return false;
-            Vector2 goal = target.Definition.approachPoint;
-            if (relation != "at" && verb != CompanionWorldVerb.Move) return false;
-            if (relation == "left") goal += Vector2.left * 0.7f;
-            else if (relation == "right") goal += Vector2.right * 0.7f;
-            else if (relation == "front") goal += Vector2.down * 0.7f;
-            else if (relation != "at") return false;
-            var route = new List<Vector2>();
-            if (!CompanionNavigator.TryPath(Feet, goal, Scenario.walkBounds, Scenario.cellSize, IsFree, IsClear, route)) return false;
+            Vector2 goal;
+            if (!CompanionSpatialResolver.TryResolve(this, target, verb, relation, reference, out goal)) return false;
             CancelTask(); LastWorldResult = null; Mode = CompanionMode.WorldTask;
             TaskRevision++; LastTaskId = "world:" + target.Definition.id; TaskPhase = CompanionTaskPhase.Moving;
-            worldTask = new CompanionTaskExecutor(this, target, verb, goal); TraceTaskStart();
-            Say("ได้ ฉันจะ" + (verb == CompanionWorldVerb.Move ? "ไปที่ " : verb == CompanionWorldVerb.Open ? "ไปลองเปิด " : "ไปตรวจ ") + target.Definition.title);
+            string place = CompanionSpatialResolver.Describe(target, relation, reference);
+            worldTask = new CompanionTaskExecutor(this, target, verb, goal, reference, place); TraceTaskStart();
+            Say("ได้ ฉันจะ" + (verb == CompanionWorldVerb.Move ? "ไปที่ " : verb == CompanionWorldVerb.Open ? "ไปลองเปิด " : "ไปตรวจ ") + place);
             return true;
         }
         internal void MoveToWorld(Vector2 point, float seconds) { MoveTowards(point, seconds); }
@@ -499,7 +494,7 @@ namespace MysteryGame.Companions
             for (int i = 0; i < count; i++) if (Blocks(hits[i])) return false;
             return true;
         }
-        private bool IsClear(Vector2 from, Vector2 to)
+        internal bool IsClear(Vector2 from, Vector2 to)
         {
             if (!Scenario.walkBounds.Contains(from) || !IsFree(to)) return false;
             Vector2 delta = to - from;

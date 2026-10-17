@@ -489,6 +489,7 @@ namespace MysteryGame.Companions
             if (TryResolveHelpClarification(dialogue, message, out reply)) return true;
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null) return false;
+            if (actor.CanConverse(dialogue) && CompanionWorldCommands.TryLocation(actor, message, out reply)) return true;
             string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
             string remaining;
             if (actor.CanConverse(dialogue) && TryReadWithdrawal(normalized, out remaining))

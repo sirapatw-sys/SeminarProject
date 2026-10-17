@@ -1389,7 +1389,7 @@ public class DialogueManager : MonoBehaviour
                 () => generator.GenerateReply(
                     activeNpcId,
                     activeSpeakerName,
-                    activeDialogueContext,
+                    activeDialogueContext + "\n" + CompanionWorldFocusContext(),
                     playerMessage,
                     reply => CompleteTypedReply(playerMessage, reply, serial),
                     activePersonalityPrompt
@@ -1405,6 +1405,12 @@ public class DialogueManager : MonoBehaviour
         }
 
         CompleteTypedReply(playerMessage, null, serial);
+    }
+
+    private string CompanionWorldFocusContext()
+    {
+        var actor = MysteryGame.Companions.NpcCompanionController.Find(activeNpcId, GameState.Instance?.GetCurrentScene());
+        return actor == null ? string.Empty : MysteryGame.Companions.CompanionWorldCommands.FocusContext(actor, WorldCommandSession);
     }
 
     private void HandleChatEndEdit(string value)
@@ -1441,7 +1447,18 @@ public class DialogueManager : MonoBehaviour
         // applied only through the same validation as a parsed command, and the
         // answer then becomes the companion's authored line.
         GeneratedChatReply proposedAction;
+        MysteryGame.Companions.CompanionSemanticIntent.SanitizeProposal(generated, AiDialogueGenerator.CompanionActionIds(
+            AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage)));
+        if (companionCommand == null && generated?.worldIntent?.speechAct == "request")
+        {
+            var actor = MysteryGame.Companions.NpcCompanionController.Find(activeNpcId, GameState.Instance?.GetCurrentScene());
+            if (actor != null && actor.CanConverse(this) && MysteryGame.Companions.CompanionWorldCommands.TrySemantic(
+                actor, WorldCommandSession, playerMessage, generated.worldIntent, out proposedAction)) companionCommand = proposedAction;
+            else companionCommand = MysteryGame.Companions.CompanionWorldCommands.Reply("ฉันยังระบุงานหรือตำแหน่งนั้นอย่างมั่นใจไม่ได้ บอกเป้าหมายอีกครั้งนะ");
+            generated = null;
+        }
         if (companionCommand == null && generated != null &&
+            generated.worldIntent == null &&
             MysteryGame.Companions.CompanionDialogueCommands.TryApplyProposedAction(
                 this, playerMessage, generated.companionAction, out proposedAction))
         {

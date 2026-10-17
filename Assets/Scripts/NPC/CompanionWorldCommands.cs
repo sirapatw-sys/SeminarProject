@@ -23,9 +23,9 @@ namespace MysteryGame.Companions
         { State = GameState.Instance; Room = actor.RoomId; SceneRevision = State.SceneRevision; TaskRevision = actor.TaskRevision; }
     }
 
-    public static class CompanionWorldCommands
+    public static partial class CompanionWorldCommands
     {
-        static readonly Regex Move = new Regex(@"เดิน|ไปยืน|ไปที่|ไปตรง|ไปข้าง|ไปอยู่|ขยับ|move|walk|go\s+to|stand", RegexOptions.IgnoreCase);
+        static readonly Regex Move = new Regex(@"เดิน|ยืน|ไปที่|ไปตรง|ไปข้าง|ไปอยู่|ขยับ|move|walk|go\s+to|stand", RegexOptions.IgnoreCase);
         static readonly Regex Inspect = new Regex(@"ตรวจ|สำรวจ|เช็ค|เช็ก|ค้น|ดู|สังเกต|inspect|check|look|examine|search", RegexOptions.IgnoreCase);
         static readonly Regex Open = new Regex(@"เปิด|open|unlock", RegexOptions.IgnoreCase);
         static readonly Regex Request = new Regex(@"^(?:ช่วย|ลอง|ขอ|อยากให้|รบกวน|เธอ|คุณ|เดิน|ไป|มา|ตรวจ|สำรวจ|เช็ค|เช็ก|ดู|เปิด|ขยับ|ยืน|please\b|can\s+you\b|could\s+you\b|would\s+you\b|go\b|walk\b|move\b|inspect\b|check\b|look\b|open\b)", RegexOptions.IgnoreCase);
@@ -66,10 +66,16 @@ namespace MysteryGame.Companions
         }
         static List<CompanionWorldTarget> Named(string text, IEnumerable<CompanionWorldTarget> targets)
         {
-            string value = (text ?? "").ToLowerInvariant();
-            return targets.Where(t => new[] { t.Definition.id, t.Definition.title }.Concat(t.Definition.aliases ?? new List<string>())
-                .Any(n => !string.IsNullOrWhiteSpace(n) && (n.Any(c => c >= 'ก' && c <= '๛')
-                    ? value.Contains(n.ToLowerInvariant()) : Regex.IsMatch(value, @"(?<![\p{L}\p{N}_])" + Regex.Escape(n.ToLowerInvariant()) + @"(?![\p{L}\p{N}_])")))).ToList();
+            // Longest non-overlapping names: 'โต๊ะข้างโซฟา' is one object, not desk + sofa.
+            // Identical aliases on different objects deliberately stay ambiguous.
+            var matches = new List<Tuple<CompanionWorldTarget, int, int>>();
+            foreach (var target in targets) foreach (string name in Names(target))
+                foreach (Match match in Regex.Matches(text ?? "", NamePattern(name), RegexOptions.IgnoreCase))
+                    matches.Add(Tuple.Create(target, match.Index, match.Length));
+            var selected = new List<Tuple<CompanionWorldTarget, int, int>>();
+            foreach (var match in matches.OrderByDescending(m => m.Item3))
+                if (!selected.Any(s => s.Item3 > match.Item3 && s.Item2 < match.Item2 + match.Item3 && match.Item2 < s.Item2 + s.Item3)) selected.Add(match);
+            return selected.OrderBy(s => s.Item2).Select(s => s.Item1).Distinct().ToList();
         }
         // Object/area names are removed first: 'bottom left' names a place,
         // whereas 'left of the desk' requests an offset from that place.
@@ -78,9 +84,12 @@ namespace MysteryGame.Companions
             bool left = Regex.IsMatch(instruction, @"ทางซ้าย|ด้านซ้าย|ข้างซ้าย|\bleft\b", RegexOptions.IgnoreCase);
             bool right = Regex.IsMatch(instruction, @"ทางขวา|ด้านขวา|ข้างขวา|\bright\b", RegexOptions.IgnoreCase);
             bool front = Regex.IsMatch(instruction, @"ข้างหน้า|ด้านหน้า|\bin\s+front\b", RegexOptions.IgnoreCase);
-            if ((left ? 1 : 0) + (right ? 1 : 0) + (front ? 1 : 0) > 1 ||
-                Regex.IsMatch(instruction, @"ด้านหลัง|ข้างหลัง|ไปหลัง|ข้างบน|ด้านบน|ข้างใต้|ด้านล่าง|\b(?:behind|above|below|under)\b", RegexOptions.IgnoreCase)) return null;
-            return left ? "left" : right ? "right" : front ? "front" : "at";
+            bool behind = Regex.IsMatch(instruction, @"ด้านหลัง|ข้างหลัง|ไปหลัง|\bbehind\b", RegexOptions.IgnoreCase);
+            bool near = Regex.IsMatch(instruction, @"ใกล้|ข้าง\s*ๆ|\b(?:near|beside|next\s+to)\b", RegexOptions.IgnoreCase);
+            bool between = Regex.IsMatch(instruction, @"ระหว่าง|\bbetween\b", RegexOptions.IgnoreCase);
+            if ((left ? 1 : 0) + (right ? 1 : 0) + (front ? 1 : 0) + (behind ? 1 : 0) + (between ? 1 : 0) > 1 ||
+                Regex.IsMatch(instruction, @"ข้างบน|ด้านบน|ข้างใต้|ด้านล่าง|\b(?:above|below|under)\b", RegexOptions.IgnoreCase)) return null;
+            return between ? "between" : left ? "left" : right ? "right" : front ? "front" : behind ? "behind" : near ? "near" : "at";
         }
         static CompanionWorldVerb Verb(string text) => Open.IsMatch(text) ? CompanionWorldVerb.Open :
             Inspect.IsMatch(text) ? CompanionWorldVerb.Inspect : CompanionWorldVerb.Move;
@@ -91,11 +100,13 @@ namespace MysteryGame.Companions
         {
             foreach (var target in RoomWorldRegistry.Available(context.Room.roomId, GameState.Instance))
             {
-                string location = " [ตำแหน่งบนจอ " + target.Definition.approachPoint.x.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "," +
-                    target.Definition.approachPoint.y.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "]";
-                foreach (string relation in new[] { "at", "left", "right", "front" })
+                var bounds = target.SpatialBounds;
+                string location = " [ตำแหน่งบนจอ " + target.ApproachPoint.x.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                    target.ApproachPoint.y.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "; ขอบเขต " +
+                    bounds.min.ToString("F1") + " ถึง " + bounds.max.ToString("F1") + "; ชื่ออื่น " + string.Join(", ", target.Definition.aliases ?? new List<string>()) + "]";
+                foreach (string relation in new[] { "at", "left", "right", "front", "behind", "near" })
                     context.CompanionActions.Add(new CompanionActionOption { Id = Id(CompanionWorldVerb.Move, target.Definition.id, relation),
-                        Description = "เดินไป " + relation + " ของ «" + target.Definition.title + "» " + target.Definition.visibleDescription + location });
+                        Description = "เดินไป " + relation + " ของ «" + target.Definition.title + "»" + (relation == "at" ? " " + target.Definition.visibleDescription + location : "") });
                 foreach (var verb in new[] { CompanionWorldVerb.Inspect, CompanionWorldVerb.Open })
                     if (target.Allows(verb)) context.CompanionActions.Add(new CompanionActionOption {
                         Id = Id(verb, target.Definition.id), Description = (verb == CompanionWorldVerb.Open ? "ลองเปิด " : "เดินไปตรวจ ") + target.Definition.title +
@@ -131,13 +142,19 @@ namespace MysteryGame.Companions
                 }
                 session.Candidates = null;
             }
-            if (!IsRequest(text, actor.RoomId)) { session.FocusId = null; return false; }
+            if (!IsRequest(text, actor.RoomId)) return false; // An unfamiliar request still needs the prior focus for semantic interpretation.
             if (MultiAction.IsMatch(text)) { reply = Reply("ขอทำทีละอย่างก่อนนะ อยากให้ฉันไปที่ไหนหรือตรวจอะไรเป็นอย่างแรก?"); return true; }
             string instruction = StripNames(text, named);
             var requestVerb = Verb(instruction); string requestRelation = requestVerb == CompanionWorldVerb.Move ? Relation(instruction) : "at";
             if (requestRelation == null) { reply = Reply("ตำแหน่งที่ขอยังไม่ชัดหรือยังไปแบบนั้นไม่ได้ บอกชื่อจุดหมาย หรือเลือกด้านซ้าย ขวา หรือหน้าของสิ่งนั้นนะ"); return true; }
             if (named.Count == 0 && Reference.IsMatch(text) && session.FocusId != null)
             { var focus = targets.FirstOrDefault(t => t.Definition.id == session.FocusId); if (focus != null) named.Add(focus); }
+            if (requestRelation == "between")
+            {
+                if (requestVerb == CompanionWorldVerb.Move && named.Count == 2)
+                    return Dispatch(actor, session, named[0], requestVerb, requestRelation, out reply, named[1]);
+                reply = Reply("อยากให้ยืนระหว่างสิ่งไหนกับสิ่งไหน? บอกชื่อทั้งสองอย่างอีกครั้งนะ"); return true;
+            }
             if (named.Count == 0 || named.Count > 1)
             {
                 var candidates = named.Count > 1 ? named : targets.Where(t => t.Allows(requestVerb)).ToList();
@@ -170,10 +187,10 @@ namespace MysteryGame.Companions
             return Dispatch(actor, session, target, verb, parts[2], out reply);
         }
         static bool Dispatch(NpcCompanionController actor, CompanionWorldSession session, CompanionWorldTarget target,
-            CompanionWorldVerb verb, string relation, out GeneratedChatReply reply)
+            CompanionWorldVerb verb, string relation, out GeneratedChatReply reply, CompanionWorldTarget reference = null)
         {
             if (!target.Allows(verb)) { reply = Reply("ฉันยังทำแบบนั้นกับ " + target.Definition.title + " ไม่ได้ ลองให้ฉันไปดูแทนได้นะ"); return true; }
-            bool started = actor.BeginWorldTask(target, verb, relation);
+            bool started = actor.BeginWorldTask(target, verb, relation, reference);
             session.Remember(actor); session.FocusId = target.Definition.id; session.Candidates = null;
             reply = Reply(started ? actor.Bubble : "ตอนนี้ไปทำตรงนั้นไม่ได้ มีทางเดินหรือเงื่อนไขที่ยังไม่พร้อม");
             return true;

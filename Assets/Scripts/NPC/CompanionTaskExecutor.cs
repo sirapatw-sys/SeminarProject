@@ -11,6 +11,7 @@ namespace MysteryGame.Companions
         public CompanionWorldVerb Verb;
         public bool Success;
         public string Message;
+        public Vector2 Destination;
         public readonly List<string> FactIds = new List<string>();
     }
 
@@ -19,6 +20,10 @@ namespace MysteryGame.Companions
     {
         readonly NpcCompanionController actor;
         readonly CompanionWorldTarget target;
+        readonly CompanionWorldTarget reference;
+        readonly Vector2 originalPoint, referencePoint;
+        readonly Bounds originalBounds, referenceBounds;
+        readonly string place;
         readonly GameState state;
         readonly int sceneRevision;
         readonly Vector2 goal;
@@ -27,9 +32,13 @@ namespace MysteryGame.Companions
         float elapsed, worked;
         public Vector2 LookPoint => target != null && target.Interaction != null ? target.Interaction.FocusPoint : goal + Vector2.right * 0.4f;
         public CompanionTaskExecutor(NpcCompanionController actor, CompanionWorldTarget target,
-            CompanionWorldVerb verb, Vector2 goal)
+            CompanionWorldVerb verb, Vector2 goal, CompanionWorldTarget reference = null, string place = null)
         {
             this.actor = actor; this.target = target; this.verb = verb; this.goal = goal;
+            this.reference = reference; this.place = place ?? target.Definition.title;
+            originalPoint = target.ApproachPoint; originalBounds = target.SpatialBounds;
+            referencePoint = reference != null ? reference.ApproachPoint : Vector2.zero;
+            referenceBounds = reference != null ? reference.SpatialBounds : default(Bounds);
             state = GameState.Instance; sceneRevision = state.SceneRevision;
             interactionId = target.Interaction?.ActiveData?.interactionId;
         }
@@ -37,13 +46,18 @@ namespace MysteryGame.Companions
         public void Tick(float seconds)
         {
             if (state != GameState.Instance || sceneRevision != state.SceneRevision || target == null ||
-                !target.IsVisible(state) || !target.Allows(verb)) { Finish(false, "ตรงนั้นเปลี่ยนไปแล้ว ลองบอกสิ่งที่อยากให้ตรวจอีกครั้งนะ"); return; }
+                !target.IsVisible(state) || !target.Allows(verb) || RoomWorldRegistry.Find(actor.RoomId, state, target.Definition.id) != target ||
+                Vector2.Distance(originalPoint, target.ApproachPoint) > 0.05f || originalBounds != target.SpatialBounds ||
+                !ReferenceEquals(reference, null) && (reference == null || !reference.IsVisible(state) ||
+                    RoomWorldRegistry.Find(actor.RoomId, state, reference.Definition.id) != reference ||
+                    Vector2.Distance(referencePoint, reference.ApproachPoint) > 0.05f || referenceBounds != reference.SpatialBounds))
+            { Finish(false, "ตรงนั้นเปลี่ยนไปแล้ว ลองบอกสิ่งที่อยากให้ตรวจอีกครั้งนะ"); return; }
             elapsed += seconds;
             if (elapsed > actor.Scenario.taskTimeoutSeconds) { Finish(false, "ฉันเข้าไปตรงนั้นไม่ได้ มีทางเดินติดอยู่"); return; }
             if (Vector2.Distance(actor.Feet, goal) > 0.12f)
             { actor.WorldPhase(CompanionTaskPhase.Moving); worked = 0f; actor.MoveToWorld(goal, seconds); return; }
             actor.StopWorldMovement();
-            if (verb == CompanionWorldVerb.Move) { Finish(true, "ถึง " + target.Definition.title + " แล้ว ฉันจะรอตรงนี้นะ"); return; }
+            if (verb == CompanionWorldVerb.Move) { Finish(true, "ถึง " + place + " แล้ว ฉันจะรอตรงนี้นะ"); return; }
             actor.WorldPhase(CompanionTaskPhase.Working, seconds);
             worked += seconds;
             var data = target.Interaction?.ActiveData;
@@ -51,7 +65,7 @@ namespace MysteryGame.Companions
             if (worked < duration) return;
             if (data != null && data.interactionId != interactionId)
             { Finish(false, "สิ่งตรงนี้เปลี่ยนไปขณะที่ฉันกำลังตรวจ ลองชวนอีกครั้งนะ"); return; }
-            var result = new CompanionTaskResult { TargetId = target.Definition.id, Verb = verb };
+            var result = new CompanionTaskResult { TargetId = target.Definition.id, Verb = verb, Destination = goal };
             var operation = verb == CompanionWorldVerb.Open ? CompanionInteractionOperation.Open : CompanionInteractionOperation.Inspect;
             if (data != null && data.allowCompanionExecution && data.companionOperation == operation && InteractionSystem.Instance != null)
             {
@@ -89,6 +103,6 @@ namespace MysteryGame.Companions
             actor.FinishWorldTask(result);
         }
         void Finish(bool success, string message) => actor.FinishWorldTask(new CompanionTaskResult {
-            TargetId = target != null ? target.Definition?.id : null, Verb = verb, Success = success, Message = message });
+            TargetId = target != null ? target.Definition?.id : null, Verb = verb, Success = success, Message = message, Destination = goal });
     }
 }

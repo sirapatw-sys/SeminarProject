@@ -74,6 +74,7 @@ namespace MysteryGame.Companions
             GeneratedChatReply local;
             if (TryReadAnswer(message)) return;
             if (TryRead(message)) return;
+            if (CompanionWorldCommands.TryLocation(actor, message, out local)) { Say(local.reply); return; }
             if (CompanionNaturalRequests.IsJoinRequest(message) && actor.ApplyRoomCommand(CompanionCommand.Follow))
             { Say(actor.Bubble); return; }
             if (CompanionWorldCommands.TryLocal(actor, session, message, out local)) { Say(local.reply); return; }
@@ -91,15 +92,24 @@ namespace MysteryGame.Companions
             operation = new AiRequestOperation(this);
             operation.Start(() => provider.GenerateReply(actor.Scenario.npcId, actor.Scenario.displayName,
                 "ช่องคุยระหว่างเล่น: เลือก companionAction ตามคำขอจริง หากกำกวมให้ถามกลับ ห้ามอ้างว่าทำสำเร็จก่อนเกมยืนยัน\n" +
+                CompanionWorldCommands.FocusContext(actor, session) + "\n" +
                 string.Join("\n", lines), message, reply => {
                     if (!pending || request != serial || !open || capturedState != GameState.Instance ||
                         scene != capturedState.SceneRevision || !actor.CanReceiveRoomCommand) return;
                     if (task != actor.TaskRevision) { CancelRequest(); return; }
                     CancelRequest();
+                    CompanionSemanticIntent.SanitizeProposal(reply, AiDialogueGenerator.CompanionActionIds(
+                        AiDialogueGenerator.BuildKnowledgeContext(actor.Scenario.npcId, message)));
                     GeneratedChatReply applied;
-                    if (reply != null && CompanionWorldCommands.TryProposal(actor, session, message, reply.companionAction, out applied))
+                    if (reply?.worldIntent != null && reply.worldIntent.speechAct == "request")
+                    {
+                        if (CompanionWorldCommands.TrySemantic(actor, session, message, reply.worldIntent, out applied)) Say(applied.reply);
+                        else Say("ฉันยังระบุงานหรือตำแหน่งนั้นอย่างมั่นใจไม่ได้ บอกสิ่งที่อยากให้ทำกับเป้าหมายอีกครั้งนะ");
+                        return;
+                    }
+                    if (reply != null && reply.worldIntent == null && CompanionWorldCommands.TryProposal(actor, session, message, reply.companionAction, out applied))
                     { Say(applied.reply); return; }
-                    if ((reply?.companionAction == CompanionActionOption.Follow || reply?.companionAction == CompanionActionOption.InspectTogether) &&
+                    if (reply?.worldIntent == null && (reply?.companionAction == CompanionActionOption.Follow || reply?.companionAction == CompanionActionOption.InspectTogether) &&
                         CompanionNaturalRequests.CanProposeJoin(message, KnowledgeLibrary.GetRoom(actor.RoomId)) &&
                         actor.ApplyRoomCommand(CompanionCommand.Follow)) { Say(actor.Bubble); return; }
                     if (reply?.companionAction != null && reply.companionAction.StartsWith("world:", StringComparison.Ordinal))
