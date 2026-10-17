@@ -180,6 +180,7 @@ namespace MysteryGame.Companions
         {
             TraceTaskEnd(result.Success ? "completed" : "failed"); worldTask = null; StopMoving();
             Mode = CompanionMode.Waiting; TaskPhase = result.Success ? CompanionTaskPhase.Completed : CompanionTaskPhase.Failed;
+            if (state != null) result.JournalCount = state.GetJournal().Count;
             LastWorldResult = result; Say(result.Message);
             // The bubble lasts seconds and hides behind dialogue. Keep the outcome in the
             // conversation and memory so the companion can still tell the player later.
@@ -208,6 +209,7 @@ namespace MysteryGame.Companions
             if (!available) return false;
             bool follow = Mode == CompanionMode.Following;
             CancelTask(); Mode = CompanionMode.Searching; resumeFollowing = follow;
+            LastWorldResult = null; // a newer task: "what did you see" is no longer about the old one
             TaskRevision++; TaskPhase = CompanionTaskPhase.Moving; LastTaskId = "search";
             TraceTaskStart();
             searchIndex = -1; AdvanceSearch();
@@ -295,7 +297,7 @@ namespace MysteryGame.Companions
         {
             if (ActiveStation == station) return true;
             bool follow = Mode == CompanionMode.Following || (ActiveStation != null && resumeFollowing);
-            CancelTask(); ActiveStation = station; Mode = CompanionMode.GoingToHelp;
+            CancelTask(); ActiveStation = station; Mode = CompanionMode.GoingToHelp; LastWorldResult = null;
             TaskRevision++; LastTaskId = station.id; TaskPhase = CompanionTaskPhase.Moving;
             TraceTaskStart();
             Invitation = null;

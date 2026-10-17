@@ -13,6 +13,8 @@ namespace MysteryGame.Companions
         public string Message;
         public Vector2 Destination;
         public readonly List<string> FactIds = new List<string>();
+        /// <summary>Journal size when the task finished; a later discovery makes this result stale.</summary>
+        public int JournalCount = -1;
     }
 
     /// <summary>One cancellable world task. The controller remains the only movement owner.</summary>

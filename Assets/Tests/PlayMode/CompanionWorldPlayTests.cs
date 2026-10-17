@@ -135,6 +135,22 @@ public class CompanionWorldPlayTests
         Assert.That(State.HasFlag("inspected_painting"), Is.False);
     }
     [Test]
+    public void RecallAnswersOnlyTheLatestActivity()
+    {
+        // Review: after the painting, newer evidence was found, yet "เห็นอะไรบ้าง" still
+        // described the painting. A newer discovery or task makes the old result stale.
+        chat.OpenSession(); chat.Submit("ช่วยไปตรวจภาพวาดหน่อย"); Tick();
+        string result = actor.LastWorldResult.Message;
+        chat.Submit("เห็นอะไรบ้าง"); Assert.That(chat.LastReply, Is.EqualTo(result));
+        Assert.That(State.AddJournalEntry("test.newer_evidence", "หลักฐานใหม่", "พบสิ่งใหม่หลังจากนั้น"), Is.True);
+        chat.Submit("เห็นอะไรบ้าง"); Assert.That(chat.LastReply, Is.Not.EqualTo(result), "newer journal entry");
+
+        chat.Submit("ช่วยไปตรวจภาพวาดหน่อย"); Tick();
+        chat.Submit("เห็นอะไรบ้าง"); Assert.That(chat.LastReply, Is.EqualTo(actor.LastWorldResult.Message), "a fresh task is recalled again");
+        if (actor.ApplyRoomCommand(CompanionCommand.Search))
+            Assert.That(actor.LastWorldResult, Is.Null, "a newer search supersedes the old result");
+    }
+    [Test]
     public void LockedDeskCannotBypassPaintingAndDrawerOrDoorCannotBeSolvedByNpc()
     {
         chat.OpenSession(); chat.Submit("ตรวจโต๊ะหน่อย"); Tick();
@@ -568,6 +584,7 @@ public class CompanionWorldPlayTests
     [TestCase("ภาพวาดนั่น พิจารณารายละเอียดหน่อย")]
     [TestCase("Assess the painting for me")]
     [TestCase("พิจารณาของที่แขวนเอียงให้ที")]
+    [TestCase("ช่วยประเมินสิ่งแขวนเอียงให้ที")] // review: a description without a listed cue word
     public void SemanticRequestsDoNotNeedAListedActionVerb(string message)
     {
         var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);

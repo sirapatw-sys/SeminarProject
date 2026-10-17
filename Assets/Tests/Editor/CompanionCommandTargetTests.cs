@@ -79,6 +79,10 @@ public class CompanionCommandTargetTests
     [TestCase("คอยอยู่ตรงนี้นะ", CompanionCommand.Wait)]
     [TestCase("คอยดูนะ", CompanionCommand.None)]
     [TestCase("ผมคอยอยู่นะ", CompanionCommand.None)]
+    // Review: "don't move" is a stay request, not a refusal.
+    [TestCase("ห้ามขยับนะ", CompanionCommand.Wait)]
+    [TestCase("ไม่ต้องไปไหนนะ", CompanionCommand.Wait)]
+    [TestCase("do not move", CompanionCommand.Wait)]
     public void ExistingSupportedTargetsRemainUsable(string message, CompanionCommand expected)
     {
         CompanionStationData station;

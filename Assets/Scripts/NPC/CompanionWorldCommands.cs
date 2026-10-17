@@ -123,8 +123,12 @@ namespace MysteryGame.Companions
         static readonly Regex WorldCue = new Regex(
             @"ตรวจ|สำรวจ|เช็ค|เช็ก|ค้น|ดู|สังเกต|พิจารณา|อ่าน|เปิด|หยิบ|จับ|แตะ|ไปที่|ไปตรง|ไปข้าง|ไปอยู่|ไปหา|ไปยืน|ขยับ|ยืน|" +
             @"อัน|ชิ้น|ตัวนั้น|ตรงนั้น|ตรงโน้น|ที่เดิม|มัน|มุม|ผนัง|กำแพง|พื้น|เพดาน|ซ้าย|ขวา|ข้างหน้า|ด้านหน้า|ข้างหลัง|ด้านหลัง|ใกล้|ระหว่าง|บน|ใต้|ใน|" +
-            @"หลักฐาน|เบาะแส|ของที่|\b(?:inspect|check|look|examine|search|explore|read|open|take|touch|go\s+to|move|stand|it|that|there|this|same|" +
+            @"หลักฐาน|เบาะแส|ของ|สิ่ง|ประเมิน|วิเคราะห์|\b(?:inspect|check|look|examine|search|explore|read|open|take|touch|go\s+to|move|stand|it|that|there|this|same|" +
             @"corner|wall|floor|ceiling|left|right|front|behind|near|between|on|under|in|evidence|clues?|show)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        static readonly Regex MovementOnly = new Regex(
+            @"เดิน|ตาม|มา|ไป|อยู่|รอ|หยุด|พัก|เฝ้า|คอย|ด้วยกัน|เป็นเพื่?อน|เคียง|ประกบ|ข้าง\s*ๆ|" +
+            @"\b(?:walk|follow|come|go|stay|wait|stop|beside|along|with\s+(?:me|us))\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         static readonly Regex HelpCue = new Regex(@"ช่วย|ประคอง|ถือ|ยก|ดัน|\b(?:help|hold|lift|support|push)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -150,10 +154,12 @@ namespace MysteryGame.Companions
             if (named.Count == 0)
             {
                 // Unfamiliar descriptions/deictic requests still get the compact visible-object list.
-                // "เดินเป็นเพื่อนหน่อย" names no object, place or evidence: keep the plain
-                // follow/wait/search menu, since every target plus the worldIntent rules
-                // roughly triples the prompt. Station help stays only when help is asked for.
-                if (!WorldCue.IsMatch(text))
+                // Only a plain movement request ("เดินเป็นเพื่อนหน่อย") with no object, place
+                // or evidence drops the world menu, since every target plus the worldIntent rules
+                // roughly triples the prompt. Any other request keeps it: a description such as
+                // "ช่วยประเมินสิ่งแขวนเอียงให้ที" must still reach the painting. Station help stays
+                // only when help is asked for.
+                if (MovementOnly.IsMatch(text) && !WorldCue.IsMatch(text))
                     context.CompanionActions.RemoveAll(a => a.Id.StartsWith("world:", StringComparison.Ordinal) ||
                         a.Id.StartsWith(CompanionActionOption.ReadPrefix, StringComparison.Ordinal) ||
                         a.Id.StartsWith(CompanionActionOption.ShowPrefix, StringComparison.Ordinal) ||

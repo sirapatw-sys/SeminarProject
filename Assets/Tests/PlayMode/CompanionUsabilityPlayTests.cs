@@ -424,7 +424,15 @@ public class CompanionUsabilityPlayTests
             new { Msg = "สวัสดี", Quote = "หยุดเดิน", Action = "wait", Following = true, Expect = CompanionMode.Following },
             new { Msg = "ขอบคุณนะ", Quote = "นะ", Action = "wait", Following = true, Expect = CompanionMode.Following },
             new { Msg = "อย่าปักหลักตรงนี้นะ", Quote = "ปักหลักตรงนี้", Action = "wait", Following = true, Expect = CompanionMode.Following },
-            new { Msg = "ถ้าประกบผมไว้ล่ะ", Quote = "ประกบผมไว้", Action = "follow", Following = false, Expect = CompanionMode.Waiting } })
+            new { Msg = "ถ้าประกบผมไว้ล่ะ", Quote = "ประกบผมไว้", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            // Review: words that are in the message but are a statement, not the request.
+            new { Msg = "วันนี้อากาศดีจัง", Quote = "อากาศดี", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            new { Msg = "อากาศดีจัง", Quote = "อากาศดี", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            new { Msg = "ผมชอบเดินเล่นตอนเย็น", Quote = "เดินเล่น", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            new { Msg = "เดินออกไปห่าง ๆ หน่อย", Quote = "เดินออกไปห่าง ๆ", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            // A real request still works after an unrelated remark or a request lead.
+            new { Msg = "ไม่เป็นไร ปักหลักตรงนี้ก่อน", Quote = "ปักหลักตรงนี้", Action = "wait", Following = true, Expect = CompanionMode.Waiting },
+            new { Msg = "please hang on a sec", Quote = "hang on", Action = "wait", Following = true, Expect = CompanionMode.Waiting } })
         {
             DialogueManager.Instance.HideDialogue(); State.ResetState();
             ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);

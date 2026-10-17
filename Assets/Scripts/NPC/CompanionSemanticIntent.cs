@@ -135,6 +135,10 @@ namespace MysteryGame.Companions
             reply = null;
             var result = actor?.LastWorldResult;
             if (result == null || result.Verb == CompanionWorldVerb.Move || string.IsNullOrWhiteSpace(result.Message)) return false;
+            // Bound to the latest activity: once anyone has found something newer (a journal
+            // entry from the player, a search or another task), this answer would be stale.
+            var state = GameState.Instance;
+            if (state == null || result.JournalCount != state.GetJournal().Count) return false;
             string text = Normalize(message, actor.Scenario);
             if (!RecallQuestion.IsMatch(text) || OwnFindings.IsMatch(text)) return false;
             // A question about a different object is not about this result.

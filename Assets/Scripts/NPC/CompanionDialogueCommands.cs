@@ -52,8 +52,8 @@ namespace MysteryGame.Companions
         private static readonly Regex StopWork = R(@"^\s*(?:หยุดช่วย(?:ก่อน|แล้ว)?|หยุดงาน(?:ก่อน)?|ยกเลิกงาน(?:นี้|ก่อน)?|stop\s+(?:helping|working)|cancel\s+(?:the\s+)?task)" + CourtesyParticles + SentenceEnd);
         private static readonly Regex AmbiguousStop = R(@"^\s*(?:หยุด|พักก่อน|พอแล้ว)" + CourtesyParticles + SentenceEnd);
         private static readonly Regex StayRequest = R(
-            @"^\s*(?:(?:please|ช่วย|กรุณา)\s*)?(?:อย่า(?:เพิ่ง)?(?:ไป(?:ไหน)?|เดินไปไหน)|" +
-            @"(?:don't|dont|do\s+not)\s+(?:go\s+away|leave(?:\s+yet)?))" + CourtesyParticles + SentenceEnd);
+            @"^\s*(?:(?:please|ช่วย|กรุณา)\s*)?(?:อย่า(?:เพิ่ง)?(?:ไป(?:ไหน)?|เดินไปไหน)|ไม่ต้อง(?:เดิน)?ไปไหน|(?:ห้าม|อย่า|ไม่ต้อง)\s*ขยับ(?:ไปไหน)?|" +
+            @"(?:don't|dont|do\s+not)\s+(?:go\s+away|leave(?:\s+yet)?|move))" + CourtesyParticles + SentenceEnd);
         private static readonly Regex FollowProposalVerb = R(
             @"เดิน|ตาม|มา(?:กับ|ด้วย|นี่|ตรงนี้)|ไป(?:กับ|ด้วย|กัน)|\b(?:walk|follow|come|go)\b");
         private static readonly Regex WaitProposalVerb = R(@"รอ|หยุด|พัก|อยู่|ยืน|เฝ้า|คอย|นิ่ง|\b(?:wait|stay|stop|pause|stand|guard|hold\s+on|hang\s+on)\b");
@@ -97,6 +97,8 @@ namespace MysteryGame.Companions
             @"\b(?:wait|stay|stand)\b[^,.!?;:]{0,16}?\b(?:at|by|near|next\s+to|in\s+front\s+of|behind)\b");
         private static readonly Regex FollowConflict = R(
             @"ที่|ตรง|ถึง|หน้า|หลัง|ใกล้|ซ้าย|ขวา|มุม|เปิด|ปิด|จับ|ถือ|ยก|หยิบ|อ่าน|ค้น|หา|ตรวจ|ดู|ช่วย|รอ|หยุด|" +
+            // Moving away from the player is the opposite of following ("เดินออกไปห่าง ๆ").
+            @"ออก|ห่าง|ไกล|หนี|แยก|ถอย|\b(?:away|apart|leave|off|elsewhere|alone)\b|" +
             @"ประตู|ลิ้นชัก|โต๊ะ|เก้าอี้|กล่อง|หน้าต่าง|ภาพ|โซฟา|ตู้|ผนัง|กำแพง|" +
             @"\b(?:to|towards|into|at|by|near|open|close|hold|lift|take|read|search|check|look|help|wait|stop|" +
             @"door|drawer|desk|table|chair|box|window|painting|picture|sofa|wall)\b");
@@ -488,11 +490,43 @@ namespace MysteryGame.Companions
                 if (RequestLead.IsMatch(text.Substring(0, match.Index)))
                 { remaining = text.Substring(match.Index); break; }
             remaining = action.Replace(remaining, " ");
-            remaining = MovementFiller.Replace(remaining, string.Empty);
+            // Keep word gaps: "come help me lift the chair" must still read "lift" and "chair".
+            remaining = MovementFiller.Replace(remaining, " ");
             // Leftover words alone (a typo, "สิ", a feeling) are not a destination;
             // only a place, an object or a second action is ("ตามมาที่ประตู").
             return FollowConflict.IsMatch(remaining);
         }
+
+        // The model read a follow/wait request in wording the verb lists do not know
+        // ("ปักหลักตรงนี้ก่อน"). Trust that reading only when the words it quotes are the
+        // request itself: really in the player's current request, at the head of their
+        // phrase (after nothing but request words such as ช่วย/please) and followed only
+        // by request particles. 'อากาศดี' quoted from 'วันนี้อากาศดีจัง' is a statement.
+        private static bool QuoteGrounds(string quote, string currentRequest, CompanionCommand command, CompanionScenarioData scenario)
+        {
+            if (string.IsNullOrWhiteSpace(quote)) return false;
+            string core = Regex.Replace(CourtesyCondition.Replace(WithoutAddress(Normalize(quote), scenario), " "), @"\s+", " ").Trim();
+            string request = Regex.Replace(currentRequest ?? "", @"\s+", " ");
+            if (Regex.Replace(core, @"[\s\p{P}\p{M}]", "").Length < 2 || QuoteOnlyCourtesy.IsMatch(core) || RulesVeto(core, command)) return false;
+            // Thai phrases are delimited by spaces; English words are not phrases, so use punctuation.
+            Regex boundary = Regex.IsMatch(core, "[a-z]") ? LatinPhraseBoundary : ThaiPhraseBoundary;
+            for (int at = request.IndexOf(core, StringComparison.Ordinal); at >= 0;
+                 at = at + 1 < request.Length ? request.IndexOf(core, at + 1, StringComparison.Ordinal) : -1)
+            {
+                int start = at, end = at + core.Length;
+                while (start > 0 && !boundary.IsMatch(request[start - 1].ToString())) start--;
+                while (end < request.Length && !boundary.IsMatch(request[end].ToString())) end++;
+                if (RequestLead.IsMatch(WithoutAddress(request.Substring(start, at - start), scenario)) &&
+                    QuoteTail.IsMatch(request.Substring(at + core.Length, end - at - core.Length))) return true;
+            }
+            return false;
+        }
+        private static readonly Regex ThaiPhraseBoundary = new Regex(@"[\s,.!?;:…]");
+        private static readonly Regex LatinPhraseBoundary = new Regex(@"[\r\n,.!?;:…]");
+        private static readonly Regex QuoteOnlyCourtesy = R(@"^(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|จ๊ะ|หน่อย|สิ|ที|please|thanks?|ok(?:ay)?|ได้(?:ไหม|มั้ย)?|สวัสดี(?:ครับ|ค่ะ)?|hi|hello)(?:\s*(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|หน่อย|สิ))*$");
+        private static readonly Regex QuoteTail = R(
+            @"^(?:\s*(?:ก่อน|นะ|หน่อย|สิ|ซิ|ที|ไว้|เถอะ|ด้วย|ได้(?:ไหม|มั้ย|ป่าว|หรือเปล่า|รึเปล่า)|ครับ|ค่ะ|คะ|จ้ะ|จ๊ะ|จ้า|" +
+            @"แป๊บ(?:นึง|หนึ่ง)?|สัก(?:ครู่|พัก|เดี๋ยว)|please|now|(?:for\s+)?a\s+(?:sec(?:ond)?|moment|bit|while)|ok(?:ay)?))*\s*$");
 
         // Called only from the trusted player-send path, never from a provider,
         // policy validator, prompt builder, timeout or repeated callback.
@@ -679,18 +713,6 @@ namespace MysteryGame.Companions
             if (actor == null || !actor.CanReceiveRoomCommand || string.IsNullOrWhiteSpace(actionId) || actionId == CompanionActionOption.None) return false;
             return TryApplyCommonProposal(null, actor, message, actionId, actionQuote, out reply);
         }
-        // The model read a follow/wait request in wording the verb lists do not know
-        // ("เฝ้าดูตรงนี้ก่อน"). Trust that reading only when the words it quotes are
-        // really in the player's current request and are not themselves vetoed.
-        private static bool QuoteGrounds(string quote, string currentRequest, CompanionCommand command, CompanionScenarioData scenario)
-        {
-            if (string.IsNullOrWhiteSpace(quote)) return false;
-            string core = Regex.Replace(CourtesyCondition.Replace(WithoutAddress(Normalize(quote), scenario), " "), @"\s+", " ").Trim();
-            string request = Regex.Replace(currentRequest ?? "", @"\s+", " ");
-            if (Regex.Replace(core, @"[\s\p{P}\p{M}]", "").Length < 2 || request.IndexOf(core, StringComparison.Ordinal) < 0) return false;
-            return !RulesVeto(core, command) && !QuoteOnlyCourtesy.IsMatch(core);
-        }
-        private static readonly Regex QuoteOnlyCourtesy = R(@"^(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|จ๊ะ|หน่อย|สิ|ที|please|thanks?|ok(?:ay)?|ได้(?:ไหม|มั้ย)?|สวัสดี(?:ครับ|ค่ะ)?|hi|hello)(?:\s*(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|หน่อย|สิ))*$");
         private static bool ApplyForSurface(NpcCompanionController actor, DialogueManager dialogue, CompanionCommand command,
             CompanionStationData station, out string line)
         {
