@@ -76,6 +76,7 @@ namespace MysteryGame.Companions
             if (TryReadAnswer(message)) return;
             if (TryRead(message)) return;
             if (CompanionWorldCommands.TryLocation(actor, message, out local)) { Say(local.reply); return; }
+            if (CompanionWorldCommands.TryRecall(actor, message, out local)) { Say(local.reply); return; }
             if (CompanionNaturalRequests.IsJoinRequest(message) && actor.ApplyRoomCommand(CompanionCommand.Follow))
             { Say(actor.Bubble); return; }
             if (CompanionWorldCommands.TryLocal(actor, session, message, out local)) { Say(local.reply); return; }

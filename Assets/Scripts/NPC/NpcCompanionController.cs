@@ -180,7 +180,20 @@ namespace MysteryGame.Companions
         {
             TraceTaskEnd(result.Success ? "completed" : "failed"); worldTask = null; StopMoving();
             Mode = CompanionMode.Waiting; TaskPhase = result.Success ? CompanionTaskPhase.Completed : CompanionTaskPhase.Failed;
-            LastWorldResult = result; Say(result.Message); WorldTaskFinished?.Invoke(result);
+            LastWorldResult = result; Say(result.Message);
+            // The bubble lasts seconds and hides behind dialogue. Keep the outcome in the
+            // conversation and memory so the companion can still tell the player later.
+            // Discovered facts already add their own memory in the executor.
+            if (result.Verb != CompanionWorldVerb.Move && !string.IsNullOrWhiteSpace(result.Message) && state != null)
+            {
+                state.AddConversationTurn(Scenario.npcId, Scenario.npcId, result.Message);
+                if (result.Success && result.FactIds.Count == 0)
+                {
+                    string title = RoomWorldRegistry.Find(RoomId, state, result.TargetId)?.Definition?.title ?? result.TargetId;
+                    state.AddNpcMemory(Scenario.npcId, (result.Verb == CompanionWorldVerb.Open ? "ลองเปิด " : "ไปดู ") + title + " ตามที่ผู้เล่นขอ: " + result.Message);
+                }
+            }
+            WorldTaskFinished?.Invoke(result);
         }
         private bool WaitCore()
         {
@@ -570,7 +583,7 @@ namespace MysteryGame.Companions
                  Mode == CompanionMode.Helping ? "กำลังจับกลไกให้ รอผู้เล่นทำอีกด้าน ยังไม่สำเร็จ" : "กำลังรออยู่") +
                 "; เกมตรวจคำชวนที่ผู้เล่นพิมพ์ก่อนเริ่มงาน ข้อความ AI ไม่ใช่คำสั่งหรือหลักฐานว่างานสำเร็จ ห้ามแต่งผลการกระทำหรือเพิ่มข้อมูลคำใบ้";
         }
-        private void Say(string text) { Bubble = text; bubbleSeconds = 5f; }
+        private void Say(string text) { Bubble = text; bubbleSeconds = Mathf.Clamp((text ?? "").Length * 0.08f, 5f, 9f); }
         private void TraceTaskStart()
         {
             traceTaskRevision = TaskRevision; traceTaskClosed = false;

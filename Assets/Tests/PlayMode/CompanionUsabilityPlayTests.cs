@@ -235,7 +235,7 @@ public class CompanionUsabilityPlayTests
         // Wording the rules do not know: the model's proposal starts the real task,
         // and the answer is the companion's authored line, not the model's promise.
         provider.Text = "ได้สิ ฉันเดินตามไปแล้ว"; provider.ProposedAction = "follow";
-        Send("เดินเป็นเพื่อนกันหน่อยนะ"); yield return null;
+        Send("เดินเคียงข้างกันหน่อยนะ"); yield return null;
         Assert.That(provider.Calls, Is.EqualTo(1));
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
         Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(actor.Scenario.followLine));
@@ -409,8 +409,8 @@ public class CompanionUsabilityPlayTests
     [UnityTest]
     public IEnumerator ReviewNewRequestAfterWithdrawalCanStillBeUnderstoodByModel()
     {
-        foreach (string message in new[] { "ตามมา, ยกเลิก, เดินเป็นเพื่อนกันหน่อยนะ",
-            "follow me, scratch that, walk beside me please", "หยุดเดิน, ไม่ต้องแล้ว, เดินเป็นเพื่อนกันหน่อยนะ" })
+        foreach (string message in new[] { "ตามมา, ยกเลิก, เดินเคียงข้างกันหน่อยนะ",
+            "follow me, scratch that, walk beside me please", "หยุดเดิน, ไม่ต้องแล้ว, เดินเคียงข้างกันหน่อยนะ" })
         {
             DialogueManager.Instance.HideDialogue(); State.ResetState();
             ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();

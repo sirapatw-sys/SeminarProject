@@ -92,6 +92,9 @@ namespace MysteryGame.Companions
             @"\b(?:following|walking|moving|walk|follow|come|go|wait|stay|stop|pause|stand|beside|along|over|a\s+moment)\b|" + RequestFiller + @")");
         private static readonly Regex SearchFiller = R(@"(?:ได้(?:หรือ|รึ)เปล่า|แล้ว|ค้นหา|ค้น|หา|สำรวจ|ตรวจ|ดู|รอบ\s*ๆ?|ห้อง(?:นี้)?|แถวนี้|ทั่ว(?:ทั้ง)?|ทั้ง|ใน|เฉพาะ|เท่านั้น|แค่|หลักฐาน|เบาะแส|อะไร|ที่|แปลก\s*ๆ?|ผิดปกติ|น่าสงสัย|ของ|" +
             @"\b(?:search|look|find|inspect|explore|clues?|evidence|room|around|in|only|just|throughout)\b|" + RequestFiller + @")");
+        private static readonly Regex WaitDestination = R(
+            @"(?:ไป|เดินไป)\s*(?:รอ|ยืน|อยู่|เฝ้า)|(?:รอ|ยืน|อยู่|เฝ้า)[^,.!?;:]{0,12}?(?:ที่|ตรง|ข้าง|หน้า|หลัง|ใกล้)(?!\s*(?:นี้|นี่|ที่นี่|ๆ))|" +
+            @"\b(?:wait|stay|stand)\b[^,.!?;:]{0,16}?\b(?:at|by|near|next\s+to|in\s+front\s+of|behind)\b");
         private static readonly Regex SearchVerb = R(@"ค้น|หา|สำรวจ|ตรวจ|ดู|\b(?:search|look|find|inspect|explore)\b");
         // Only split coordinated actions after classifying the enclosing
         // clause. A question about two actions must not execute its first half.
@@ -116,10 +119,10 @@ namespace MysteryGame.Companions
             @"(?:เดิน|ไป|มา)(?:สำรวจ)?(?:ไป|มา)?ด้วยกัน|มากับ(?:เรา|ฉัน|ผม)|ไปกันเถอะ|มาทางนี้|(?:เดิน)?ตาม(?:เรา|ฉัน|ผม|มา)|" +
             // Short spoken invitations; the lookahead keeps idioms such as "ไปกันใหญ่" out.
             @"มา(?:นี่|ตรงนี้)(?=\s*(?:สิ|ซิ|หน่อย|เร็ว|นะ|ที)*\s*$)|ไปกัน(?:เลย|ต่อ)?(?=\s*(?:นะ|สิ|ซิ|เถอะ)*\s*$)|" +
-            @"(?:มา|ไป)ด้วย(?=\s*(?:นะ|สิ|ซิ|หน่อย|ครับ|ค่ะ|คะ)*\s*$)|" +
+            @"(?:มา|ไป)ด้วย(?=\s*(?:นะ|สิ|ซิ|หน่อย|ครับ|ค่ะ|คะ)*\s*$)|(?:เดิน|มา|ไป)\s*(?:ไป\s*)?เป็นเพื่อน|" +
             @"\b(?:follow\s+(?:me|us)|(?:come|walk|go)\s+with\s+(?:me|us))\b");
         private static readonly Regex Wait = R(
-            @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ|เดี๋ยว)|อยู่(?:ตรงนี้|ที่นี่)|ยืนรอ|อยู่นิ่ง(?:ๆ)?|หยุด(?:เดิน(?:ตาม)?|ตาม|เคลื่อนที่|สำรวจ|ค้นหา|หา(?:หลักฐาน|เบาะแส))|หยุด(?=\s*(?:ก่อน|หน่อย|นะ|ครับ|ค่ะ|คะ|$))|" +
+            @"รอ(?:อยู่)?(?:ตรงนี้|ที่นี่|เรา|ฉัน|ผม)|รอ(?:ก่อน|แป๊บ(?:นึง|หนึ่ง)?|เดี๋ยว)|อยู่\s*(?:เฝ้า|รอ)?\s*(?:ตรงนี้|ที่นี่)|อยู่\s*(?:เฝ้า|รอ)(?=\s*(?:ก่อน|นะ|หน่อย|ครับ|ค่ะ|คะ|$))|เฝ้า(?:ตรงนี้|ที่นี่|ไว้)|ยืนรอ|อยู่นิ่ง(?:ๆ)?|หยุด(?:เดิน(?:ตาม)?|ตาม|เคลื่อนที่|สำรวจ|ค้นหา|หา(?:หลักฐาน|เบาะแส))|หยุด(?=\s*(?:ก่อน|หน่อย|นะ|ครับ|ค่ะ|คะ|$))|" +
             @"พักก่อน|พอแล้ว|ไม่ต้อง(?:เดิน)?ตาม(?:มา|เรา|ฉัน|ผม)?(?:แล้ว|ก่อน|(?=\s*$))|ไม่ต้องเดิน(?:แล้ว|ก่อน)|" +
             @"\b(?:wait\s+(?:here|for\s+(?:me|us))|wait(?=\s*(?:please|a\s+moment|$))|stay\s+here|stop\s+(?:following|walking|moving)(?:\s+(?:me|us))?|stop(?=\s*(?:please|here|$)))\b");
         private static readonly Regex Search = R(
@@ -469,7 +472,10 @@ namespace MysteryGame.Companions
 
         private static bool HasMovementTargetConflict(string text, CompanionCommand command)
         {
-            if (command == CompanionCommand.Wait && StayRequest.IsMatch(text)) return false;
+            // Stopping is always safe, so a stop request with an explanation
+            // ("หยุดเดินตามก่อนนะ ผมไปทางนั้นก่อน", "รอแป๊บนึงนะ") still stops.
+            // Only a wait somewhere else ("ไปรอที่ประตู") is a destination to ask about.
+            if (command == CompanionCommand.Wait) return !StayRequest.IsMatch(text) && WaitDestination.IsMatch(text);
             Regex action = command == CompanionCommand.Follow ? Follow : Wait;
             string remaining = text;
             foreach (Match match in action.Matches(text))
@@ -490,6 +496,7 @@ namespace MysteryGame.Companions
             var actor = NpcCompanionController.Find(dialogue.ActiveNpcId, GameState.Instance.GetCurrentScene());
             if (actor == null) return false;
             if (actor.CanConverse(dialogue) && CompanionWorldCommands.TryLocation(actor, message, out reply)) return true;
+            if (actor.CanConverse(dialogue) && CompanionWorldCommands.TryRecall(actor, message, out reply)) return true;
             string normalized = CourtesyCondition.Replace(WithoutAddress(Normalize(message), actor.Scenario), " ").Trim();
             string remaining;
             if (actor.CanConverse(dialogue) && TryReadWithdrawal(normalized, out remaining))

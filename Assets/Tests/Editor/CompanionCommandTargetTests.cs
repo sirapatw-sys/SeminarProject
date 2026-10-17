@@ -53,6 +53,17 @@ public class CompanionCommandTargetTests
     [TestCase("ไม่ต้องตามมาแล้ว", CompanionCommand.Wait)]
     [TestCase("รอตรงนี้ก่อน", CompanionCommand.Wait)]
     [TestCase("อย่าเพิ่งไป", CompanionCommand.Wait)]
+    // Playtest: a stop with an explanation or a guard wording kept following.
+    [TestCase("หยุดเดินตามก่อนนะ ผมไปทางนั้นก่อน", CompanionCommand.Wait)]
+    [TestCase("อยู่เฝ้าตรงนี้ก่อนนะ", CompanionCommand.Wait)]
+    [TestCase("อยู่ตรงนี้ก่อนนะ เดี๋ยวกลับมา", CompanionCommand.Wait)]
+    [TestCase("เฝ้าตรงนี้ไว้นะ", CompanionCommand.Wait)]
+    [TestCase("รอแป๊บนึงนะ", CompanionCommand.Wait)]
+    [TestCase("ไม่ต้องตามแล้ว ผมไปเอง", CompanionCommand.Wait)]
+    [TestCase("รอตรงนี้นะ เดี๋ยวผมไปที่ประตูก่อน", CompanionCommand.Wait)]
+    [TestCase("เดินเป็นเพื่อนกันหน่อยนะ", CompanionCommand.Follow)]
+    [TestCase("มาเป็นเพื่อนหน่อย", CompanionCommand.Follow)]
+    [TestCase("อยู่เป็นเพื่อนหน่อยนะ", CompanionCommand.None)]
     public void ExistingSupportedTargetsRemainUsable(string message, CompanionCommand expected)
     {
         CompanionStationData station;

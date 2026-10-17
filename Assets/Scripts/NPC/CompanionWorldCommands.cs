@@ -119,6 +119,15 @@ namespace MysteryGame.Companions
             @"please\b|(?:can|could|would|will)\s+you\b|help\b|follow\b|walk\b|move\b|stand\b|inspect\b|check\b|look\b|explore\b|find\b|examine\b|search\b|read\b|open\b|stop\b|come\b|go\b|hold\b|lift\b)|" +
             @"(?:ให้(?:เรา|ฉัน|ผม)?(?:หน่อย|ที)|ให้(?:ได้ไหม|ได้มั้ย)|หน่อย(?:ได้ไหม|ได้มั้ย))(?:นะ|ครับ|ค่ะ|คะ|สิ|ซิ|\s|[.!?…])*$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // Something in the room is meant: an inspect/open verb, a reference or a place.
+        static readonly Regex WorldCue = new Regex(
+            @"ตรวจ|สำรวจ|เช็ค|เช็ก|ค้น|ดู|สังเกต|พิจารณา|อ่าน|เปิด|หยิบ|จับ|แตะ|ไปที่|ไปตรง|ไปข้าง|ไปอยู่|ไปหา|ไปยืน|ขยับ|ยืน|" +
+            @"อัน|ชิ้น|ตัวนั้น|ตรงนั้น|ตรงโน้น|ที่เดิม|มัน|มุม|ผนัง|กำแพง|พื้น|เพดาน|ซ้าย|ขวา|ข้างหน้า|ด้านหน้า|ข้างหลัง|ด้านหลัง|ใกล้|ระหว่าง|บน|ใต้|ใน|" +
+            @"หลักฐาน|เบาะแส|ของที่|\b(?:inspect|check|look|examine|search|explore|read|open|take|touch|go\s+to|move|stand|it|that|there|this|same|" +
+            @"corner|wall|floor|ceiling|left|right|front|behind|near|between|on|under|in|evidence|clues?|show)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        static readonly Regex HelpCue = new Regex(@"ช่วย|ประคอง|ถือ|ยก|ดัน|\b(?:help|hold|lift|support|push)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         public static void ScopeActions(NpcKnowledgeContext context, string message)
         {
             if (context.PlayerAskedForHint) { context.CompanionActions.Clear(); return; }
@@ -129,7 +138,19 @@ namespace MysteryGame.Companions
             if (named.Count == 0 && !RequestForm.IsMatch(text) &&
                 CompanionDialogueCommands.Parse(text, context.Room.companionScenario, out station) == CompanionCommand.None)
             { context.CompanionActions.Clear(); return; }
-            if (named.Count == 0) return; // Unfamiliar descriptions/deictic requests still get the compact visible-object list.
+            if (named.Count == 0)
+            {
+                // Unfamiliar descriptions/deictic requests still get the compact visible-object list.
+                // "เดินเป็นเพื่อนหน่อย" names no object, place or evidence: keep the plain
+                // follow/wait/search menu, since every target plus the worldIntent rules
+                // roughly triples the prompt. Station help stays only when help is asked for.
+                if (!WorldCue.IsMatch(text))
+                    context.CompanionActions.RemoveAll(a => a.Id.StartsWith("world:", StringComparison.Ordinal) ||
+                        a.Id.StartsWith(CompanionActionOption.ReadPrefix, StringComparison.Ordinal) ||
+                        a.Id.StartsWith(CompanionActionOption.ShowPrefix, StringComparison.Ordinal) ||
+                        a.Id.StartsWith(CompanionActionOption.HelpPrefix, StringComparison.Ordinal) && !HelpCue.IsMatch(text));
+                return;
+            }
             var ids = new HashSet<string>(named.Select(t => t.Definition.id), StringComparer.Ordinal);
             context.CompanionActions.RemoveAll(a => a.Id.StartsWith("world:", StringComparison.Ordinal) &&
                 !ids.Contains(a.Id.Split(':')[3]));

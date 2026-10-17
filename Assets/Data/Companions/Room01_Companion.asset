@@ -26,7 +26,7 @@ MonoBehaviour:
     workSeconds: 1.5
     allowInspect: 1
     visibleDescription: "กรอบภาพแขวนบนผนังด้านบน"
-    inspectLine: "กรอบภาพแขวนเอียงอยู่บนผนัง"
+    inspectLine: "ฉันดูภาพวาดแล้ว กรอบภาพแขวนเอียงอยู่บนผนัง ฉันเห็นได้แค่ภายนอก ถ้าอยากดูละเอียดลองตรวจเองนะ"
     discoveredFactIds: []
   - id: room01.desk
     title: "โต๊ะทำงาน"
@@ -37,7 +37,7 @@ MonoBehaviour:
     workSeconds: 2
     allowInspect: 1
     visibleDescription: "โต๊ะไม้ทางซ้ายของห้อง"
-    inspectLine: "โต๊ะไม้เก่าอยู่ทางซ้ายของห้อง"
+    inspectLine: "ฉันดูโต๊ะแล้ว เป็นโต๊ะไม้เก่าทางซ้ายของห้อง ยังไม่เห็นอะไรที่ยืนยันได้ ถ้าอยากดูละเอียดลองตรวจเองนะ"
     discoveredFactIds: []
   - id: room01.drawer
     title: "ลิ้นชัก"

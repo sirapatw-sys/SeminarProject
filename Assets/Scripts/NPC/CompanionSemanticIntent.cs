@@ -121,6 +121,27 @@ namespace MysteryGame.Companions
             DescribePosition(named[0], actor.Scenario, out string location);
             reply = Reply(named[0].Definition.title + " อยู่" + location + "ของห้อง"); return true;
         }
+        // "เห็นอะไรบ้าง" after a world task repeats the game's verified result. A model
+        // paraphrase of an object's state reads as a gameplay claim and is rejected,
+        // which left the companion answering that she did not know what she just saw.
+        static readonly Regex RecallQuestion = new Regex(
+            @"(?:เห็น|เจอ|พบ|สังเกต)\s*(?:อะไร|ยังไง)|(?:ดู|ตรวจ|เปิด)\s*(?:แล้ว)?\s*(?:เป็น(?:ยังไง|อย่างไร)|ว่าไง|ได้ผลยังไง)|" +
+            @"ผล(?:เป็น)?(?:ยังไง|อย่างไร)|\bwhat\s+did\s+you\s+(?:see|find|notice)\b|\b(?:find|see|notice)\s+anything\b|\bhow\s+did\s+it\s+go\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        static readonly Regex OwnFindings = new Regex(@"(?:เรา|ผม|ฉัน|หนู|พวกเรา|ไม่)\s*(?:ได้\s*)?(?:เห็น|เจอ|พบ|สังเกต)|\b(?:we|i)\s+(?:saw|found|see|find)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        public static bool TryRecall(NpcCompanionController actor, string message, out GeneratedChatReply reply)
+        {
+            reply = null;
+            var result = actor?.LastWorldResult;
+            if (result == null || result.Verb == CompanionWorldVerb.Move || string.IsNullOrWhiteSpace(result.Message)) return false;
+            string text = Normalize(message, actor.Scenario);
+            if (!RecallQuestion.IsMatch(text) || OwnFindings.IsMatch(text)) return false;
+            // A question about a different object is not about this result.
+            var named = Named(text, RoomWorldRegistry.Available(actor.RoomId, GameState.Instance));
+            if (named.Any(t => t.Definition.id != result.TargetId)) return false;
+            reply = Reply(result.Message); return true;
+        }
         static void DescribePosition(CompanionWorldTarget target, CompanionScenarioData scenario, out string location)
         {
             var position = target.SpatialBounds.center; var room = scenario.walkBounds;

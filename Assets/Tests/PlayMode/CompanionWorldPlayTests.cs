@@ -119,6 +119,22 @@ public class CompanionWorldPlayTests
         finally { InteractionSignals.Completed -= player; InteractionSignals.CompanionCompleted -= npc; }
     }
     [Test]
+    public void FinishedInspectionIsReportedRememberedAndRecalledWithoutTheModel()
+    {
+        // Playtest: Alice walked to the painting silently, then said she did not know what she saw.
+        chat.OpenSession(); chat.Submit("ช่วยไปตรวจภาพวาดหน่อย"); Tick();
+        string result = actor.LastWorldResult.Message;
+        Assert.That(actor.LastWorldResult.Success, Is.True); Assert.That(result, Does.Contain("ภาพวาด"));
+        Assert.That(chat.LastReply, Is.EqualTo(result));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(result));
+        Assert.That(State.GetNpcMemory("Alice").Any(m => m.Contains(result)), Is.True);
+        foreach (string question in new[] { "เห็นอะไรบ้าง", "ดูแล้วเป็นยังไงบ้าง", "what did you see?" })
+        { chat.Submit(question); Assert.That(chat.LastReply, Is.EqualTo(result), question); }
+        foreach (string other in new[] { "เราเจออะไรบ้างแล้ว", "ไม่เห็นอะไรเลย", "โต๊ะเห็นอะไรไหม" })
+        { chat.Submit(other); Assert.That(chat.LastReply, Is.Not.EqualTo(result), other); }
+        Assert.That(State.HasFlag("inspected_painting"), Is.False);
+    }
+    [Test]
     public void LockedDeskCannotBypassPaintingAndDrawerOrDoorCannotBeSolvedByNpc()
     {
         chat.OpenSession(); chat.Submit("ตรวจโต๊ะหน่อย"); Tick();
@@ -532,6 +548,19 @@ public class CompanionWorldPlayTests
         Assert.That(prompt, Does.Not.Contain("worldIntent").And.Not.Contain("world:move:"));
         Assert.That(prompt.Length, Is.LessThan(5000));
         TestContext.WriteLine("ROUTED_SOCIAL|" + message + "|actions=" + context.CompanionActions.Count + "|promptChars=" + prompt.Length);
+    }
+    [TestCase("เดินเคียงข้างกันหน่อยนะ")]
+    [TestCase("walk beside me please")]
+    public void PlainMovementRequestsKeepFollowWithoutTheWorldMenu(string message)
+    {
+        // Playtest: a walk-with-me request cost ~5x a greeting because every target was offered.
+        var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+        Assert.That(context.CompanionActions.Any(a => a.Id == CompanionActionOption.Follow), Is.True, message);
+        Assert.That(context.CompanionActions.Any(a => a.Id.StartsWith("world:")), Is.False, message);
+        string prompt = AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", message, null, context);
+        Assert.That(prompt, Does.Not.Contain("worldIntent").And.Contain(CompanionActionOption.Follow));
+        Assert.That(prompt.Length, Is.LessThan(6000));
+        TestContext.WriteLine("ROUTED_MOVE|" + message + "|actions=" + context.CompanionActions.Count + "|promptChars=" + prompt.Length);
     }
     [TestCase("พิจารณาภาพวาดให้ที")]
     [TestCase("ภาพวาดนั่น พิจารณารายละเอียดหน่อย")]
