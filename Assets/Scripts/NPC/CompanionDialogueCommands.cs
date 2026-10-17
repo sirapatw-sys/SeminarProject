@@ -653,8 +653,27 @@ namespace MysteryGame.Companions
             if (actor == null || actor.Scenario == null) return false;
             if (CompanionWorldCommands.TryProposal(actor, dialogue.WorldCommandSession, message, actionId, out reply)) return true;
 
-            CompanionCommand command = CompanionCommand.None;
             if (CompanionNaturalRequests.TryApplyProposal(dialogue, actor, message, actionId, out reply)) return true;
+            return TryApplyCommonProposal(dialogue, actor, message, actionId, out reply);
+        }
+        public static bool TryApplyRoomProposedAction(NpcCompanionController actor, string message, string actionId, out GeneratedChatReply reply)
+        {
+            reply = null;
+            if (actor == null || !actor.CanReceiveRoomCommand || string.IsNullOrWhiteSpace(actionId) || actionId == CompanionActionOption.None) return false;
+            return TryApplyCommonProposal(null, actor, message, actionId, out reply);
+        }
+        private static bool ApplyForSurface(NpcCompanionController actor, DialogueManager dialogue, CompanionCommand command,
+            CompanionStationData station, out string line)
+        {
+            if (dialogue != null) return actor.ApplyDialogueCommand(dialogue, command, station, out line);
+            bool applied = actor.ApplyRoomCommand(command, station);
+            line = applied ? actor.Bubble : actor.Scenario.helpClarificationLine; return applied;
+        }
+        private static bool TryApplyCommonProposal(DialogueManager dialogue, NpcCompanionController actor,
+            string message, string actionId, out GeneratedChatReply reply)
+        {
+            reply = null;
+            CompanionCommand command = CompanionCommand.None;
             CompanionStationData station = null;
             if (actionId == CompanionActionOption.Follow) command = CompanionCommand.Follow;
             else if (actionId == CompanionActionOption.Wait) command = CompanionCommand.Wait;
@@ -680,12 +699,12 @@ namespace MysteryGame.Companions
             if ((command == CompanionCommand.Follow || command == CompanionCommand.Wait) && HasMovementTargetConflict(text, command))
             {
                 string clarify;
-                actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out clarify);
+                ApplyForSurface(actor, dialogue, CompanionCommand.Clarify, null, out clarify);
                 if (string.IsNullOrWhiteSpace(clarify)) return false;
                 reply = new GeneratedChatReply { reply = clarify, referencedFactIds = Array.Empty<string>() };
                 return true;
             }
-            if (AiDialogueGenerator.BuildKnowledgeContext(dialogue.ActiveNpcId, message).PlayerAskedForHint &&
+            if (AiDialogueGenerator.BuildKnowledgeContext(actor.Scenario.npcId, message).PlayerAskedForHint &&
                 command != CompanionCommand.Wait && command != CompanionCommand.Search) return false;
 
             // The player named an activity's object ("ไปช่วยตรงโต๊ะหน่อยสิ"). The model
@@ -700,7 +719,7 @@ namespace MysteryGame.Companions
                 if (named.Count > 1)
                 {
                     string ambiguous;
-                    actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out ambiguous);
+                    ApplyForSurface(actor, dialogue, CompanionCommand.Clarify, null, out ambiguous);
                     reply = new GeneratedChatReply { reply = ambiguous, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
                     return true;
                 }
@@ -728,8 +747,8 @@ namespace MysteryGame.Companions
                     string socialTarget = command == CompanionCommand.Search && named.Count == 1 ? WithoutStationNames(text, named[0]) : text;
                     if (SocialObject.IsMatch(socialTarget)) return false;
                     string clarify;
-                    actor.ApplyDialogueCommand(dialogue, CompanionCommand.Clarify, null, out clarify);
-                    if (command == CompanionCommand.Search) clarify = SearchClarification(dialogue, actor, text, clarify);
+                    ApplyForSurface(actor, dialogue, CompanionCommand.Clarify, null, out clarify);
+                    if (command == CompanionCommand.Search && dialogue != null) clarify = SearchClarification(dialogue, actor, text, clarify);
                     if (string.IsNullOrWhiteSpace(clarify)) return false;
                     reply = new GeneratedChatReply { reply = clarify, relationshipDelta = 0, referencedFactIds = Array.Empty<string>() };
                     return true;
@@ -743,7 +762,7 @@ namespace MysteryGame.Companions
                 (command == CompanionCommand.Help && actor.ActiveStation == station)) return false;
 
             string line;
-            actor.ApplyDialogueCommand(dialogue, command, station, out line);
+            ApplyForSurface(actor, dialogue, command, station, out line);
             if (string.IsNullOrWhiteSpace(line)) return false;
             // Started or refused, the answer is the companion's authored line,
             // never a model promise about something the game did not do.

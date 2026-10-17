@@ -326,8 +326,22 @@ namespace MysteryGame.Knowledge
             if (CompanionActions.Count == 0 || PlayerAskedForHint) return string.Empty;
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("=== สิ่งที่ตัวละครนี้ลงมือทำร่วมกับผู้เล่นได้ตอนนี้ (ช่อง companionAction) ===");
+            var world = new Dictionary<string, List<CompanionActionOption>>();
             foreach (CompanionActionOption option in CompanionActions)
-                sb.AppendLine("- " + option.Id + ": " + option.Description);
+            {
+                if (!option.Id.StartsWith("world:", System.StringComparison.Ordinal))
+                { sb.AppendLine("- " + option.Id + ": " + option.Description); continue; }
+                string id = option.Id.Split(':')[3];
+                if (!world.ContainsKey(id)) world[id] = new List<CompanionActionOption>();
+                world[id].Add(option);
+            }
+            foreach (var entry in world)
+            {
+                var verbs = new List<string>(); string description = "";
+                foreach (var option in entry.Value)
+                { string verb = option.Id.Split(':')[1]; if (!verbs.Contains(verb)) verbs.Add(verb); if (verb == "move") description = option.Description; }
+                sb.AppendLine("- targetId=" + entry.Key + ": " + description + "; verbs=" + string.Join("/", verbs));
+            }
             sb.AppendLine("- " + CompanionActionOption.None + ": ผู้เล่นไม่ได้ขอให้ลงมือทำอะไรในข้อความนี้");
             sb.AppendLine("ใส่รหัสใน companionAction เฉพาะเมื่อผู้เล่นขอให้ตัวละครทำสิ่งนั้น 'ตอนนี้' อย่างชัดเจน " +
                           "คำขอสุภาพ เช่น ได้ไหม ถือเป็นคำขอได้ แต่คำถามเรื่องสถานะ การเล่าเรื่อง การสมมติ การยกคำพูดคนอื่น การปฏิเสธ หรือไม่แน่ใจ ให้ใส่ " + CompanionActionOption.None);

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Painting_Data
   m_EditorClassIdentifier: 
   interactionId: inspect_painting
-  allowCompanionExecution: 1
+  allowCompanionExecution: 0
   companionMessage: "ฉันตรวจหลังกรอบภาพแล้ว พบข้อความเขียนด้วยดินสออยู่ เราอ่านทบทวนด้วยกันได้"
   displayName: Painting
   interactionMessage: "คุณยกกรอบภาพที่แขวนเอียงขึ้นดู... ด้านหลังมีลายมือเขียนด้วยดินสอจางๆ:\n'ถ้ายังออกไปไม่ได้ ลองตรวจขอบโต๊ะทำงานให้ดี ฉันซ่อนไว้ตรงนั้น'"

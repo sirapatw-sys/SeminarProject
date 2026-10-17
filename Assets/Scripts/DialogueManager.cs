@@ -243,6 +243,7 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        MysteryGame.Companions.CompanionChatPanel.CloseActive();
         ConversationVersion++;
         dialoguePanel.SetActive(true);
         choicePanel.SetActive(false);
@@ -324,6 +325,7 @@ public class DialogueManager : MonoBehaviour
         bool useGeneratedChoices,
         DialogueData authoredChoiceSource)
     {
+        MysteryGame.Companions.CompanionChatPanel.CloseActive();
         string companionInvitation = null;
         var companion = GameState.Instance == null ? null : MysteryGame.Companions.NpcCompanionController.Find(
             data.speakerId, GameState.Instance.GetCurrentScene());

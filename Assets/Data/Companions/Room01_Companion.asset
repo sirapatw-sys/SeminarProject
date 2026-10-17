@@ -27,7 +27,7 @@ MonoBehaviour:
     allowInspect: 1
     visibleDescription: "กรอบภาพแขวนบนผนังด้านบน"
     inspectLine: "กรอบภาพแขวนเอียงอยู่บนผนัง"
-    discoveredFactIds: [painting_arrow]
+    discoveredFactIds: []
   - id: room01.desk
     title: "โต๊ะทำงาน"
     aliases: ["โต๊ะ", "desk", "table"]
@@ -38,7 +38,7 @@ MonoBehaviour:
     allowInspect: 1
     visibleDescription: "โต๊ะไม้ทางซ้ายของห้อง"
     inspectLine: "โต๊ะไม้เก่าอยู่ทางซ้ายของห้อง"
-    discoveredFactIds: [desk_note, note_direction]
+    discoveredFactIds: []
   - id: room01.drawer
     title: "ลิ้นชัก"
     aliases: ["drawer"]
@@ -50,7 +50,7 @@ MonoBehaviour:
     allowOpen: 1
     visibleDescription: "ลิ้นชักอยู่ถัดจากโต๊ะ มีแม่กุญแจรหัส"
     inspectLine: "ลิ้นชักมีแม่กุญแจรหัส ฉันช่วยดูได้ แต่ให้เธอเป็นคนเลือกรหัสและลองเองนะ"
-    discoveredFactIds: [drawer_key]
+    discoveredFactIds: []
   - id: room01.door
     title: "ประตูทางออก"
     aliases: ["ประตู", "door", "exit"]
@@ -252,6 +252,9 @@ MonoBehaviour:
     conditions:
     - type: 0
       targetId: found_note
+      amount: 0
+    - type: 0
+      targetId: companion.room01_alice.search.note_direction.found
       amount: 0
   - id: discovered_painting
     point: {x: 0, y: 1.3}

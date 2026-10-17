@@ -100,18 +100,28 @@ namespace MysteryGame.Companions
         {
             foreach (var target in RoomWorldRegistry.Available(context.Room.roomId, GameState.Instance))
             {
-                var bounds = target.SpatialBounds;
-                string location = " [ตำแหน่งบนจอ " + target.ApproachPoint.x.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "," +
-                    target.ApproachPoint.y.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "; ขอบเขต " +
-                    bounds.min.ToString("F1") + " ถึง " + bounds.max.ToString("F1") + "; ชื่ออื่น " + string.Join(", ", target.Definition.aliases ?? new List<string>()) + "]";
-                foreach (string relation in new[] { "at", "left", "right", "front", "behind", "near" })
-                    context.CompanionActions.Add(new CompanionActionOption { Id = Id(CompanionWorldVerb.Move, target.Definition.id, relation),
-                        Description = "เดินไป " + relation + " ของ «" + target.Definition.title + "»" + (relation == "at" ? " " + target.Definition.visibleDescription + location : "") });
+                // Relations belong to worldIntent, not six copies of every destination.
+                DescribePosition(target, context.Room.companionScenario, out string location);
+                context.CompanionActions.Add(new CompanionActionOption { Id = Id(CompanionWorldVerb.Move, target.Definition.id),
+                    Description = target.Definition.title + " (" + location + ") ชื่ออื่น: " + string.Join(", ",
+                        (target.Definition.aliases ?? new List<string>()).Take(3)) });
                 foreach (var verb in new[] { CompanionWorldVerb.Inspect, CompanionWorldVerb.Open })
                     if (target.Allows(verb)) context.CompanionActions.Add(new CompanionActionOption {
                         Id = Id(verb, target.Definition.id), Description = (verb == CompanionWorldVerb.Open ? "ลองเปิด " : "เดินไปตรวจ ") + target.Definition.title +
-                            " (ต้องไปถึงและผ่านเงื่อนไขจริง จึงรู้ผล)" + location });
+                            " (เกมตรวจเงื่อนไขจริง)" });
             }
+        }
+        static readonly Regex ActionTopic = new Regex(@"ช่วย|ฝาก|รบกวน|เดิน|ยืน|ขยับ|ตรวจ|สำรวจ|เช็ค|เช็ก|ดู|เปิด|ค้น|อ่าน|หยุด|ตามมา|จับ|ถือ|ประคอง|ยก|" +
+            @"\b(?:help|please|follow|walk|move|stand|inspect|check|look|explore|find|examine|search|read|open|stop|come|go|hold|lift|could|would)\b", RegexOptions.IgnoreCase);
+        public static void ScopeActions(NpcKnowledgeContext context, string message)
+        {
+            if (context.PlayerAskedForHint || !ActionTopic.IsMatch(message ?? "")) { context.CompanionActions.Clear(); return; }
+            if (context.Room == null) return;
+            var named = Named(message, RoomWorldRegistry.Available(context.Room.roomId, GameState.Instance));
+            if (named.Count == 0) return; // Unfamiliar descriptions/deictic requests still get the compact visible-object list.
+            var ids = new HashSet<string>(named.Select(t => t.Definition.id), StringComparer.Ordinal);
+            context.CompanionActions.RemoveAll(a => a.Id.StartsWith("world:", StringComparison.Ordinal) &&
+                !ids.Contains(a.Id.Split(':')[3]));
         }
 
         public static bool TryLocal(NpcCompanionController actor, CompanionWorldSession session, string text, out GeneratedChatReply reply)

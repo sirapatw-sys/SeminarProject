@@ -47,12 +47,17 @@ public class InteractionSystem : MonoBehaviour
         // NPCs cannot solve input puzzles, run player preparation/holds alone, or leave the room.
         if (data == null || !data.allowCompanionExecution || string.IsNullOrWhiteSpace(npcId) ||
             !System.Enum.IsDefined(typeof(CompanionInteractionOperation), operation) || data.companionOperation != operation ||
-            data.inputPuzzle != null || data.endsDemo || !string.IsNullOrWhiteSpace(data.transitionScene))
+            data.inputPuzzle != null || data.endsDemo || !string.IsNullOrWhiteSpace(data.transitionScene) || IsPlayerPuzzleStep(data))
         { result.Message = "ตรงนี้ต้องให้เธอเป็นคนลงมือเอง ฉันช่วยดูหรือรอข้าง ๆ ได้นะ"; return result; }
         string message;
         result.Success = Execute(data, out message, null, npcId);
         result.Message = result.Success && !string.IsNullOrWhiteSpace(data.companionMessage) ? data.companionMessage : message;
         return result;
+    }
+    private static bool IsPlayerPuzzleStep(InteractionData data)
+    {
+        var room = MysteryGame.Knowledge.KnowledgeLibrary.GetRoom(GameState.Instance?.GetCurrentScene());
+        return room?.steps != null && room.steps.Exists(step => step != null && step.interactionId == data.interactionId);
     }
 
     private bool Execute(InteractionData data, out string responseMessage, string answer, string actorNpcId)

@@ -31,6 +31,7 @@ namespace MysteryGame.Companions
         float deadline;
         public string LastReply { get; private set; }
         public bool RequestPending => pending;
+        public static void CloseActive() { if (openPanel != null) openPanel.Close(); }
 
         void Awake() { actor = GetComponent<NpcCompanionController>(); }
         void OnEnable()
@@ -114,6 +115,8 @@ namespace MysteryGame.Companions
                         actor.ApplyRoomCommand(CompanionCommand.Follow)) { Say(actor.Bubble); return; }
                     if (reply?.companionAction != null && reply.companionAction.StartsWith("world:", StringComparison.Ordinal))
                     { Say("ฉันยังทำตามคำขอนั้นไม่ได้ ลองบอกสิ่งที่อยากให้ทำกับชื่อเป้าหมายอีกครั้งนะ"); return; }
+                    if (CompanionDialogueCommands.TryApplyRoomProposedAction(actor, message, reply?.companionAction, out applied))
+                    { Say(applied.reply); return; }
                     var knowledge = AiDialogueGenerator.BuildKnowledgeContext(actor.Scenario.npcId, message);
                     GeneratedChatReply grounded;
                     string reason;

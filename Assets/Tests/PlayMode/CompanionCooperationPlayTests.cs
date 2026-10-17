@@ -425,9 +425,11 @@ public class CompanionCooperationPlayTests
     }
 
     [UnityTest]
-    public IEnumerator NpcSearchActuallyInspectsMarginBeforeReportingIt()
+    public IEnumerator NpcSearchCanInspectTheAlreadyDiscoveredMarginBeforeReportingIt()
     {
         State.SetFlag("inspected_painting"); State.SetFlag("found_note");
+        // The player's separate follow-up (covered above) or a real joint inspection must reveal it first.
+        State.SetFlag(actor.Scenario.SearchFlag("note_direction"));
         ActorAt(new Vector2(-4.6f, -2.65f)); PlayerAt(DeskStation.playerPoint);
         Chat(); Send("ช่วยหาหลักฐานหน่อย"); yield return null;
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Searching));

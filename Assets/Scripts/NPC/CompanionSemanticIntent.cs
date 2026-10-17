@@ -14,7 +14,7 @@ namespace MysteryGame.Companions
         public string targetId;
         public string relation;
         public string referenceId;
-        public bool IsInactive => speechAct == "none" && verb == "none" && string.IsNullOrEmpty(targetId) &&
+        public bool IsInactive => new[] { "none", "chat", "question", "unclear", "request" }.Contains(speechAct) && verb == "none" && string.IsNullOrEmpty(targetId) &&
             string.IsNullOrEmpty(referenceId) && relation == "at";
 
         public static List<string> OfferedTargets(IList<string> actionIds) => (actionIds ?? new List<string>())
@@ -26,18 +26,21 @@ namespace MysteryGame.Companions
             if (ids.Count == 0 || !new[] { "none", "request", "question", "chat", "unclear" }.Contains(speechAct) ||
                 !new[] { "move", "inspect", "open", "none" }.Contains(verb) ||
                 !new[] { "at", "near", "left", "right", "front", "behind", "between" }.Contains(relation)) return false;
-            if (speechAct != "request") return verb == "none" && string.IsNullOrEmpty(targetId) && string.IsNullOrEmpty(referenceId);
+            if (IsInactive) return true;
+            if (speechAct != "request") return false;
             if (!ids.Contains(targetId) || verb == "none") return false;
             if (relation == "between") return verb == "move" && ids.Contains(referenceId) && referenceId != targetId;
-            return string.IsNullOrEmpty(referenceId) && actionIds.Contains(CompanionWorldCommands.Id(
-                (CompanionWorldVerb)Enum.Parse(typeof(CompanionWorldVerb), verb, true), targetId, relation));
+            return string.IsNullOrEmpty(referenceId) && (verb == "move" || relation == "at") && actionIds.Contains(CompanionWorldCommands.Id(
+                (CompanionWorldVerb)Enum.Parse(typeof(CompanionWorldVerb), verb, true), targetId));
         }
         public static void SanitizeProposal(GeneratedChatReply reply, IList<string> actionIds)
         {
             if (reply == null) return;
             if (actionIds == null || !actionIds.Contains(reply.companionAction)) reply.companionAction = null;
             if (reply.worldIntent == null) return; // Backwards compatible with providers that omit the field.
-            if (reply.worldIntent.IsInactive && reply.worldIntent.IsOffered(actionIds)) { reply.worldIntent = null; return; }
+            // An empty world branch does not veto a separately validated follow/help/search proposal.
+            // The executor still checks the actual player text; speechAct alone never authorizes it.
+            if (reply.worldIntent.IsInactive) { reply.worldIntent = null; return; }
             // An invalid/contradictory semantic proposal must never execute a second legacy action.
             reply.companionAction = null;
             if (!reply.worldIntent.IsOffered(actionIds)) reply.worldIntent = null;
@@ -64,7 +67,7 @@ namespace MysteryGame.Companions
             "between ใช้ targetId กับ referenceId คนละชิ้น เกมคำนวณพื้นที่ว่างเอง ห้ามสร้างพิกัด ห้าม inspect/open หลายเป้าหมาย " +
             "relation อื่นใช้ referenceId='' ตัวอย่าง 'ไปยืนระหว่างโต๊ะกับประตู' = move, between, id โต๊ะ, id ประตู " +
             "คำว่าอันนั้น/ตรงนั้นใช้วัตถุที่โฟกัสเฉพาะเมื่อบริบทให้ไว้ หากไม่มี/กำกวมใช้ unclear และถามชื่อ " +
-            "คำขอนอกงาน world เช่นตามผู้เล่น ช่วยจับกลไก หรืออ่านหลักฐาน ใช้ companionAction ตามรายการเดิม และ worldIntent={speechAct:'none',verb:'none',targetId:'',relation:'at',referenceId:''} " +
+            "คำขอนอกงาน world ใช้ companionAction เดิม และ worldIntent ใช้ verb=none, targetId='', relation=at, referenceId='' " +
             "หากใช้ worldIntent สำหรับงาน world ให้ companionAction=none ไม่บอกว่าลงมือหรือพบอะไรสำเร็จแล้ว เกมยืนยันผลจริงเท่านั้น\n";
     }
 

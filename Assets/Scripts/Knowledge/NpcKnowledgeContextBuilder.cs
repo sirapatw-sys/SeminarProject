@@ -44,6 +44,7 @@ namespace MysteryGame.Knowledge
                 PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
             if (companion)
             {
+                MysteryGame.Companions.CompanionWorldCommands.ScopeActions(context, message);
                 context.RecentMemories.Clear();
                 context.RecentMemories.AddRange(NpcMemoryRecall.Select(state.GetNpcMemory(npcId), message, scenario, MemoryLimit));
             }

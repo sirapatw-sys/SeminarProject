@@ -88,7 +88,7 @@ public class CompanionWorldPlayTests
         chat.Submit("หยุดก่อน"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
     }
     [Test]
-    public void InspectingPaintingThenDeskRevealsOnlyVerifiedEvidenceAndNoPlayerUi()
+    public void PassiveInspectionLeavesCoreProgressAndKnowledgeToPlayerDiscoveryAndSharing()
     {
         int playerSignals = 0, npcSignals = 0;
         Action<InteractionData, bool> player = (d, success) => playerSignals++;
@@ -98,16 +98,22 @@ public class CompanionWorldPlayTests
         {
             chat.OpenSession(); chat.Submit("ช่วยไปตรวจภาพวาดหน่อย");
             Assert.That(State.HasFlag("inspected_painting"), Is.False);
-            Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.True);
-            Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "painting_arrow"), Is.True);
+            Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.False);
+            Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "painting_arrow"), Is.False);
             chat.Submit("ลองเช็คโต๊ะให้หน่อย"); Tick();
-            Assert.That(State.HasFlag("found_note"), Is.True);
-            Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "desk_note"), Is.True);
+            Assert.That(State.HasFlag("found_note"), Is.False);
+            Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "desk_note"), Is.False);
             Assert.That(State.HasFlag("drawer_opened"), Is.False); Assert.That(State.HasItem("key"), Is.False);
             Assert.That(DialogueManager.IsDialogueOpen, Is.False); Assert.That(ItemPopupUI.IsBusy, Is.False);
-            Assert.That(playerSignals, Is.Zero); Assert.That(npcSignals, Is.EqualTo(2));
-            Assert.That(CompanionDiscovery.Pending(actor.Scenario, State, "Room01").Any(f => f.factId == "desk_note"), Is.True);
+            Assert.That(playerSignals, Is.Zero); Assert.That(npcSignals, Is.Zero);
+            Assert.That(CompanionDiscovery.Pending(actor.Scenario, State, "Room01").Any(f => f.factId == "desk_note"), Is.False);
+            string response;
+            Assert.That(InteractionSystem.Instance.TryExecute(Target("painting").Interaction.ActiveData, out response), Is.True);
+            Assert.That(InteractionSystem.Instance.TryExecute(Target("desk").Interaction.ActiveData, out response), Is.True);
+            Assert.That(State.HasFlag("inspected_painting"), Is.True); Assert.That(State.HasFlag("found_note"), Is.True);
+            Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("desk_note", State), Is.False);
             chat.Submit("ช่วยอ่านโน้ตให้หน่อย"); Assert.That(chat.LastReply, Does.Contain("2 · 9 · 5 · 4"));
+            Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.True);
             Assert.That(chat.LastReply, Does.Not.Contain("4592"));
         }
         finally { InteractionSignals.Completed -= player; InteractionSignals.CompanionCompleted -= npc; }
@@ -116,7 +122,7 @@ public class CompanionWorldPlayTests
     public void LockedDeskCannotBypassPaintingAndDrawerOrDoorCannotBeSolvedByNpc()
     {
         chat.OpenSession(); chat.Submit("ตรวจโต๊ะหน่อย"); Tick();
-        Assert.That(actor.LastWorldResult.Success, Is.False); Assert.That(State.HasFlag("found_note"), Is.False);
+        Assert.That(actor.LastWorldResult.Success, Is.True); Assert.That(State.HasFlag("found_note"), Is.False);
         chat.Submit("เปิดลิ้นชักหน่อย"); Tick();
         Assert.That(actor.LastWorldResult.Success, Is.False); Assert.That(State.HasItem("key"), Is.False);
         chat.Submit("เปิดประตูหน่อย"); Tick();
@@ -128,7 +134,7 @@ public class CompanionWorldPlayTests
         chat.OpenSession(); chat.Submit("ไปตรวจอันนั้นหน่อย");
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting)); Assert.That(chat.LastReply, Does.Contain("หมายถึง"));
         chat.Submit("ภาพวาด"); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.WorldTask)); Tick();
-        Assert.That(State.HasFlag("inspected_painting"), Is.True);
+        Assert.That(State.HasFlag("inspected_painting"), Is.False); Assert.That(actor.LastWorldResult?.TargetId, Is.EqualTo("room01.painting"));
         chat.Submit("ไปยืนข้างขวาของมันหน่อย"); Tick();
         Assert.That(actor.LastWorldResult.Success, Is.True);
         Assert.That(Vector2.Distance(actor.Feet, Target("painting").Definition.approachPoint + Vector2.right * 0.7f), Is.LessThanOrEqualTo(0.12f));
@@ -150,7 +156,7 @@ public class CompanionWorldPlayTests
         var provider = new Provider { Action = "world:inspect:at:room01.painting" }; DialogueProviders.Override = provider;
         chat.OpenSession(); chat.Submit("ช่วยพิจารณารายละเอียดภาพวาดหน่อย"); yield return null;
         Assert.That(provider.Calls, Is.EqualTo(1)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.WorldTask)); Tick();
-        Assert.That(State.HasFlag("inspected_painting"), Is.True);
+        Assert.That(State.HasFlag("inspected_painting"), Is.False); Assert.That(actor.LastWorldResult?.Success, Is.True);
         var session = new CompanionWorldSession(); GeneratedChatReply reply;
         Assert.That(CompanionWorldCommands.TryProposal(actor, session, "ช่วยพิจารณารายละเอียดโต๊ะหน่อย", "world:inspect:at:room01.painting", out reply), Is.False);
         Assert.That(CompanionWorldCommands.TryProposal(actor, session, "ช่วยตรวจลิ้นชักหน่อย", "world:open:at:room01.drawer", out reply), Is.False);
@@ -417,7 +423,7 @@ public class CompanionWorldPlayTests
         DialogueProviders.Override = provider;
         chat.OpenSession(); chat.Submit("ภาพวาดนั่น ฝากพิจารณารายละเอียดให้ที"); yield return null;
         Assert.That(provider.Calls, Is.EqualTo(1)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.WorldTask), chat.LastReply);
-        Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.True);
+        Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.False); Assert.That(actor.LastWorldResult?.TargetId, Is.EqualTo("room01.painting"));
     }
     [UnityTest]
     public IEnumerator SemanticQuestionCannotExecuteALegacyActionAndPronounsUseVerifiedFocus()
@@ -432,7 +438,7 @@ public class CompanionWorldPlayTests
             speechAct = "request", verb = "inspect", targetId = "room01.painting", relation = "at", referenceId = "" };
         chat.Submit("อันนั้น ฝากพิจารณารายละเอียดให้ที"); yield return null;
         Assert.That(provider.Context, Does.Contain("วัตถุที่โฟกัสจากงานล่าสุด: room01.painting"));
-        Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.True, chat.LastReply);
+        Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.False, chat.LastReply); Assert.That(actor.LastWorldResult?.Success, Is.True);
     }
     [TestCase("อย่าเปิดลิ้นชัก", "open", "room01.drawer", "at", "")]
     [TestCase("เมื่อกี้เดินไปที่โซฟาแล้วใช่ไหม", "move", "room01.sofa", "at", "")]
@@ -480,7 +486,7 @@ public class CompanionWorldPlayTests
         field.text = "ภาพวาดนั่น ฝากพิจารณารายละเอียดให้ที"; DialogueManager.Instance.SendTypedMessage(); yield return null;
         Assert.That(provider.Calls, Is.EqualTo(1)); Assert.That(actor.Mode, Is.EqualTo(CompanionMode.WorldTask));
         Tick(1); Assert.That(State.HasFlag("inspected_painting"), Is.False, "Portrait conversation still pauses movement.");
-        DialogueManager.Instance.HideDialogue(); Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.True);
+        DialogueManager.Instance.HideDialogue(); Tick(); Assert.That(State.HasFlag("inspected_painting"), Is.False); Assert.That(actor.LastWorldResult?.Success, Is.True);
     }
     [Test]
     public void SpatialDestinationCannotCrossWrongSideOrTeleportIntoBlockedFloor()
@@ -502,6 +508,128 @@ public class CompanionWorldPlayTests
             Assert.That(actor.BeginWorldTask(target, CompanionWorldVerb.Move, "right"), Is.False);
         }
         finally { UnityEngine.Object.DestroyImmediate(area); }
+    }
+    [Test]
+    public void GreetingDoesNotOfferAnyActionsOrWorldSchema()
+    {
+        var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "สวัสดี Alice");
+        Assert.That(context.CompanionActions, Is.Empty);
+        string prompt = AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", "สวัสดี Alice", null, context);
+        Assert.That(prompt, Does.Not.Contain("worldIntent").And.Not.Contain("world:move:").And.Not.Contain("ตำแหน่งบนจอ"));
+        Assert.That(prompt.Length, Is.LessThan(5000));
+    }
+    [Test]
+    public void FullDialogueSynchronouslyClosesRoomChatAndCancelsItsPendingRequest()
+    {
+        var provider = new Provider { Delay = true }; DialogueProviders.Override = provider;
+        chat.OpenSession(); chat.Submit("ภาพวาดนั่น ฝากพิจารณารายละเอียดให้ที");
+        Assert.That(chat.RequestPending, Is.True);
+        var callback = provider.Callback;
+        DialogueManager.Instance.StartDialogue("Alice", new[] { "คุยกัน" }, false);
+        Assert.That(CompanionChatPanel.IsOpen, Is.False, "Two conversation surfaces must never share one frame.");
+        Assert.That(chat.RequestPending, Is.False);
+        callback(new GeneratedChatReply { reply = "ได้", companionAction = "world:inspect:at:room01.painting" });
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Assert.That(chat.OpenSession(), Is.False);
+    }
+    [Test]
+    public void MainPuzzleProgressRequiresThePlayerNotDelegatedInspection()
+    {
+        chat.OpenSession(); chat.Submit("ช่วยไปตรวจภาพวาดหน่อย"); Tick();
+        Assert.That(State.HasFlag("inspected_painting"), Is.False);
+        Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "painting_arrow"), Is.False);
+        chat.Submit("ช่วยไปตรวจโต๊ะหน่อย"); Tick();
+        Assert.That(State.HasFlag("found_note"), Is.False);
+        Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "desk_note"), Is.False);
+        chat.Submit("ช่วยค้นหารอบห้องหน่อย"); Tick();
+        Assert.That(State.HasFlag(actor.Scenario.SearchFlag("note_direction")), Is.False);
+    }
+    [Test]
+    public void EmptyWorldIntentCannotSilentlyEraseAValidLegacyFollowProposal()
+    {
+        var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "ช่วยมาดูด้วยกันสักครู่ได้ไหม");
+        var reply = new GeneratedChatReply { reply = "อืม", companionAction = "inspect_together", worldIntent = new CompanionSemanticIntent {
+            speechAct = "chat", verb = "none", targetId = "", relation = "at", referenceId = "" } };
+        CompanionSemanticIntent.SanitizeProposal(reply, AiDialogueGenerator.CompanionActionIds(context));
+        Assert.That(reply.companionAction, Is.EqualTo("inspect_together"));
+        Assert.That(reply.worldIntent, Is.Null);
+    }
+    [TestCase("help:two_hands_box", "ช่วยจับกล่องสองมือหน่อย", CompanionMode.GoingToHelp)]
+    [TestCase("search", "ช่วยหาหลักฐานหน่อย", CompanionMode.Searching)]
+    [TestCase("follow", "เดินตามเราหน่อย", CompanionMode.Following)]
+    public void RoomAiProposalsUseTheSameValidatedLegacyExecutor(string action, string message, CompanionMode expected)
+    {
+        chat.OpenSession(); GeneratedChatReply reply;
+        Assert.That(CompanionDialogueCommands.TryApplyRoomProposedAction(actor, message, action, out reply), Is.True);
+        Assert.That(actor.Mode, Is.EqualTo(expected)); Assert.That(reply.reply, Is.EqualTo(actor.Bubble));
+    }
+    [TestCase("help:two_hands_box", "อย่าจับกล่องสองมือ")]
+    [TestCase("search", "เธอค้นหาแล้วใช่ไหม")]
+    [TestCase("follow", "สวัสดี")]
+    public void RoomAiProposalsCannotTurnQuestionsRefusalsOrGreetingIntoActions(string action, string message)
+    {
+        chat.OpenSession(); GeneratedChatReply reply;
+        Assert.That(CompanionDialogueCommands.TryApplyRoomProposedAction(actor, message, action, out reply), Is.False);
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+    }
+    [Test]
+    public void PuzzleStepCannotBeDelegatedEvenIfAnAssetAccidentallyOptsIn()
+    {
+        var data = Target("painting").Interaction.ActiveData; bool original = data.allowCompanionExecution;
+        try
+        {
+            data.allowCompanionExecution = true;
+            Assert.That(InteractionSystem.Instance.TryExecuteCompanion(data, "Alice").Success, Is.False);
+            Assert.That(State.HasFlag("inspected_painting"), Is.False);
+        }
+        finally { data.allowCompanionExecution = original; }
+    }
+    [Test]
+    public void SearchCannotRevealAnUninspectedMainClueEvenAfterThePlayerFoundTheNote()
+    {
+        State.SetFlag("found_note"); chat.OpenSession(); chat.Submit("ช่วยหาหลักฐานหน่อย"); Tick(40);
+        Assert.That(State.HasFlag(actor.Scenario.SearchFlag("note_direction")), Is.False);
+        Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "note_direction"), Is.False);
+    }
+    [Test]
+    public void DataDialogueEntryAlsoClosesRoomChatImmediately()
+    {
+        chat.OpenSession();
+        var data = (DialogueData)typeof(NPCInteraction).GetField("dialogueData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(actor.GetComponent<NPCInteraction>());
+        DialogueManager.Instance.StartDialogue(data);
+        Assert.That(DialogueManager.IsDialogueOpen, Is.True); Assert.That(CompanionChatPanel.IsOpen, Is.False);
+        Assert.That(actor.GetComponentsInChildren<Canvas>(true).Any(c => c.gameObject.activeInHierarchy), Is.False);
+    }
+    [Test]
+    public void WorldMenuIsCompactScopedAndStillAllowsSemanticSides()
+    {
+        var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", "ภาพวาดนั่น ฝากพิจารณารายละเอียดให้ที");
+        var ids = AiDialogueGenerator.CompanionActionIds(context);
+        Assert.That(context.CompanionActions.Count(a => a.Id.StartsWith("world:")), Is.LessThanOrEqualTo(3));
+        Assert.That(context.ToCompanionActionSection(), Does.Not.Contain("ตำแหน่งบนจอ").And.Not.Contain("ขอบเขต"));
+        Assert.That(new CompanionSemanticIntent { speechAct = "request", verb = "move", targetId = "room01.painting", relation = "right", referenceId = "" }.IsOffered(ids), Is.True);
+        Assert.That(new CompanionSemanticIntent { speechAct = "request", verb = "move", targetId = "room01.desk", relation = "at", referenceId = "" }.IsOffered(ids), Is.False);
+    }
+    [Test]
+    public void MeasureReviewRequestPayloadSizesWithoutCallingAnApi()
+    {
+        var generator = UnityEngine.Object.FindObjectOfType<AiDialogueGenerator>();
+        var own = generator == null ? new GameObject("PayloadProbe") : null;
+        if (own != null) generator = own.AddComponent<AiDialogueGenerator>();
+        try
+        {
+            foreach (string message in new[] { "สวัสดี Alice", "วันนี้เป็นยังไงบ้าง", "ภาพวาดนั่น ฝากพิจารณารายละเอียดให้ที" })
+            {
+                var context = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+                string prompt = AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", message, null, context);
+                var ids = AiDialogueGenerator.CompanionActionIds(context);
+                var method = typeof(AiDialogueGenerator).GetMethod("BuildCompatibleReplyRequestJson", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                string wire = (string)method.Invoke(generator, new object[] { prompt, ids });
+                TestContext.WriteLine("PAYLOAD|" + message + "|actions=" + context.CompanionActions.Count + "|promptChars=" + prompt.Length +
+                    "|requestChars=" + wire.Length + "|requestUtf8Bytes=" + System.Text.Encoding.UTF8.GetByteCount(wire));
+            }
+        }
+        finally { if (own != null) UnityEngine.Object.DestroyImmediate(own); }
     }
     [Test]
     public void MeasureCompanionHotPathsWithoutUsingAProvider()

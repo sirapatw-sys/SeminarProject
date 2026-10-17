@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Desk_Data
   m_EditorClassIdentifier: 
   interactionId: inspect_desk
-  allowCompanionExecution: 1
+  allowCompanionExecution: 0
   companionMessage: "ฉันตรวจซอกขอบโต๊ะแล้ว พบกระดาษโน้ตพับอยู่ เก็บสิ่งที่พบไว้ในสมุดให้แล้วนะ"
   displayName: Desk
   soloPreparationSeconds: 2

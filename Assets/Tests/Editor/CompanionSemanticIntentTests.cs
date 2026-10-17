@@ -43,14 +43,15 @@ public class CompanionSemanticIntentTests
         Assert.That(new CompanionSemanticIntent { speechAct = speech, verb = verb, targetId = target, relation = relation, referenceId = reference }.IsOffered(Menu), Is.EqualTo(expected));
     }
     [Test]
-    public void InactiveIntentPreservesLegacyActionsButQuestionsAndInvalidIntentsCannotFallThrough()
+    public void EmptyWorldBranchPreservesLegacyProposalButInvalidActiveWorldCannotFallThrough()
     {
         var reply = new GeneratedChatReply { companionAction = "world:inspect:at:desk", worldIntent = new CompanionSemanticIntent {
             speechAct = "none", verb = "none", targetId = "", relation = "at", referenceId = "" } };
         CompanionSemanticIntent.SanitizeProposal(reply, Menu);
         Assert.That(reply.worldIntent, Is.Null); Assert.That(reply.companionAction, Is.EqualTo("world:inspect:at:desk"));
         reply.worldIntent = new CompanionSemanticIntent { speechAct = "question", verb = "none", targetId = "", relation = "at", referenceId = "" };
-        CompanionSemanticIntent.SanitizeProposal(reply, Menu); Assert.That(reply.companionAction, Is.Null);
+        CompanionSemanticIntent.SanitizeProposal(reply, Menu); Assert.That(reply.companionAction, Is.EqualTo("world:inspect:at:desk"));
+        Assert.That(reply.worldIntent, Is.Null, "Actual player speech-act/target checks belong to the executor, not a redundant empty world branch.");
         reply.companionAction = "world:inspect:at:desk";
         reply.worldIntent = new CompanionSemanticIntent { speechAct = "request", verb = "open", targetId = "hidden", relation = "at", referenceId = "" };
         CompanionSemanticIntent.SanitizeProposal(reply, Menu); Assert.That(reply.companionAction, Is.Null); Assert.That(reply.worldIntent, Is.Null);
