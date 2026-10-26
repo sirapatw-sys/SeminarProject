@@ -15,6 +15,8 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
     )]
     [SerializeField]
     private InteractionData followUpInteraction;
+    [Tooltip("Optional alternate interaction after a verified world flag, including repeatable base props.")]
+    [SerializeField] private string followUpWhenFlag;
 
     private Collider2D area;
     private InteractionData preparing;
@@ -93,14 +95,16 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
     }
 
     /// <summary>The interaction this object offers right now.</summary>
-    private InteractionData ActiveData
+    public InteractionData ActiveData
     {
         get
         {
             GameState state = GameState.Instance;
             if (followUpInteraction != null && interactionData != null &&
-                !interactionData.repeatable && state != null &&
-                state.HasFlag("interaction." + interactionData.interactionId + ".completed"))
+                state != null &&
+                ((!string.IsNullOrWhiteSpace(followUpWhenFlag) && state.HasFlag(followUpWhenFlag)) ||
+                 (string.IsNullOrWhiteSpace(followUpWhenFlag) && !interactionData.repeatable &&
+                  state.HasFlag("interaction." + interactionData.interactionId + ".completed"))))
             {
                 return followUpInteraction;
             }

@@ -62,6 +62,10 @@ public class DialogueManager : MonoBehaviour
     private int chatRequestSerial;
     private float chatRequestDeadline;
     private string pendingPlayerMessage;
+    private float chatTraceStartedAt;
+    private string chatTraceRequest;
+    internal MysteryGame.Companions.PendingCompanionHelp PendingCompanionHelp;
+    internal MysteryGame.Companions.CompanionReadingContext ReadingContext;
     private EvidencePickerUI evidencePicker;
     private DialogueTextScroll dialogueScroll;
     private string choiceCompletionFlag;
@@ -105,6 +109,7 @@ public class DialogueManager : MonoBehaviour
 
     public int ConversationVersion { get; private set; }
     public string ActiveNpcId { get { return activeNpcId; } }
+    internal readonly MysteryGame.Companions.CompanionWorldSession WorldCommandSession = new MysteryGame.Companions.CompanionWorldSession();
 
     public bool CanShareEvidence
     {
@@ -120,6 +125,7 @@ public class DialogueManager : MonoBehaviour
         int closenessBefore = GameState.Instance.GetRelationship(activeNpcId);
         EvidenceShareResult result;
         if (!EvidenceSharing.TryShare(GameState.Instance, activeNpcId, factId, out result)) return false;
+        MysteryGame.Companions.CompanionNaturalRequests.RememberShared(this, factId);
         if (evidencePicker != null) evidencePicker.Close();
         if (result.JournalEntryAdded) JournalUI.NotifyNewEntry();
         choicePanel.SetActive(false);
@@ -237,6 +243,7 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
+        MysteryGame.Companions.CompanionChatPanel.CloseActive();
         ConversationVersion++;
         dialoguePanel.SetActive(true);
         choicePanel.SetActive(false);
@@ -318,13 +325,14 @@ public class DialogueManager : MonoBehaviour
         bool useGeneratedChoices,
         DialogueData authoredChoiceSource)
     {
+        MysteryGame.Companions.CompanionChatPanel.CloseActive();
         string companionInvitation = null;
         var companion = GameState.Instance == null ? null : MysteryGame.Companions.NpcCompanionController.Find(
             data.speakerId, GameState.Instance.GetCurrentScene());
         if (!isEvent && companion != null && companion.CanCommand)
         {
             companion.RefreshInvitation();
-            companionInvitation = companion.ReadInvitation();
+            companionInvitation = companion.ReadDiscoveryReport() ?? companion.ReadInvitation();
         }
         ConversationVersion++;
         dialoguePanel.SetActive(true);
@@ -1338,6 +1346,10 @@ public class DialogueManager : MonoBehaviour
         chatRequestDeadline = Time.unscaledTime + ChatRequestTimeoutSeconds;
         pendingPlayerMessage = playerMessage;
         int serial = chatRequestSerial;
+        chatTraceStartedAt = Time.realtimeSinceStartup;
+        chatTraceRequest = ConversationVersion + ":" + serial;
+        MysteryGame.Companions.CompanionPlaytestTrace.Record("request", GameState.Instance?.GetCurrentScene(),
+            activeNpcId, request: chatTraceRequest, outcome: "received");
         chatInput.interactable = false;
         sendButton.interactable = false;
         choicePanel.SetActive(false);
@@ -1379,7 +1391,7 @@ public class DialogueManager : MonoBehaviour
                 () => generator.GenerateReply(
                     activeNpcId,
                     activeSpeakerName,
-                    activeDialogueContext,
+                    activeDialogueContext + "\n" + CompanionWorldFocusContext(),
                     playerMessage,
                     reply => CompleteTypedReply(playerMessage, reply, serial),
                     activePersonalityPrompt
@@ -1395,6 +1407,12 @@ public class DialogueManager : MonoBehaviour
         }
 
         CompleteTypedReply(playerMessage, null, serial);
+    }
+
+    private string CompanionWorldFocusContext()
+    {
+        var actor = MysteryGame.Companions.NpcCompanionController.Find(activeNpcId, GameState.Instance?.GetCurrentScene());
+        return actor == null ? string.Empty : MysteryGame.Companions.CompanionWorldCommands.FocusContext(actor, WorldCommandSession);
     }
 
     private void HandleChatEndEdit(string value)
@@ -1431,9 +1449,20 @@ public class DialogueManager : MonoBehaviour
         // applied only through the same validation as a parsed command, and the
         // answer then becomes the companion's authored line.
         GeneratedChatReply proposedAction;
+        MysteryGame.Companions.CompanionSemanticIntent.SanitizeProposal(generated, AiDialogueGenerator.CompanionActionIds(
+            AiDialogueGenerator.BuildKnowledgeContext(activeNpcId, playerMessage)));
+        if (companionCommand == null && generated?.worldIntent?.speechAct == "request")
+        {
+            var actor = MysteryGame.Companions.NpcCompanionController.Find(activeNpcId, GameState.Instance?.GetCurrentScene());
+            if (actor != null && actor.CanConverse(this) && MysteryGame.Companions.CompanionWorldCommands.TrySemantic(
+                actor, WorldCommandSession, playerMessage, generated.worldIntent, out proposedAction)) companionCommand = proposedAction;
+            else companionCommand = MysteryGame.Companions.CompanionWorldCommands.Reply("ฉันยังระบุงานหรือตำแหน่งนั้นอย่างมั่นใจไม่ได้ บอกเป้าหมายอีกครั้งนะ");
+            generated = null;
+        }
         if (companionCommand == null && generated != null &&
+            generated.worldIntent == null &&
             MysteryGame.Companions.CompanionDialogueCommands.TryApplyProposedAction(
-                this, playerMessage, generated.companionAction, out proposedAction))
+                this, playerMessage, generated.companionAction, out proposedAction, generated.actionQuote))
         {
             companionCommand = proposedAction;
             generated = null;
@@ -1461,6 +1490,11 @@ public class DialogueManager : MonoBehaviour
             { reply = askBack; companionCommand = askBack; }
             else reply = BuildFallbackReply(playerMessage);
         }
+        MysteryGame.Companions.CompanionPlaytestTrace.Record("reply", GameState.Instance?.GetCurrentScene(), activeNpcId,
+            request: chatTraceRequest, outcome: string.IsNullOrWhiteSpace(policyReason) ? "completed" : "policy_rejected",
+            route: companionCommand != null ? "companion" : answerReply != null ? "authored" :
+                generated != null ? "provider" : hintReply != null ? "hint" : "fallback",
+            duration: Time.realtimeSinceStartup - chatTraceStartedAt);
         // Offline replies author small gains (+1 to +4), so they count double.
         // The AI's reading and the rules' reading are combined there; a rude
         // or distancing message never raises the relationship.
@@ -1605,6 +1639,12 @@ public class DialogueManager : MonoBehaviour
 
     public void HideDialogue()
     {
+        if (chatRequestInProgress)
+            MysteryGame.Companions.CompanionPlaytestTrace.Record("request_end", GameState.Instance?.GetCurrentScene(),
+                activeNpcId, request: chatTraceRequest, outcome: "cancelled", duration: Time.realtimeSinceStartup - chatTraceStartedAt);
+        PendingCompanionHelp = null;
+        ReadingContext = null;
+        WorldCommandSession.Clear();
         ConversationVersion++;
         chatRequestSerial++;
         chatRequestInProgress = false;

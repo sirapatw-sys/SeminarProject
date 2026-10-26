@@ -145,7 +145,7 @@ public class FrameworkPlayModeTests
         Assert.That(NpcKnowledgeContextBuilder.Build("Alice", "Room01", state, false).CanReference("desk_note"), Is.True);
         var text = (TMP_Text)typeof(DialogueManager).GetField("dialogueText", BindingFlags.Instance | BindingFlags.NonPublic)
             .GetValue(DialogueManager.Instance);
-        Assert.That(text.text, Does.Contain("กระดาษโน้ตพับซ่อนอยู่"));
+        Assert.That(text.text, Does.Contain(KnowledgeLibrary.GetRoom("Room01").FindFact("desk_note").statement));
         Assert.That(text.text, Does.Not.Contain("4592"));
         int score = state.GetRelationship("Alice");
         Assert.That(DialogueManager.Instance.TryShareEvidence("desk_note"), Is.True);

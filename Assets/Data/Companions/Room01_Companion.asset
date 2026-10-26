@@ -16,6 +16,141 @@ MonoBehaviour:
   npcId: Alice
   displayName: Alice
   addressNames: ["อลิซ", "อลิส", "Alice"]
+  worldTargets:
+  - id: room01.painting
+    title: "ภาพวาดบนผนัง"
+    aliases: ["ภาพวาด", "กรอบภาพ", "painting", "picture"]
+    sceneObject: Painting
+    useSceneGeometry: 1
+    approachPoint: {x: 0, y: 1.1}
+    workSeconds: 1.5
+    allowInspect: 1
+    visibleDescription: "กรอบภาพแขวนบนผนังด้านบน"
+    inspectLine: "ฉันดูภาพวาดแล้ว กรอบภาพแขวนเอียงอยู่บนผนัง ฉันเห็นได้แค่ภายนอก ถ้าอยากดูละเอียดลองตรวจเองนะ"
+    discoveredFactIds: []
+  - id: room01.desk
+    title: "โต๊ะทำงาน"
+    aliases: ["โต๊ะ", "desk", "table"]
+    sceneObject: Desk
+    useSceneGeometry: 1
+    approachPoint: {x: -4.1, y: -1.15}
+    workSeconds: 2
+    allowInspect: 1
+    visibleDescription: "โต๊ะไม้ทางซ้ายของห้อง"
+    inspectLine: "ฉันดูโต๊ะแล้ว เป็นโต๊ะไม้เก่าทางซ้ายของห้อง ยังไม่เห็นอะไรที่ยืนยันได้ ถ้าอยากดูละเอียดลองตรวจเองนะ"
+    discoveredFactIds: []
+  - id: room01.drawer
+    title: "ลิ้นชัก"
+    aliases: ["drawer"]
+    sceneObject: Drawer
+    useSceneGeometry: 1
+    approachPoint: {x: -2.15, y: -0.8}
+    workSeconds: 1.5
+    allowInspect: 1
+    allowOpen: 1
+    visibleDescription: "ลิ้นชักอยู่ถัดจากโต๊ะ มีแม่กุญแจรหัส"
+    inspectLine: "ลิ้นชักมีแม่กุญแจรหัส ฉันช่วยดูได้ แต่ให้เธอเป็นคนเลือกรหัสและลองเองนะ"
+    discoveredFactIds: []
+  - id: room01.door
+    title: "ประตูทางออก"
+    aliases: ["ประตู", "door", "exit"]
+    sceneObject: Door
+    useSceneGeometry: 1
+    approachPoint: {x: 5.1, y: 0.7}
+    workSeconds: 1.5
+    allowInspect: 1
+    allowOpen: 1
+    visibleDescription: "ประตูที่ผนังด้านบนขวาของห้อง"
+    inspectLine: "ฉันตรวจประตูแล้ว ถ้าจะออกจากห้องให้เธอเป็นคนเปิดเอง ฉันจะไปด้วย"
+    discoveredFactIds: []
+  - id: room01.center
+    title: "กลางห้อง"
+    aliases: ["กลางห้อง", "กลาง", "center", "middle"]
+    approachPoint: {x: 1.6, y: -1.8}
+    visibleDescription: "พื้นที่ว่างกลางห้อง"
+  - id: room01.lower_left
+    title: "มุมล่างซ้าย"
+    aliases: ["มุมซ้ายล่าง", "bottom left", "lower left"]
+    approachPoint: {x: -6, y: -2.5}
+    visibleDescription: "พื้นที่ว่างมุมล่างซ้าย"
+  - id: room01.lower_right
+    title: "มุมล่างขวา"
+    aliases: ["มุมขวาล่าง", "bottom right", "lower right"]
+    approachPoint: {x: 6, y: -3.3}
+    visibleDescription: "พื้นที่ว่างมุมล่างขวา"
+  - id: room01.upper_left
+    title: "มุมบนซ้าย"
+    aliases: ["มุมซ้ายบน", "top left", "upper left"]
+    approachPoint: {x: -6, y: 0.6}
+    visibleDescription: "พื้นที่ว่างมุมบนซ้าย"
+  - id: room01.upper_right
+    title: "มุมบนขวา"
+    aliases: ["มุมขวาบน", "top right", "upper right"]
+    approachPoint: {x: 6, y: 0.6}
+    visibleDescription: "พื้นที่ว่างมุมบนขวา"
+  - id: room01.sofa
+    title: "โซฟา"
+    aliases: ["โซฟา", "เก้าอี้ยาว", "sofa", "couch"]
+    sceneObject: Obstacle_Sofa
+    useSceneGeometry: 1
+    approachPoint: {x: 4.7, y: -3.5}
+    allowInspect: 1
+    visibleDescription: "โซฟาทางขวาล่างของห้อง เป็นของตกแต่งที่มองเห็น"
+    inspectLine: "ฉันดูบริเวณโซฟาแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.side_table
+    title: "โต๊ะข้างโซฟา"
+    aliases: ["โต๊ะเล็ก", "โต๊ะข้างโซฟา", "side table"]
+    sceneObject: Obstacle_SideTable
+    useSceneGeometry: 1
+    approachPoint: {x: 4.7, y: -1.8}
+    allowInspect: 1
+    visibleDescription: "โต๊ะเล็กใกล้โซฟาทางขวาของห้อง"
+    inspectLine: "ฉันดูโต๊ะเล็กแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.plant
+    title: "ต้นไม้ด้านขวา"
+    aliases: ["ต้นไม้", "กระถางด้านขวา", "plant"]
+    sceneObject: Obstacle_Plant
+    useSceneGeometry: 1
+    approachPoint: {x: 7, y: 0.6}
+    allowInspect: 1
+    visibleDescription: "ต้นไม้ในกระถางทางขวาบนของห้อง"
+    inspectLine: "ฉันดูต้นไม้แล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.plant_pot
+    title: "กระถางมุมซ้ายล่าง"
+    aliases: ["กระถางซ้ายล่าง", "left plant pot"]
+    sceneObject: Obstacle_PlantPot
+    useSceneGeometry: 1
+    approachPoint: {x: -6.9, y: -2.5}
+    allowInspect: 1
+    visibleDescription: "กระถางที่มุมล่างซ้ายของห้อง"
+    inspectLine: "ฉันดูกระถางแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.book_pile
+    title: "กองหนังสือ"
+    aliases: ["หนังสือ", "กองหนังสือ", "books", "book pile"]
+    sceneObject: Obstacle_BookPile
+    useSceneGeometry: 1
+    approachPoint: {x: -5.8, y: -2.5}
+    allowInspect: 1
+    visibleDescription: "กองหนังสือทางซ้ายล่างของห้อง"
+    inspectLine: "ฉันดูกองหนังสือแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.shelves
+    title: "ชั้นหนังสือ"
+    aliases: ["ชั้นหนังสือ", "ชั้นวาง", "shelves", "bookshelf"]
+    sceneObject: Obstacle_BackShelves
+    useSceneGeometry: 1
+    approachPoint: {x: -6.3, y: 1.3}
+    allowInspect: 1
+    visibleDescription: "ชั้นวางทางผนังด้านบนซ้ายของห้อง"
+    inspectLine: "ฉันดูชั้นวางแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
+  - id: room01.sideboard
+    title: "ตู้ริมผนัง"
+    aliases: ["ตู้ริมผนัง", "ตู้เก็บของ", "sideboard", "cabinet"]
+    sceneObject: Obstacle_Sideboard
+    useSceneGeometry: 1
+    approachPoint: {x: 3.1, y: 1.2}
+    allowInspect: 1
+    visibleDescription: "ตู้ริมผนังด้านบนขวาของห้อง"
+    inspectLine: "ฉันดูตู้ริมผนังแล้ว ยังไม่มีหลักฐานใหม่ที่ยืนยันได้"
   walkBounds:
     serializedVersion: 2
     x: -7.8
@@ -43,6 +178,7 @@ MonoBehaviour:
   comfortRepeatLine: "อืม ฉันรู้ว่าเธอยังอยู่ตรงนี้ ไปต่อกันเถอะ"
   comfortMemory: "ผู้เล่นบอกว่าจะอยู่ด้วยกันและให้กำลังใจระหว่างสำรวจห้องแรก"
   comfortEmotion: homesickness
+  reasoningProfile: {fileID: 11400000, guid: 67e2af4cbdb94250ad954f791c100002, type: 2}
   stations:
   - id: two_hands_box
     title: "กล่องสองมือ"
@@ -96,13 +232,30 @@ MonoBehaviour:
       amount: 0
     requestLine: "...ได้ ฉันจะไปประคองขอบโต๊ะ เธอเป็นคนสำรวจนะ"
     holdingLine: "จับไว้แล้ว เธอลองสำรวจได้เลย ฉันจะไม่ปล่อยจนกว่าเธอจะเสร็จ"
-    completedLine: "เจอแล้วสินะ... คราวนี้เราแบ่งหน้าที่กันได้ดี"
+    completedLine: "เจอแล้วสินะ... ฉันก็สังเกตเห็นอะไรบางอย่างตอนช่วย ไว้คุยกันนะ"
     memory: "Alice ประคองขอบโต๊ะให้ผู้เล่นใช้สองมือสำรวจ จนผู้เล่นพบกระดาษโน้ตด้วยตัวเอง"
-    journalText: "Alice ประคองขอบโต๊ะ ส่วนเราเป็นคนสำรวจและพบกระดาษโน้ต เราแบ่งหน้าที่กันโดยไม่ได้ให้เธอบอกคำตอบแทน"
+    journalText: "Alice ประคองขอบโต๊ะ ส่วนเราเป็นคนพบกระดาษโน้ต ระหว่างช่วยเธอสังเกตเห็นลูกศรบนขอบกระดาษชี้จากขวาไปซ้าย เราต้องแลกสิ่งที่เห็นกันก่อนสรุป"
     relationshipReward: 2
+    completionActions:
+    - type: 0
+      targetId: companion.room01_alice.search.note_direction.found
+      amount: 0
+    discoveredFactIds: [note_direction]
   searchRequestLine: "...ได้ ฉันจะเดินตรวจบริเวณรอบ ๆ แล้วบอกหลักฐานที่พบ เธอสำรวจส่วนของเธอได้ ถ้าอยากให้หยุดก็บอกนะ"
   searchFinishedLine: "สำรวจรอบนี้เสร็จแล้ว หลักฐานที่พบอยู่ในสมุด เราทบทวนด้วยกันต่อได้"
   searchSpots:
+  - id: note_margin
+    point: {x: -4.1, y: -1.15}
+    inspectSeconds: 2
+    factId: note_direction
+    inspectingLine: "...ฉันขอตรวจรอยจางบนขอบกระดาษตรงนี้ก่อน"
+    conditions:
+    - type: 0
+      targetId: found_note
+      amount: 0
+    - type: 0
+      targetId: companion.room01_alice.search.note_direction.found
+      amount: 0
   - id: discovered_painting
     point: {x: 0, y: 1.3}
     inspectSeconds: 1.5
@@ -160,6 +313,8 @@ MonoBehaviour:
     memory: "Alice อยู่ใกล้และเห็นผู้เล่นสำรวจภาพวาดในห้องแรก"
     conditions: []
   - id: desk_seen
+    followUpPhrases: ["เจอโน้ตแล้ว", "เราพบโน้ตแล้ว", "we found the note"]
+    followUpLine: "...ดีแล้วที่เธอไม่มองข้ามมัน ถ้าอยากคิดด้วยกันก็เอาสิ่งที่พบมาให้ฉันดูนะ ฉันจะไม่เดาแทนเธอ"
     recallTerms: ["โต๊ะ", "กระดาษ", "desk", "note"]
     interactionId: inspect_desk
     success: 1
@@ -167,13 +322,20 @@ MonoBehaviour:
     memory: "Alice อยู่ใกล้ขณะผู้เล่นสำรวจโต๊ะสำเร็จและชวนกันทบทวนสิ่งที่พบ"
     conditions: []
   - id: drawer_failed
+    followUpPhrases: ["ยังเปิดไม่ออกเลย", "ลองแล้วไม่สำเร็จ", "it did not work"]
+    followUpLine: "...ฉันเห็นแล้วว่าครั้งนี้ยังไม่สำเร็จ ไม่เป็นไร เราค่อยแยกหลักฐานกับสิ่งที่เดาแล้วลองกันใหม่ ฉันยังอยู่ตรงนี้"
     recallTerms: ["ลิ้นชัก", "ไม่สำเร็จ", "drawer", "failed"]
     interactionId: open_drawer
     success: 0
     line: "ยังไม่ได้ก็ไม่เป็นไร... พักหายใจนิดหนึ่ง ฉันยังอยู่ตรงนี้"
     memory: "Alice เห็นผู้เล่นลองเปิดลิ้นชักไม่สำเร็จและให้กำลังใจโดยไม่บอกเฉลย"
-    conditions: []
+    conditions:
+    - type: 1
+      targetId: drawer_opened
+      amount: 0
   - id: drawer_seen
+    followUpPhrases: ["เราทำได้แล้ว", "เปิดลิ้นชักได้แล้ว", "we did it"]
+    followUpLine: "...เธอทำได้แล้ว! เมื่อกี้ฉันก็ลุ้นอยู่เหมือนกัน ขอบใจที่ไม่ยอมแพ้นะ เธอเป็นคนเลือกและลองจนสำเร็จจริง ๆ"
     recallTerms: ["ลิ้นชัก", "drawer"]
     interactionId: open_drawer
     success: 1

@@ -9,9 +9,20 @@ namespace MysteryGame.Companions
     public class CompanionHud : MonoBehaviour
     {
         private NpcCompanionController actor;
-        private GUIStyle caption, bubble, bluePad, goldPad;
+        private GUIStyle caption, bubble, bluePad, goldPad, discoveryPad;
+        private bool discoveryWasVisible;
         private readonly System.Collections.Generic.List<Texture2D> textures = new System.Collections.Generic.List<Texture2D>();
         private void Awake() { actor = GetComponent<NpcCompanionController>(); }
+        public bool DiscoveryIndicatorVisible
+        {
+            get
+            {
+                var events = GetComponent<NpcEventController>();
+                return actor != null && actor.HasDiscoveryInvitation && !actor.HasBubble &&
+                    !InputGate.IsBlocked && !ItemPopupUI.IsBusy &&
+                    (events == null || !events.isActiveAndEnabled || !events.HasPendingEvent);
+            }
+        }
         private Texture2D Background(Color color, int radius)
         { var texture = ModalGui.Rounded(color, radius); textures.Add(texture); return texture; }
         private GUIStyle Style(Color color, int size, TextAnchor alignment, int radius = 12)
@@ -27,6 +38,9 @@ namespace MysteryGame.Companions
             bubble = Style(new Color(0.03f, 0.08f, 0.12f, 0.96f), 18, TextAnchor.MiddleCenter);
             bluePad = Style(new Color(0.12f, 0.65f, 0.77f, 0.8f), 14, TextAnchor.MiddleCenter, 14);
             goldPad = Style(new Color(0.68f, 0.46f, 0.12f, 0.85f), 14, TextAnchor.MiddleCenter, 14);
+            discoveryPad = Style(new Color(0.04f, 0.35f, 0.43f, 0.96f), 18, TextAnchor.MiddleCenter, 14);
+            discoveryPad.padding = new RectOffset(4, 4, 2, 2);
+            discoveryPad.wordWrap = false;
         }
         // The prop stays in the room, but its labels are contextual, not a
         // permanent tutorial card. Finished activities never retain a banner.
@@ -69,7 +83,16 @@ namespace MysteryGame.Companions
                 float height = Mathf.Clamp(bubble.CalcHeight(new GUIContent(actor.Bubble), width), 40f, 112f);
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, actor.Bubble, bubble, new Vector2(width, height));
             }
-            if (!actor.HasBubble && actor.Invitation != null)
+            bool discoveryVisible = DiscoveryIndicatorVisible;
+            if (Event.current.type == EventType.Repaint)
+            {
+                if (discoveryVisible && !discoveryWasVisible)
+                    CompanionPlaytestTrace.Record("invitation", actor.RoomId, scenario.npcId, target: "discovery", outcome: "shown");
+                discoveryWasVisible = discoveryVisible;
+            }
+            if (discoveryVisible)
+                DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "...", discoveryPad, new Vector2(40f, 30f));
+            else if (!actor.HasBubble && actor.Invitation != null)
                 DrawWorld((Vector2)actor.transform.position + Vector2.up * 1.1f, "?", goldPad, new Vector2(32f, 36f));
             GUI.matrix = previous; GUI.color = previousColor; GUI.enabled = previousEnabled; GUI.depth = previousDepth;
         }

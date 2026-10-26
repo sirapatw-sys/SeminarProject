@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-17",
+  "branch": "codex/npc-cothinking",
+  "baseline_commit": "70024e44b9739419a67bc2b0a14c76b349a1bb32",
+  "runtime_commit": "76d40e2",
+  "unity": "2021.3.16f1",
+  "tests": {
+    "baseline_regressions": {"total": 5, "passed": 1, "failed": 4, "path": "Logs/NpcReview_20261017/Before.xml", "sha256": "FB274966CAF6C15CB199F851452F41DC43933CF61F49CA48083BC63E6E3CF5E4"},
+    "playmode": {"total": 363, "passed": 363, "failed": 0, "skipped": 0, "path": "Logs/NpcReview_20261017/PlayModeAccepted.xml", "sha256": "64EB6DDE56EE82F3330597BF299589F05CF665E94CC1493343C4D88B1B08F7FB"},
+    "editmode": {"total": 1296, "passed": 1296, "failed": 0, "skipped": 0, "path": "Logs/NpcReview_20261017/EditModeAccepted.xml", "sha256": "6ED94C2D63A2A5F3BC898B1E7C4B9A0848DEA895DCC3475D0747864EF116BA9A"},
+    "accepted_unique_total": 1659
+  },
+  "payload_measurements": {
+    "method": "Synthetic fresh Room01, relationship 50, empty supplemental dialogue context; actual prompt and compatible JSON builders; no HTTP request or tokenizer",
+    "samples": [
+      {"message": "สวัสดี Alice", "actions_before": 114, "actions_after": 0, "request_chars_before": 25132, "request_chars_after": 3291, "utf8_bytes_before": 47872, "utf8_bytes_after": 7921},
+      {"message": "วันนี้เป็นยังไงบ้าง", "actions_before": 114, "actions_after": 0, "request_chars_before": 25139, "request_chars_after": 3298, "utf8_bytes_before": 47905, "utf8_bytes_after": 7954},
+      {"message": "ภาพวาดนั่น ฝากพิจารณารายละเอียดให้ที", "actions_before": 114, "actions_after": 7, "request_chars_before": 25156, "request_chars_after": 10378, "utf8_bytes_before": 47954, "utf8_bytes_after": 24772}
+    ]
+  },
+  "build": {
+    "result": "Succeeded",
+    "errors": 0,
+    "log": "Logs/NpcReview_20261017/Build.log",
+    "log_sha256": "6CBFE3C50BE2B81FD2A0C88C7EA6019141B0B9C2DF7AA0FA8275E0AF1A20A22A",
+    "directory": "Logs/CompanionAiBuilds/20261017-055015-05cee2",
+    "runtime_methods_verified": ["CompanionWorldCommands.ScopeActions", "CompanionChatPanel.CloseActive", "InteractionSystem.IsPlayerPuzzleStep", "AiDialogueGenerator.BuildSmallTalkPrompt"]
+  },
+  "package": {
+    "path": "Logs/CompanionAiBuilds/MysteryGame-AI-Enabled-ReviewFixed-20261017.zip",
+    "bytes": 74210270,
+    "sha256": "08FE311B04355A6119163F6928E975EE6282ED9EBAF158D36527C8BF6E682F74",
+    "entries": 178,
+    "all_entries_read_to_end": true,
+    "excluded": ["DoNotShip", "UserSettings", "API key files"]
+  },
+  "not_verified": ["Real KKU/provider token usage, quota or latency", "Manual visual/play QA", "CI", "FPS"],
+  "publication": "Local commits only; no push or PR changes in this fix task"
+}

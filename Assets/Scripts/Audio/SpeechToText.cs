@@ -38,6 +38,8 @@ public static class SpeechToText
     /// <summary>False with a reason when voice typing cannot work right now.</summary>
     public static bool IsAvailable(out string reason)
     {
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode)
+        { reason = "เดโมออฟไลน์นี้ใช้การพิมพ์คุย"; return false; }
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
         if (generator == null || !generator.CanGenerate)
         {

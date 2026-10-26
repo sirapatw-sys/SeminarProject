@@ -367,4 +367,120 @@ public class CompanionCooperationPlayTests
         Chat(); Send("จำขอบโต๊ะได้ไหม"); yield return null;
         Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain(DeskStation.memory));
     }
+
+    [UnityTest]
+    public IEnumerator JointDeskDiscoverySupportsTypedHypothesesWithoutSolvingForPlayer()
+    {
+        State.SetFlag("inspected_painting");
+        ActorAt(new Vector2(-4f, -2.65f)); PlayerAt(DeskStation.playerPoint);
+        Chat(); Send("ช่วยจับขอบโต๊ะหน่อย"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.GoingToHelp));
+        DialogueManager.Instance.HideDialogue();
+        for (int i = 0; i < 300 && !actor.IsHolding("inspect_desk"); i++) Step(0.05f);
+        Assert.That(actor.IsHolding("inspect_desk"), Is.True);
+        Assert.That(State.HasFlag(actor.Scenario.SearchFlag("note_direction")), Is.False);
+        DeskObject().Interact();
+        Assert.That(actor.IsCompleted(DeskStation), Is.True);
+        Assert.That(State.HasFlag("found_note"), Is.True);
+        Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "note_direction"), Is.True);
+        Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("desk_note", State), Is.False);
+        RoomTransitionManager.CloseRoomOverlays(); Chat();
+        Send("เธอเจออะไรบ้าง"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ลูกศร"));
+        Send("เราคิดว่าต้องอ่านจากขวา เธอว่าไง"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ยังไม่มีข้อมูล"));
+        Send("เอาโน้ตให้ดู"); yield return null;
+        Assert.That(EvidenceSharing.HasBeenShared(State, "Alice", "Room01", "desk_note"), Is.True);
+        State.SetRelationship("Alice", 50);
+        Send("เราคิดว่าอ่านจากซ้ายไปขวา เธอว่าไง"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ขัด"));
+        Send("เราคิดว่าอ่านจากขวาไปซ้าย เธอว่าไง"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("สอดคล้อง"));
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Not.Contain("4592"));
+        Assert.That(State.HasItem("key"), Is.False);
+        DialogueManager.Instance.HideDialogue();
+        string response;
+        var drawer = KnowledgeLibrary.GetRoom("Room01").steps.Find(s => s.stepId == "open_drawer");
+        Assert.That(drawer, Is.Not.Null);
+        var data = UnityEngine.Resources.FindObjectsOfTypeAll<InteractionData>().First(d => d.interactionId == "open_drawer");
+        Assert.That(InteractionSystem.Instance.TryExecute(data, out response, "4592"), Is.True);
+        Assert.That(State.HasItem("key"), Is.True);
+    }
+
+    [UnityTest]
+    public IEnumerator SoloFollowUpCanFindDirectionWithoutGivingAliceKnowledge()
+    {
+        State.SetFlag("inspected_painting");
+        PlayerAt(DeskStation.playerPoint); ActorAt(Vector2.zero);
+        var desk = DeskObject();
+        desk.Interact(); yield return new WaitForSeconds(2.3f);
+        Assert.That(State.HasFlag("found_note"), Is.True);
+        Assert.That(State.HasFlag(actor.Scenario.SearchFlag("note_direction")), Is.False);
+        RoomTransitionManager.CloseRoomOverlays();
+        desk.Interact(); yield return new WaitForSeconds(2.3f);
+        Assert.That(State.HasFlag(actor.Scenario.SearchFlag("note_direction")), Is.True);
+        Assert.That(KnowledgeLibrary.GetNpc("Alice").KnowsFact("note_direction", State), Is.False);
+        Assert.That(actor.IsCompleted(DeskStation), Is.False);
+        Assert.That(State.HasItem("key"), Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator NpcSearchCanInspectTheAlreadyDiscoveredMarginBeforeReportingIt()
+    {
+        State.SetFlag("inspected_painting"); State.SetFlag("found_note");
+        // The player's separate follow-up (covered above) or a real joint inspection must reveal it first.
+        State.SetFlag(actor.Scenario.SearchFlag("note_direction"));
+        ActorAt(new Vector2(-4.6f, -2.65f)); PlayerAt(DeskStation.playerPoint);
+        Chat(); Send("ช่วยหาหลักฐานหน่อย"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Searching));
+        Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "note_direction"), Is.False);
+        DialogueManager.Instance.HideDialogue();
+        for (int i = 0; i < 300 && !NpcObservation.Knows(State, "Alice", "Room01", "note_direction"); i++) Step(0.05f);
+        Assert.That(NpcObservation.Knows(State, "Alice", "Room01", "note_direction"), Is.True);
+        ActorAt(DeskStation.companionPoint); Chat();
+        Send("หยุดเดิน"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+        Send("เธอเจออะไรบ้าง"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("ลูกศร"));
+        Assert.That(State.HasFlag("drawer_opened"), Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator SharedOutcomeOnlyCelebratesAfterWitnessingRealSuccess()
+    {
+        ActorAt(DeskStation.companionPoint); PlayerAt(DeskStation.playerPoint);
+        Chat(); Send("เราทำได้แล้วค่ะ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(actor.Scenario.unverifiedOutcomeLine));
+        Assert.That(State.HasFlag("drawer_opened"), Is.False);
+        DialogueManager.Instance.HideDialogue(); State.SetFlag("found_note");
+        var drawer = UnityEngine.Resources.FindObjectsOfTypeAll<InteractionData>().First(d => d.interactionId == "open_drawer");
+        string response;
+        Assert.That(InteractionSystem.Instance.TryExecute(drawer, out response, "4592"), Is.True);
+        Assert.That(State.HasFlag(actor.Scenario.Flag("observed.drawer_seen")), Is.True);
+        // The player dismisses the key's item card before opening NPC chat.
+        RoomTransitionManager.CloseRoomOverlays();
+        Chat(); int score = State.GetRelationship("Alice");
+        Send("เราทำได้แล้วค่ะ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain("เธอทำได้แล้ว"));
+        Send("เราทำได้แล้วค่ะ"); yield return null;
+        Assert.That(State.GetRelationship("Alice"), Is.EqualTo(score));
+        DialogueManager.Instance.HideDialogue();
+    }
+
+    [UnityTest]
+    public IEnumerator CompletedHypothesisAndCourtesyStillRespectLowTrust()
+    {
+        State.SetFlag("found_note"); State.SetFlag(actor.Scenario.SearchFlag("note_direction"));
+        State.SetFlag(NpcObservation.Flag("Alice", "Room01", "note_direction"));
+        EvidenceSharing.TryShare(State, "Alice", "desk_note", out _, false);
+        State.SetRelationship("Alice", 10); ActorAt(DeskStation.companionPoint); PlayerAt(DeskStation.playerPoint); Chat();
+        Send("อ่านจากขวาไปซ้ายใช่ไหมคะ"); yield return null;
+        string first = State.GetConversationLog("Alice").Last().Text;
+        Assert.That(first, Is.EqualTo(actor.Scenario.reasoningProfile.cautiousLine));
+        Send("เราคิดว่าอ่านจากซ้ายไปขวา เธอว่าไงนะครับ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(first));
+        State.SetFlag("drawer_opened");
+        Send("อ่านจากขวาไปซ้ายใช่ไหมคะ"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(actor.Scenario.reasoningProfile.unavailableLine));
+    }
 }

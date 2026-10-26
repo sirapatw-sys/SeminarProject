@@ -22,12 +22,12 @@ public class CompanionUsabilityPlayTests
     {
         public int Calls;
         public string Text = "หยุดแล้ว ฉันเจอรหัส 4592";
-        public string ProposedAction;
+        public string ProposedAction, ProposedQuote;
         public bool CanGenerate { get { return true; } }
         public string LastError { get { return ""; } }
         public IEnumerator Generate(MiniEventData data, Action<GeneratedDialogueContent> done) { Calls++; done(null); yield break; }
         public IEnumerator GenerateReply(string id, string name, string context, string message, Action<GeneratedChatReply> done, string personality = null)
-        { Calls++; done(new GeneratedChatReply { reply = Text, referencedFactIds = Array.Empty<string>(), companionAction = ProposedAction }); yield break; }
+        { Calls++; done(new GeneratedChatReply { reply = Text, referencedFactIds = Array.Empty<string>(), companionAction = ProposedAction, actionQuote = ProposedQuote }); yield break; }
     }
     private class Unavailable : IAiDialogueProvider
     {
@@ -235,7 +235,7 @@ public class CompanionUsabilityPlayTests
         // Wording the rules do not know: the model's proposal starts the real task,
         // and the answer is the companion's authored line, not the model's promise.
         provider.Text = "ได้สิ ฉันเดินตามไปแล้ว"; provider.ProposedAction = "follow";
-        Send("เดินเป็นเพื่อนกันหน่อยนะ"); yield return null;
+        Send("เดินเคียงข้างกันหน่อยนะ"); yield return null;
         Assert.That(provider.Calls, Is.EqualTo(1));
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
         Assert.That(State.GetConversationLog("Alice").Last().Text, Is.EqualTo(actor.Scenario.followLine));
@@ -374,5 +374,129 @@ public class CompanionUsabilityPlayTests
         DialogueManager.Instance.HideDialogue(); Tick(0.2f);
         Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Helping));
         Assert.That(State.HasFlag("found_note"), Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator ReviewSocialMessagesCannotBecomeFollowOrWait()
+    {
+        foreach (string action in new[] { "follow", "wait" })
+        foreach (string message in new[] { "ช่วยจับมือฉันหน่อย", "ช่วยเปิดใจคุยกับฉันหน่อย", "ช่วยหาเรื่องคุยหน่อย", "สวัสดี" })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState();
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+            if (action == "wait") Assert.That(actor.RequestFollow(), Is.True);
+            Chat(); provider.Text = "...อืม"; provider.ProposedAction = action;
+            Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(action == "wait" ? CompanionMode.Following : CompanionMode.Waiting), message);
+            Assert.That(actor.ActiveStation, Is.Null);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator UnfamiliarStopWordingCanStillStopAFollowingCompanion()
+    {
+        // Playtest: "เฝ้าอยู่ตรงนี้ก่อนนะ" got a friendly reply but she kept following,
+        // because wording the rules missed reached the model with no wait option.
+        // "เฝ้า"/"hang on" were understood by the model but failed the stop-verb check.
+        foreach (string message in new[] { "อยู่เฉยๆ สักพักนะ", "พักขาสักครู่นะ", "เฝ้าสักครู่นะ", "hang on a sec" })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState();
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+            Assert.That(actor.RequestFollow(), Is.True); Chat();
+            var knowledge = AiDialogueGenerator.BuildKnowledgeContext("Alice", message);
+            Assert.That(AiDialogueGenerator.CompanionActionIds(knowledge), Does.Contain(CompanionActionOption.Wait), message);
+            // Being able to stop must not cost more than ordinary chat.
+            Assert.That(AiDialogueGenerator.BuildReplyPrompt("Alice", "Alice", "", message, null, knowledge).Length, Is.LessThan(5000), message);
+            provider.Text = "...อืม"; provider.ProposedAction = "wait";
+            Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator ModelQuotedMovementWordsWorkWithoutAVerbList()
+    {
+        // The model, not a word list, reads the request; the game checks its quote is real.
+        foreach (var c in new[] {
+            new { Msg = "ปักหลักตรงนี้ก่อน", Quote = "ปักหลักตรงนี้", Action = "wait", Following = true, Expect = CompanionMode.Waiting },
+            new { Msg = "ประกบผมไว้นะ", Quote = "ประกบผมไว้", Action = "follow", Following = false, Expect = CompanionMode.Following },
+            // Not in the message, only courtesy, negated or hypothetical: no movement.
+            new { Msg = "สวัสดี", Quote = "หยุดเดิน", Action = "wait", Following = true, Expect = CompanionMode.Following },
+            new { Msg = "ขอบคุณนะ", Quote = "นะ", Action = "wait", Following = true, Expect = CompanionMode.Following },
+            new { Msg = "อย่าปักหลักตรงนี้นะ", Quote = "ปักหลักตรงนี้", Action = "wait", Following = true, Expect = CompanionMode.Following },
+            new { Msg = "ถ้าประกบผมไว้ล่ะ", Quote = "ประกบผมไว้", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            // Review: words that are in the message but are a statement, not the request.
+            new { Msg = "วันนี้อากาศดีจัง", Quote = "อากาศดี", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            new { Msg = "อากาศดีจัง", Quote = "อากาศดี", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            new { Msg = "ผมชอบเดินเล่นตอนเย็น", Quote = "เดินเล่น", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            new { Msg = "เดินออกไปห่าง ๆ หน่อย", Quote = "เดินออกไปห่าง ๆ", Action = "follow", Following = false, Expect = CompanionMode.Waiting },
+            // A real request still works after an unrelated remark or a request lead.
+            new { Msg = "ไม่เป็นไร ปักหลักตรงนี้ก่อน", Quote = "ปักหลักตรงนี้", Action = "wait", Following = true, Expect = CompanionMode.Waiting },
+            new { Msg = "please hang on a sec", Quote = "hang on", Action = "wait", Following = true, Expect = CompanionMode.Waiting } })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState();
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+            if (c.Following) Assert.That(actor.RequestFollow(), Is.True);
+            Chat(); provider.Text = "...อืม"; provider.ProposedAction = c.Action; provider.ProposedQuote = c.Quote;
+            Send(c.Msg); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(c.Expect), c.Msg + " / " + c.Quote);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator ReviewLegitimateNegativeStopsRemainCommands()
+    {
+        foreach (string message in new[] { "อย่าเพิ่งไป", "อย่าเพิ่งเดินไปไหน", "please don't go away", "don't leave yet" })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState();
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint);
+            Assert.That(actor.RequestFollow(), Is.True); Chat();
+            provider.Text = "...อืม"; provider.ProposedAction = "wait";
+            Send(message); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), message);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator ReviewNewRequestAfterWithdrawalCanStillBeUnderstoodByModel()
+    {
+        foreach (string message in new[] { "ตามมา, ยกเลิก, เดินเคียงข้างกันหน่อยนะ",
+            "follow me, scratch that, walk beside me please", "หยุดเดิน, ไม่ต้องแล้ว, เดินเคียงข้างกันหน่อยนะ" })
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState();
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();
+            provider.Text = "...อืม"; provider.ProposedAction = "follow";
+            int before = provider.Calls;
+            Send(message); yield return null;
+            Assert.That(provider.Calls, Is.GreaterThan(before), "Keep exercising the model proposal path.");
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following), message);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator ReviewNamedStationDoesNotHideAnotherObjectOrSocialRequest()
+    {
+        string[] messages = { "ไปช่วยตรงโต๊ะกับประตูหน่อยสิ", "ไปช่วยตรงกล่องกับหน้าต่างหน่อยสิ",
+            "ไปช่วยตรงโต๊ะกับกล่องหน่อยสิ", "ช่วยจับมือฉันตรงโต๊ะหน่อย" };
+        string[] actions = { "help:desk_support", "help:two_hands_box", "help:desk_support", "help:desk_support" };
+        for (int i = 0; i < messages.Length; i++)
+        {
+            DialogueManager.Instance.HideDialogue(); State.ResetState(); State.SetFlag("inspected_painting");
+            ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();
+            provider.Text = "...อืม"; provider.ProposedAction = actions[i];
+            Send(messages[i]); yield return null;
+            Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting), messages[i]);
+            Assert.That(actor.ActiveStation, Is.Null, messages[i]);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator ReviewValidNamedProposalStillStartsTheCorrectStation()
+    {
+        State.SetFlag("inspected_painting"); ActorAt(Box.companionPoint); PlayerAt(Box.playerPoint); Chat();
+        provider.Text = "...อืม"; provider.ProposedAction = "help:desk_support";
+        Send("ไปช่วยตรงโต๊ะหน่อยสิ"); yield return null;
+        Assert.That(actor.ActiveStation, Is.SameAs(actor.Scenario.stations[1]));
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.GoingToHelp));
     }
 }

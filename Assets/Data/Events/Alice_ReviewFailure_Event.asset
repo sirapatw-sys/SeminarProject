@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5f6a7b8c9d0423ebc4d5e6f7a8b9c0d, type: 3}
+  m_Name: Alice_ReviewFailure_Event
+  m_EditorClassIdentifier:
+  eventId: alice_review_failure
+  npcId: Alice
+  triggerType: 4
+  minimumRoomTimeSeconds: 0
+  weight: 1
+  cooldownSeconds: 180
+  expiresSeconds: 60
+  repeatable: 0
+  useAiDialogue: 0
+  completeOnChoice: 0
+  storyBeat: 1
+  autoStart: 0
+  freeTopic: 0
+  situationPrompt: "Alice เห็นผู้เล่นลองเปิดลิ้นชักไม่สำเร็จ ชวนทบทวนโดยไม่เปิดเผยข้อมูลปริศนา"
+  dialogue: {fileID: 11400000, guid: 82ce38f2cab34a518b2b27656944b754, type: 2}
+  offlineVariants: []
+  conditions:
+  - type: 9
+    targetId: Room01
+  - type: 0
+    targetId: companion.room01_alice.observed.drawer_failed
+  - type: 1
+    targetId: drawer_opened

@@ -28,6 +28,27 @@ namespace MysteryGame.Tests
             Assert.That(ContentValidator.Validate(GameDefinition.Current, All<InteractionData>("Assets/Data"),
                 All<InputPuzzleData>("Assets/Data"), All<MiniEventData>("Assets/Data")), Is.Empty);
         }
+
+        [TestCase("missing_fact")]
+        [TestCase("drawer_code")]
+        public void CompanionReasoningCannotReferenceUnknownOrAnswerFacts(string factId)
+        {
+            var game = Object.Instantiate(GameDefinition.Current);
+            var room = Object.Instantiate(game.rooms.First(r => r.roomId == "Room01"));
+            var scenario = Object.Instantiate(room.companionScenario);
+            var profile = Object.Instantiate(scenario.reasoningProfile);
+            try
+            {
+                game.rooms = new List<RoomKnowledgeData>(game.rooms);
+                game.rooms[game.rooms.FindIndex(r => r.roomId == "Room01")] = room;
+                room.companionScenario = scenario; scenario.reasoningProfile = profile;
+                profile.rules[0].requiredFacts.Add(factId);
+                var errors = ContentValidator.Validate(game, All<InteractionData>("Assets/Data"),
+                    All<InputPuzzleData>("Assets/Data"), All<MiniEventData>("Assets/Data"));
+                Assert.That(errors, Has.Some.Contains("unsafe evidence"));
+            }
+            finally { Object.DestroyImmediate(profile); Object.DestroyImmediate(scenario); Object.DestroyImmediate(room); Object.DestroyImmediate(game); }
+        }
         [Test]
         public void SampleContentPassesValidationAndIsBuildable()
         {

@@ -1,6 +1,6 @@
 {
   "name": "MysteryGame.Tests.PlayMode",
-  "references": ["MysteryGame.Runtime", "UnityEngine.TestRunner", "UnityEditor.TestRunner", "Unity.TextMeshPro"],
+  "references": ["MysteryGame.Runtime", "CompanionFramework.Reasoning", "UnityEngine.TestRunner", "UnityEditor.TestRunner", "Unity.TextMeshPro"],
   "includePlatforms": [],
   "overrideReferences": true,
   "precompiledReferences": ["nunit.framework.dll"],

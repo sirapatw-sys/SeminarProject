@@ -67,6 +67,7 @@ namespace MysteryGame.Core
 
         private readonly Dictionary<string, List<string>> npcMemories =
             new Dictionary<string, List<string>>();
+        public const int MaxNpcMemoryEntries = 128;
 
         // NPC ID -> Need ID -> Value (0-100)
         private readonly Dictionary<string, Dictionary<string, float>> npcNeeds =
@@ -163,8 +164,13 @@ namespace MysteryGame.Core
             return session;
         }
 
+        // Session-only revision: returning to the same room must not revive
+        // a previous room's transient conversational authorization.
+        public int SceneRevision { get; private set; }
+
         public void SetCurrentScene(string sceneId)
         {
+            if (session.CurrentSceneId != sceneId) SceneRevision++;
             session.CurrentSceneId = sceneId;
         }
 
@@ -421,7 +427,10 @@ namespace MysteryGame.Core
                     new List<string>();
             }
 
+            if (npcMemories[npcId].Contains(memory)) return;
             npcMemories[npcId].Add(memory);
+            if (npcMemories[npcId].Count > MaxNpcMemoryEntries)
+                npcMemories[npcId].RemoveRange(0, npcMemories[npcId].Count - MaxNpcMemoryEntries);
             worldRevision++;
         }
 
@@ -894,6 +903,8 @@ namespace MysteryGame.Core
             foreach (NpcMemorySnapshot entry in snapshot.NpcMemories)
             {
                 npcMemories[entry.NpcId] = new List<string>(entry.Memories);
+                if (npcMemories[entry.NpcId].Count > MaxNpcMemoryEntries)
+                    npcMemories[entry.NpcId].RemoveRange(0, npcMemories[entry.NpcId].Count - MaxNpcMemoryEntries);
             }
 
             npcNeeds.Clear();

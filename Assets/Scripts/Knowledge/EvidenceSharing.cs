@@ -112,6 +112,8 @@ namespace MysteryGame.Knowledge
                 state.AddConversationTurn(npc.npcId, ConversationTurn.Player, "(หลักฐาน) " + fact.EvidenceTitle);
                 state.AddConversationTurn(npc.npcId, npc.npcId, result.Reply);
             }
+            MysteryGame.Companions.CompanionPlaytestTrace.Record("share", room.roomId, npc.npcId,
+                target: fact.factId, outcome: repeated ? "repeat" : "shared");
             return true;
         }
     }

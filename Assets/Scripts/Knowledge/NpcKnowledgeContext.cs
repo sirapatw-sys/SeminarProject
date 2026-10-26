@@ -12,6 +12,9 @@ namespace MysteryGame.Knowledge
         public const string Wait = "wait";
         public const string Search = "search";
         public const string HelpPrefix = "help:";
+        public const string InspectTogether = "inspect_together";
+        public const string ReadPrefix = "read:";
+        public const string ShowPrefix = "show:";
 
         public string Id;
         public string Description;
@@ -323,17 +326,51 @@ namespace MysteryGame.Knowledge
             if (CompanionActions.Count == 0 || PlayerAskedForHint) return string.Empty;
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("=== สิ่งที่ตัวละครนี้ลงมือทำร่วมกับผู้เล่นได้ตอนนี้ (ช่อง companionAction) ===");
+            var world = new Dictionary<string, List<CompanionActionOption>>();
             foreach (CompanionActionOption option in CompanionActions)
-                sb.AppendLine("- " + option.Id + ": " + option.Description);
+            {
+                if (!option.Id.StartsWith("world:", System.StringComparison.Ordinal))
+                { sb.AppendLine("- " + option.Id + ": " + option.Description); continue; }
+                string id = option.Id.Split(':')[3];
+                if (!world.ContainsKey(id)) world[id] = new List<CompanionActionOption>();
+                world[id].Add(option);
+            }
+            foreach (var entry in world)
+            {
+                var verbs = new List<string>(); string description = "";
+                foreach (var option in entry.Value)
+                { string verb = option.Id.Split(':')[1]; if (!verbs.Contains(verb)) verbs.Add(verb); if (verb == "move") description = option.Description; }
+                sb.AppendLine("- targetId=" + entry.Key + ": " + description + "; verbs=" + string.Join("/", verbs));
+            }
             sb.AppendLine("- " + CompanionActionOption.None + ": ผู้เล่นไม่ได้ขอให้ลงมือทำอะไรในข้อความนี้");
             sb.AppendLine("ใส่รหัสใน companionAction เฉพาะเมื่อผู้เล่นขอให้ตัวละครทำสิ่งนั้น 'ตอนนี้' อย่างชัดเจน " +
-                          "ถ้าเป็นคำถาม การเล่าเรื่อง การสมมติ การยกคำพูดคนอื่น การปฏิเสธ หรือไม่แน่ใจ ให้ใส่ " + CompanionActionOption.None);
+                          "คำขอสุภาพ เช่น ได้ไหม ถือเป็นคำขอได้ แต่คำถามเรื่องสถานะ การเล่าเรื่อง การสมมติ การยกคำพูดคนอื่น การปฏิเสธ หรือไม่แน่ใจ ให้ใส่ " + CompanionActionOption.None);
             sb.AppendLine("ถ้าผู้เล่นขอให้ทำสิ่งที่ไม่มีในรายการนี้ (เช่นขอให้ช่วยที่วัตถุอื่น) ให้ใส่ " + CompanionActionOption.None +
                           " ห้ามเลือกรหัสที่ใกล้เคียงแทน แล้วตอบตามบุคลิกว่าตอนนี้ยังช่วยเรื่องนั้นไม่ได้");
             sb.AppendLine("เกมจะตรวจเองว่าทำได้จริงหรือไม่ก่อนลงมือ ใน reply ให้ตอบรับหรือถามกลับสั้นๆ ตามบุคลิก ห้ามบอกว่าทำสำเร็จแล้ว");
+            sb.AppendLine(QuoteRule);
+            if (CompanionActions.Exists(a => a.Id.StartsWith("world:", System.StringComparison.Ordinal)))
+                sb.AppendLine(MysteryGame.Companions.CompanionSemanticIntent.Instructions);
             sb.AppendLine();
             return sb.ToString();
         }
+
+        /// <summary>
+        /// The plain follow/wait/search menu in two lines, for the short chat prompt.
+        /// The game still validates every proposal, so the rules here only steer.
+        /// </summary>
+        public string ToCompactActionSection()
+        {
+            if (CompanionActions.Count == 0 || PlayerAskedForHint) return string.Empty;
+            var options = new List<string>();
+            foreach (CompanionActionOption option in CompanionActions) options.Add(option.Id + "=" + option.Description);
+            options.Add(CompanionActionOption.None + "=ไม่ได้ขอให้ทำ");
+            return "companionAction: " + string.Join(" | ", options) + "\n" +
+                   "อ่านเจตนาจากความหมาย ไม่ใช่คำ: ขอให้อยู่/เฝ้า/คอย/ไม่ต้องตาม = wait, ชวนไปด้วยกัน/อยู่ข้างๆ ตอนเดิน = follow " +
+                   "ใส่รหัสเฉพาะเมื่อผู้เล่นขอให้ทำตอนนี้ คำถาม เล่าเรื่อง สมมติ ปฏิเสธ หรือยกคำพูด ให้ใส่ " + CompanionActionOption.None +
+                   " เกมตรวจและลงมือเอง ห้ามบอกว่าทำเสร็จแล้ว\n" + QuoteRule + "\n";
+        }
+        const string QuoteRule = "actionQuote: คัดลอกคำในข้อความผู้เล่นที่ขอให้ทำแบบตรงตัวทุกตัวอักษร (ไม่แปล ไม่สรุป) ถ้า none ให้เป็นสตริงว่าง";
 
         public string ToPromptSection()
         {

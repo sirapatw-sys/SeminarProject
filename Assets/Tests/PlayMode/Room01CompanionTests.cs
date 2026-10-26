@@ -383,6 +383,78 @@ public class Room01CompanionTests
         Assert.That(State.HasFlag("drawer_opened"), Is.True); Assert.That(State.HasItem("key"), Is.True);
         yield return null;
     }
+    private MiniEventData ReviewEvent(NpcEventController controller)
+    {
+        var configured = (System.Collections.Generic.List<MiniEventData>)typeof(NpcEventController).GetField("events", Private).GetValue(controller);
+        var review = configured.Single(e => e != null && e.eventId == "alice_review_failure");
+        // Keep this integration test independent of unrelated story beats.
+        typeof(NpcEventController).GetField("events", Private).SetValue(controller,
+            new System.Collections.Generic.List<MiniEventData> { review });
+        return review;
+    }
+    private IEnumerator WaitForReview(NpcEventController controller)
+    {
+        float deadline = Time.realtimeSinceStartup + 2f;
+        while (!controller.HasPendingEvent && Time.realtimeSinceStartup < deadline) yield return null;
+        Assert.That(controller.HasPendingEvent, Is.True, "Allow the existing one-second story check to run.");
+    }
+    [UnityTest]
+    public IEnumerator WitnessedFailureInvitesFreeTextReviewOnlyWhenPlayerChoosesToTalk()
+    {
+        var controller = actor.GetComponent<NpcEventController>(); var review = ReviewEvent(controller);
+        controller.enabled = true;
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint);
+        State.SetFlag("found_note"); int score = State.GetRelationship("Alice"); int journal = State.GetJournal().Count;
+        Assert.That(review.CanTrigger(State), Is.False);
+        Drawer().Interact(); Submit("0000"); yield return null;
+        Assert.That(KeypadLockUI.IsOpen, Is.True, "An invitation must not interrupt the keypad.");
+        Assert.That(DialogueManager.IsDialogueOpen, Is.False);
+        KeypadLockUI.Close(); yield return WaitForReview(controller);
+        Assert.That(controller.HasPendingEvent, Is.True);
+        Assert.That(DialogueManager.IsDialogueOpen, Is.False, "An invitation is not forced dialogue.");
+        Assert.That(actor.ActiveStation, Is.Null); Assert.That(State.GetRelationship("Alice"), Is.EqualTo(score));
+        Assert.That(State.GetJournal().Count, Is.EqualTo(journal)); Assert.That(State.HasFlag(review.CompletedFlag), Is.False);
+        actor.GetComponent<NPCInteraction>().Interact();
+        Assert.That(DialogueManager.IsDialogueOpen, Is.True);
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain(review.dialogue.lines[0]));
+        Assert.That(review.dialogue.choices, Is.Empty);
+        Assert.That(((GameObject)typeof(DialogueManager).GetField("chatComposerObject", Private).GetValue(DialogueManager.Instance)).activeSelf, Is.True);
+        Assert.That(State.HasFlag(review.CompletedFlag), Is.True);
+        Send("ยังเปิดไม่ออกเลย"); yield return null;
+        Assert.That(State.GetConversationLog("Alice").Last().Text, Does.Contain(actor.Scenario.observations.First(o => o.id == "drawer_failed").followUpLine));
+        Assert.That(State.HasFlag("drawer_opened"), Is.False); Assert.That(State.HasItem("key"), Is.False);
+        DialogueManager.Instance.HideDialogue(); yield return null;
+        Assert.That(controller.HasPendingEvent, Is.False); Assert.That(review.CanTrigger(State), Is.False);
+        State.RestoreSnapshot(State.CreateSnapshot());
+        Assert.That(review.CanTrigger(State), Is.False, "Save/restore keeps the read receipt.");
+    }
+    [UnityTest]
+    public IEnumerator ReviewDoesNotInventWitnessesOrPunishIgnoringAndExpiresAfterSuccess()
+    {
+        var controller = actor.GetComponent<NpcEventController>(); var review = ReviewEvent(controller);
+        StartChat(); Send("ลองแล้วไม่สำเร็จ"); yield return null; DialogueManager.Instance.HideDialogue();
+        Assert.That(review.CanTrigger(State), Is.False, "A chat claim is not a witnessed attempt.");
+        PlayerAt(station.playerPoint); ActorAt(station.companionPoint); State.SetFlag("found_note");
+        Drawer().Interact(); Submit("0000"); KeypadLockUI.Close();
+        controller.enabled = true; yield return WaitForReview(controller);
+        int score = State.GetRelationship("Alice"); int journal = State.GetJournal().Count;
+        typeof(NpcEventController).GetField("pendingUntil", Private).SetValue(controller, Time.time - 1f);
+        typeof(NpcEventController).GetMethod("Update", Private).Invoke(controller, null);
+        Assert.That(controller.HasPendingEvent, Is.False); Assert.That(State.HasFlag(review.CompletedFlag), Is.False);
+        Assert.That(State.GetRelationship("Alice"), Is.EqualTo(score)); Assert.That(State.GetJournal().Count, Is.EqualTo(journal));
+        ((System.Collections.Generic.Dictionary<string, float>)typeof(NpcEventController)
+            .GetField("cooldownUntil", Private).GetValue(controller)).Clear();
+        typeof(NpcEventController).GetField("nextStoryCheckTime", Private).SetValue(controller, 0f);
+        typeof(NpcEventController).GetMethod("Update", Private).Invoke(controller, null);
+        Assert.That(controller.HasPendingEvent, Is.True);
+        Drawer().Interact(); Submit("4592"); RoomTransitionManager.CloseRoomOverlays();
+        Assert.That(review.CanTrigger(State), Is.False);
+        Assert.That(controller.TryStartPendingEvent(), Is.False);
+        Assert.That(controller.HasPendingEvent, Is.False);
+        State.ResetState(); Assert.That(review.CanTrigger(State), Is.False);
+        State.SetFlag(actor.Scenario.Flag("observed.drawer_failed")); State.SetCurrentScene("Room02");
+        Assert.That(review.CanTrigger(State), Is.False);
+    }
     [UnityTest]
     public IEnumerator IncompleteInputCancelAndAlreadyOpenDrawerNeverInventAFailedAttempt()
     {

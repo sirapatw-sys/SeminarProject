@@ -50,6 +50,8 @@ namespace MysteryGame.Knowledge
         [Tooltip("Offer this discovered fact in the dialogue evidence picker. Puzzle answers cannot be shared.")]
         public bool canShareAsEvidence;
         public string evidenceTitle;
+        [Tooltip("Exact, unambiguous names accepted when the player shares this evidence in conversation.")]
+        public List<string> evidenceAliases = new List<string>();
 
         public string EvidenceTitle
         {

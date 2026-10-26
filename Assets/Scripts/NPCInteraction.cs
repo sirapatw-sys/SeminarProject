@@ -22,7 +22,9 @@ public class NPCInteraction : MonoBehaviour, IFocusable
         get
         {
             return dialogueData != null && !string.IsNullOrWhiteSpace(dialogueData.speakerName)
-                ? "กด E เพื่อคุยกับ " + dialogueData.speakerName
+                ? (GetComponent<MysteryGame.Companions.CompanionHud>()?.DiscoveryIndicatorVisible == true
+                    ? "กด E เพื่อฟังสิ่งที่ " + dialogueData.speakerName + " พบ"
+                    : "กด E เพื่อคุยกับ " + dialogueData.speakerName)
                 : "กด E เพื่อคุย";
         }
     }

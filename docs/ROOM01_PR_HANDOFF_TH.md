@@ -1,5 +1,7 @@
 # ส่งต่อ PR: Room01 Companion — 14 ตุลาคม 2026
 
+เอกสารนี้เป็นประวัติของงานก่อน merge PR #5 ส่วนงานที่เพิ่มหลัง develop `a6c6d23` ให้เริ่มที่ [คู่มือส่งต่อล่าสุด 17 ตุลาคม](TEAM_HANDOFF_20261017_TH.md) ไม่ใช้จำนวน tests/สถานะ PR ด้านล่างแทนผลล่าสุด
+
 ## ล่าสุด: แก้ตามรีวิว PR #5 (4 จุด P2)
 
 ทุกข้ออยู่ที่ตัวตรวจ action ที่ AI เสนอ (`TryApplyProposedAction`) ตอนนี้ใช้ `CompanionDialogueCommands.RulesVeto` ซึ่งเป็นกฎชุดเดียวกับ parser:
