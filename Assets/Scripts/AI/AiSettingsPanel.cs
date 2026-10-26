@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// The AI settings panel (F10 or the "⚙ ตั้งค่า AI" button), plus the small
-/// controls HUD and the interaction prompt.
+/// The settings panel (F10 or the "⚙ ตั้งค่า" button) with two tabs, AI and
+/// sound (AiSettingsPanel.Audio.cs), plus the small controls HUD and the
+/// interaction prompt.
 ///
 /// The panel is a modal card drawn a size up from the HUD, since it is a
 /// form people read and type into. Models are picked from a list instead of
@@ -11,7 +12,7 @@ using UnityEngine;
 /// refreshed from the service (GET /models) for the models this account
 /// can use. Typing a model name is still there for anything not listed.
 /// </summary>
-public class AiSettingsPanel : MonoBehaviour
+public partial class AiSettingsPanel : MonoBehaviour
 {
     public static bool IsOpen { get; private set; }
     public static string InteractionPrompt { get; private set; }
@@ -32,6 +33,7 @@ public class AiSettingsPanel : MonoBehaviour
     private const float PanelWidth = 760f;
     private const float PanelHeight = 720f;
     private const float Padding = 28f;
+    private const string OfflineNotice = "รุ่นนี้เป็นเดโมออฟไลน์ — ใช้รุ่น AI เพื่อเชื่อมต่อผู้ให้บริการ";
 
     private static readonly string[] ProviderLabels =
         { "OpenAI", "KKU IntelSphere", "Google Gemini", "กำหนดเอง" };
@@ -103,6 +105,10 @@ public class AiSettingsPanel : MonoBehaviour
     private Tone statusTone = Tone.Neutral;
     private bool testInProgress;
     private bool modelFetchInProgress;
+    private AiRequestOperation modelFetchOperation;
+    private AiRequestOperation connectionTestOperation;
+    private int modelFetchVersion;
+    private int connectionTestVersion;
     private string[] fetchedModels;
     private bool pickerOpen;
     private bool typeModelByHand;
@@ -154,16 +160,32 @@ public class AiSettingsPanel : MonoBehaviour
         }
     }
 
+    public static void Close()
+    {
+        if (active != null) active.SetOpen(false);
+    }
+
     private void OnEnable()
     {
+        // GameManagers survives room changes. A duplicate scene component
+        // must not steal ownership or clear the surviving panel's state.
+        if (active != null && active != this)
+        {
+            enabled = false;
+            return;
+        }
         active = this;
+        IsOpen = isOpen;
     }
 
     private void OnDisable()
     {
+        CancelUiRequests();
         if (active == this)
         {
+            SetOpen(false);
             active = null;
+            InteractionPrompt = string.Empty;
         }
     }
 
@@ -184,9 +206,13 @@ public class AiSettingsPanel : MonoBehaviour
             apiKey = generator.GetApiKey();
         }
 
-        if (generator.CanGenerate)
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode)
         {
-            SetStatus("AI พร้อมใช้งาน", Tone.Good);
+            SetStatus(OfflineNotice, Tone.Warn);
+        }
+        else if (generator.CanGenerate)
+        {
+            SetStatus("ตั้งค่า AI แล้ว — กดทดสอบการเชื่อมต่อเพื่อยืนยัน", Tone.Good);
         }
         else
         {
@@ -203,7 +229,7 @@ public class AiSettingsPanel : MonoBehaviour
         else if (isOpen && Input.GetKeyDown(KeyCode.Escape))
         {
             // Esc backs out of the model list first, then closes the panel.
-            if (pickerOpen)
+            if (pickerOpen && tab != AudioTab)
             {
                 pickerOpen = false;
             }
@@ -216,6 +242,12 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void SetOpen(bool open)
     {
+        if (active != this || (open && (!isActiveAndEnabled || RoomTransitionManager.IsBusy))) return;
+        if (!open)
+        {
+            CancelUiRequests();
+            CloseAudioTab();
+        }
         if (isOpen && !open)
         {
             closedOnFrame = Time.frameCount;
@@ -261,7 +293,7 @@ public class AiSettingsPanel : MonoBehaviour
         if (!isOpen)
         {
             Rect buttonRect = new Rect(UiScale.Width - 178f, 22f, 156f, 44f);
-            if (ModalGui.Button(buttonRect, "⚙  ตั้งค่า AI", launcherStyle))
+            if (ModalGui.Button(buttonRect, "⚙  ตั้งค่า", launcherStyle))
             {
                 SetOpen(true);
             }
@@ -290,9 +322,15 @@ public class AiSettingsPanel : MonoBehaviour
         Rect inner = new Rect(card.x + Padding, card.y + Padding - 4f, card.width - Padding * 2f, card.height - Padding * 2f + 8f);
         DrawHeader(new Rect(inner.x, inner.y, inner.width, 64f));
 
-        Rect body = new Rect(inner.x, inner.y + 80f, inner.width, inner.height - 80f);
+        DrawTabs(new Rect(inner.x, inner.y + 76f, inner.width, 42f));
+
+        Rect body = new Rect(inner.x, inner.y + 130f, inner.width, inner.height - 130f);
         GUILayout.BeginArea(body);
-        if (pickerOpen)
+        if (tab == AudioTab)
+        {
+            DrawAudioForm();
+        }
+        else if (pickerOpen)
         {
             DrawModelPicker();
         }
@@ -308,15 +346,18 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void DrawHeader(Rect area)
     {
-        GUI.Label(new Rect(area.x, area.y, area.width - 260f, 36f), "ตั้งค่า AI", titleStyle);
+        GUI.Label(new Rect(area.x, area.y, area.width - 260f, 36f), "ตั้งค่า", titleStyle);
         GUI.Label(
             new Rect(area.x, area.y + 36f, area.width - 60f, 24f),
-            "AI สร้างบทพูดของตัวละคร ถ้าใช้ไม่ได้ เกมจะใช้บทพูดที่เขียนไว้แทน",
+            tab == AudioTab
+                ? "ความดังของเสียงเกม ลำโพง/หูฟัง และไมโครโฟนสำหรับพูดแทนพิมพ์"
+                : "AI สร้างบทพูดของตัวละคร ถ้าใช้ไม่ได้ เกมจะใช้บทพูดที่เขียนไว้แทน",
             subtitleStyle);
 
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
         bool ready = generator != null && generator.CanGenerate;
-        string pill = ready ? "●  AI พร้อมใช้งาน" : "●  ใช้บทพูดสำรอง";
+        string pill = MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode ? "●  เดโมออฟไลน์"
+            : ready ? "●  ตั้งค่า AI แล้ว" : "●  ใช้บทพูดสำรอง";
         pillStyle.normal.textColor = ready ? GoodColor : WarnColor;
         float pillWidth = pillStyle.CalcSize(new GUIContent(pill)).x + 8f;
         GUI.Box(new Rect(area.xMax - 52f - pillWidth, area.y + 4f, pillWidth, 32f), pill, pillStyle);
@@ -405,6 +446,17 @@ public class AiSettingsPanel : MonoBehaviour
         }
         GUILayout.EndHorizontal();
         Note("key ที่พิมพ์ตรงนี้ใช้เฉพาะรอบที่เล่นอยู่ ไม่ถูกบันทึกลงฉากหรือ PlayerPrefs (key ในโฟลเดอร์ UserSettings โหลดให้เองตอนเริ่มเกม)");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            Note("ช่องว่างไม่ได้แปลว่า key ในเครื่องถูกลบ: เมื่อกดบันทึก ระบบจะอ่าน key ของผู้ให้บริการที่เลือกจาก Environment → UserSettings → api_keys.json (ถ้ามี) ไม่ยืม key ของผู้ให้บริการอื่น");
+
+        Section("การแสดงผล");
+        bool insights = ResponseInsights.Enabled;
+        if (ModalGui.LayoutButton(insights ? "แสดง % ท้ายคำตอบของ NPC: เปิด" : "แสดง % ท้ายคำตอบของ NPC: ปิด",
+                                  secondaryStyle, insights, GUILayout.Height(40f)))
+        {
+            ResponseInsights.Enabled = !insights;
+        }
+        Note("ใบ้กี่ % ตามระดับคำใบ้ที่ให้จริง · ความเป็นมิตรของข้อความผู้เล่น (50% = กลางๆ) · ความสนิทที่ NPC ใช้ตอบ (ค่าความสัมพันธ์)");
 
         GUILayout.Space(14f);
         Rect divider = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));
@@ -433,6 +485,8 @@ public class AiSettingsPanel : MonoBehaviour
 
         if (ModalGui.LayoutButton("ล้าง key", ghostStyle, false, GUILayout.Height(48f), GUILayout.Width(110f)))
         {
+            CancelUiRequests();
+            fetchedModels = null;
             apiKey = string.Empty;
             if (AiDialogueGenerator.Instance != null)
             {
@@ -665,12 +719,14 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void ApplyProviderDefaults()
     {
+        CancelUiRequests();
         // A model list only ever belongs to the provider it came from.
         fetchedModels = null;
         typeModelByHand = false;
 
-        AiDialogueGenerator generator = AiDialogueGenerator.Instance;
-        apiKey = generator != null ? generator.GetApiKey() : string.Empty;
+        // The generator still belongs to the old provider until ApplySettings.
+        // Never carry its credential into a different provider's endpoint.
+        apiKey = string.Empty;
         switch ((AiProviderType)providerIndex)
         {
             case AiProviderType.OpenAiResponses:
@@ -704,6 +760,7 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void ApplySettings()
     {
+        CancelUiRequests();
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
         if (generator == null)
         {
@@ -718,9 +775,13 @@ public class AiSettingsPanel : MonoBehaviour
             apiKey
         );
 
-        if (generator.CanGenerate)
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode)
         {
-            SetStatus("บันทึกแล้ว — กด \"ทดสอบการเชื่อมต่อ\" เพื่อยืนยัน key และโมเดล", Tone.Good);
+            SetStatus("บันทึกโมเดลแล้ว — " + OfflineNotice, Tone.Warn);
+        }
+        else if (generator.CanGenerate)
+        {
+            SetStatus("บันทึกแล้ว — key ใช้เฉพาะรอบนี้ กด \"ทดสอบการเชื่อมต่อ\" เพื่อยืนยัน", Tone.Good);
         }
         else
         {
@@ -735,67 +796,125 @@ public class AiSettingsPanel : MonoBehaviour
                selected == AiProviderType.Gemini;
     }
 
+    private static string Normalized(string value) { return (value ?? string.Empty).Trim(); }
+
+    private bool SameConnection(int requestedProvider, string requestedEndpoint, string requestedKey)
+    {
+        return providerIndex == requestedProvider && Normalized(endpoint) == requestedEndpoint &&
+            Normalized(apiKey) == requestedKey;
+    }
+
+    private void CancelModelFetch()
+    {
+        modelFetchVersion++;
+        modelFetchInProgress = false;
+        var abandoned = modelFetchOperation;
+        modelFetchOperation = null;
+        abandoned?.Cancel();
+    }
+
+    private void CancelConnectionTest()
+    {
+        connectionTestVersion++;
+        testInProgress = false;
+        var abandoned = connectionTestOperation;
+        connectionTestOperation = null;
+        abandoned?.Cancel();
+    }
+
+    private void CancelUiRequests()
+    {
+        bool wasBusy = modelFetchInProgress || testInProgress;
+        CancelModelFetch();
+        CancelConnectionTest();
+        if (wasBusy) SetStatus("ยกเลิกคำขอเดิมแล้ว — เริ่มทดสอบหรือโหลดรายการใหม่ได้", Tone.Neutral);
+    }
+
     private void FetchModels()
     {
+        if (active != this || !isActiveAndEnabled) return;
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
-        if (generator == null)
-        {
-            SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad);
-            return;
-        }
-
-        // The key has to be live on the generator before we can ask with it.
+        if (generator == null) { SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad); return; }
         ApplySettings();
-
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode) return;
+        int version = ++modelFetchVersion;
+        int requestedProvider = providerIndex;
+        string requestedEndpoint = Normalized(endpoint), requestedKey = Normalized(apiKey);
         modelFetchInProgress = true;
         SetStatus("กำลังขอรายชื่อโมเดลจากผู้ให้บริการ...", Tone.Neutral);
-        StartCoroutine(
-            generator.FetchAvailableModels((models, error) =>
-            {
-                modelFetchInProgress = false;
-                if (models == null)
-                {
-                    SetStatus("โหลดรายชื่อโมเดลไม่สำเร็จ: " + error, Tone.Bad);
-                    return;
-                }
+        var operation = new AiRequestOperation(this);
+        modelFetchOperation = operation;
+        operation.Start(
+            () => generator.FetchAvailableModels((models, error) =>
+                CompleteModelFetch(version, requestedProvider, requestedEndpoint, requestedKey, models, error)),
+            error => CompleteModelFetch(version, requestedProvider, requestedEndpoint, requestedKey,
+                null, "ผู้ให้บริการผิดพลาด: " + error.GetType().Name),
+            () => CompleteModelFetch(version, requestedProvider, requestedEndpoint, requestedKey,
+                null, "ผู้ให้บริการจบคำขอโดยไม่ส่งผลกลับ"));
+    }
 
-                fetchedModels = models;
-                SetStatus("พบโมเดลที่ใช้ได้ " + models.Length + " รายการ", Tone.Good);
-            })
-        );
+    private void CompleteModelFetch(int version, int requestedProvider, string requestedEndpoint,
+        string requestedKey, string[] models, string error)
+    {
+        if (version != modelFetchVersion || !modelFetchInProgress) return;
+        modelFetchInProgress = false;
+        var completed = modelFetchOperation;
+        modelFetchOperation = null;
+        completed?.Cancel();
+        if (active != this || !isActiveAndEnabled) return;
+        if (!SameConnection(requestedProvider, requestedEndpoint, requestedKey))
+        { SetStatus("การตั้งค่าเปลี่ยนแล้ว — กรุณาโหลดรายชื่อโมเดลใหม่", Tone.Warn); return; }
+        if (models == null || models.Length == 0)
+        { SetStatus("โหลดรายชื่อโมเดลไม่สำเร็จ: " + error, Tone.Bad); return; }
+        fetchedModels = models;
+        SetStatus("พบโมเดลที่ใช้ได้ " + models.Length + " รายการ", Tone.Good);
     }
 
     private void TestConnection()
     {
+        if (active != this || !isActiveAndEnabled) return;
         AiDialogueGenerator generator = AiDialogueGenerator.Instance;
-        if (generator == null || !generator.CanGenerate)
-        {
-            SetStatus("ยังกรอก key, โมเดล หรือ endpoint ไม่ครบ (กดบันทึกก่อน)", Tone.Warn);
-            return;
-        }
-
+        if (generator == null) { SetStatus("ยังไม่พร้อมใช้งาน", Tone.Bad); return; }
+        // Test exactly the values currently displayed, just like model discovery.
+        ApplySettings();
+        if (MysteryGame.Companions.CompanionPlaytestTrace.OfflineMode) return;
+        IAiDialogueProvider dialogueProvider = DialogueProviders.Current;
+        if (dialogueProvider == null || !dialogueProvider.CanGenerate)
+        { SetStatus("ยังกรอก key, โมเดล หรือ endpoint ไม่ครบ", Tone.Warn); return; }
+        int version = ++connectionTestVersion;
+        int requestedProvider = providerIndex;
+        string requestedEndpoint = Normalized(endpoint), requestedKey = Normalized(apiKey);
+        string requestedModel = Normalized(model);
         testInProgress = true;
         SetStatus("กำลังติดต่อผู้ให้บริการ AI...", Tone.Neutral);
-        StartCoroutine(
-            generator.GenerateReply(
-                "connection_test",
-                "ระบบทดสอบ",
-                "ตอบเพื่อยืนยันการเชื่อมต่อเท่านั้น",
-                "ตอบคำว่า พร้อมใช้งาน",
-                reply =>
-                {
-                    testInProgress = false;
-                    if (reply != null)
-                    {
-                        SetStatus("เชื่อมต่อสำเร็จ — " + generator.Model + " พร้อมตอบบทสนทนา", Tone.Good);
-                    }
-                    else
-                    {
-                        SetStatus("เชื่อมต่อไม่สำเร็จ: " + generator.LastError, Tone.Bad);
-                    }
-                }
-            )
-        );
+        var operation = new AiRequestOperation(this);
+        connectionTestOperation = operation;
+        operation.Start(
+            () => dialogueProvider.GenerateReply("connection_test", "ระบบทดสอบ",
+                "ตอบเพื่อยืนยันการเชื่อมต่อเท่านั้น", "ตอบคำว่า พร้อมใช้งาน",
+                reply => CompleteConnectionTest(version, requestedProvider, requestedEndpoint,
+                    requestedKey, requestedModel, reply, dialogueProvider.LastError)),
+            error => CompleteConnectionTest(version, requestedProvider, requestedEndpoint,
+                requestedKey, requestedModel, null, "ผู้ให้บริการผิดพลาด: " + error.GetType().Name),
+            () => CompleteConnectionTest(version, requestedProvider, requestedEndpoint,
+                requestedKey, requestedModel, null, "ผู้ให้บริการจบคำขอโดยไม่ส่งผลกลับ"));
+    }
+
+    private void CompleteConnectionTest(int version, int requestedProvider, string requestedEndpoint,
+        string requestedKey, string requestedModel, GeneratedChatReply reply, string error)
+    {
+        if (version != connectionTestVersion || !testInProgress) return;
+        testInProgress = false;
+        var completed = connectionTestOperation;
+        connectionTestOperation = null;
+        completed?.Cancel();
+        if (active != this || !isActiveAndEnabled) return;
+        if (!SameConnection(requestedProvider, requestedEndpoint, requestedKey) ||
+            Normalized(model) != requestedModel)
+        { SetStatus("การตั้งค่าเปลี่ยนแล้ว — กรุณาทดสอบใหม่", Tone.Warn); return; }
+        if (reply != null)
+            SetStatus("เชื่อมต่อสำเร็จ — " + requestedModel + " พร้อมตอบบทสนทนา", Tone.Good);
+        else SetStatus("เชื่อมต่อไม่สำเร็จ: " + error, Tone.Bad);
     }
 
     // --------------------------------------------------------------- styles
@@ -975,6 +1094,8 @@ public class AiSettingsPanel : MonoBehaviour
         };
         hudStyle.normal.background = Keep(ModalGui.Rounded(new Color(0.05f, 0.065f, 0.09f, 0.88f), 12, line, 1f));
         hudStyle.normal.textColor = Text;
+
+        EnsureAudioStyles(line);
     }
 
     public static void SetInteractionPrompt(string prompt)
@@ -996,8 +1117,14 @@ public class AiSettingsPanel : MonoBehaviour
 
     private void OnDestroy()
     {
-        IsOpen = false;
-        InteractionPrompt = string.Empty;
+        CancelUiRequests();
+        // OnDisable releases the owner. Destroying a duplicate is local cleanup only.
+        if (active == this)
+        {
+            SetOpen(false);
+            active = null;
+            InteractionPrompt = string.Empty;
+        }
         foreach (Texture2D texture in textures)
         {
             if (texture != null)

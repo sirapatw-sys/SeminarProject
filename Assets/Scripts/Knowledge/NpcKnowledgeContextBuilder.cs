@@ -14,6 +14,56 @@ namespace MysteryGame.Knowledge
         public const int NormalHintRelationship = 45;
         public const int ExplicitHintRelationship = 70;
 
+        public static NpcKnowledgeContext BuildForMessage(string npcId, string roomId, GameState state, string message)
+        {
+            RoomKnowledgeData room = KnowledgeLibrary.GetRoom(roomId);
+            var scenario = room != null ? room.companionScenario : null;
+            bool companion = scenario != null && scenario.npcId == npcId && state != null &&
+                state.GetCurrentScene() == roomId && scenario.stations != null;
+            var subjects = new List<string>();
+            if (companion) subjects.AddRange(MysteryGame.Companions.CompanionDialogueCommands.RequestTopicsFor(message));
+            if (companion)
+            {
+                MysteryGame.Companions.CompanionStationData requested;
+                if (MysteryGame.Companions.CompanionDialogueCommands.Parse(message, scenario, out requested) == MysteryGame.Companions.CompanionCommand.Help &&
+                    requested != null && requested.requestAliases != null) subjects.AddRange(requested.requestAliases);
+            }
+            if (companion) foreach (var station in scenario.stations)
+            {
+                if (station == null) continue;
+                subjects.Add(station.title);
+                if (station.gameplayTerms != null) subjects.AddRange(station.gameplayTerms);
+                if (MysteryGame.Companions.CompanionDialogueCommands.IsActivityQuestion(message, station))
+                    subjects.AddRange(MysteryGame.Companions.CompanionDialogueCommands.MatchingNames(message, station));
+            }
+            bool worldRequest = companion && MysteryGame.Companions.CompanionWorldCommands.IsRequest(message, roomId);
+            var context = Build(npcId, roomId, state,
+                !worldRequest && !(companion && (MysteryGame.Companions.CompanionNaturalRequests.IsEvidenceRequest(message, room) ||
+                    MysteryGame.Companions.CompanionNaturalRequests.IsJoinRequest(message) ||
+                    MysteryGame.Companions.CompanionNaturalRequests.CanProposeJoin(message, room))) &&
+                PlayerIntentClassifier.IsAskingForHint(message, room != null ? room.gameplayTerms : null, subjects));
+            if (companion)
+            {
+                MysteryGame.Companions.CompanionWorldCommands.ScopeActions(context, message);
+                context.RecentMemories.Clear();
+                context.RecentMemories.AddRange(NpcMemoryRecall.Select(state.GetNpcMemory(npcId), message, scenario, MemoryLimit));
+            }
+            if (!companion || context.PlayerAskedForHint) return context;
+            if (worldRequest) return context;
+            foreach (var station in scenario.stations)
+            {
+                if (station == null) continue;
+                if (!MysteryGame.Companions.CompanionDialogueCommands.IsActivityQuestion(message, station)) continue;
+                string prefix = scenario.Flag(station.id + ".");
+                foreach (var fact in context.CompanionFacts)
+                    if (fact.factId == prefix + "pending" || fact.factId == prefix + "completed" ||
+                        fact.factId == prefix + "instructions" || fact.factId == prefix + "unavailable")
+                        context.RequestedCompanionFacts.Add(fact);
+            }
+            context.CompanionActionScope |= context.RequestedCompanionFacts.Count > 0;
+            return context;
+        }
+
         public static NpcKnowledgeContext Build(
             string npcId,
             string roomId,
@@ -44,6 +94,8 @@ namespace MysteryGame.Knowledge
                 return context;
             }
 
+            FillCompanion(context, state);
+
             context.TotalSteps = context.Room.steps.Count;
             context.CompletedSteps = context.Room.CompletedStepCount(state);
             context.CurrentStep = context.Room.CurrentStep(state);
@@ -54,6 +106,85 @@ namespace MysteryGame.Knowledge
             context.DeterministicHint = ResolveHint(context);
 
             return context;
+        }
+
+        private static void FillCompanion(NpcKnowledgeContext context, GameState state)
+        {
+            var scenario = context.Room.companionScenario;
+            if (scenario == null || state == null || state.GetCurrentScene() != context.Room.roomId ||
+                scenario.npcId != context.NpcId || scenario.stations == null) return;
+            foreach (var station in scenario.stations)
+            {
+                if (station == null || string.IsNullOrWhiteSpace(station.id) || string.IsNullOrWhiteSpace(station.title)) continue;
+                bool completed = state.HasFlag(scenario.CompletedFlag(station));
+                bool available = ConditionRule.AllHold(station.conditions, state);
+                if (!completed && !available) continue;
+                context.CompanionFacts.Add(new RoomFact {
+                    factId = scenario.Flag(station.id + (completed ? ".completed" : ".pending")),
+                    statement = completed ? (!string.IsNullOrWhiteSpace(station.completedStatusLine) ? station.completedStatusLine :
+                        "เราเคยทำ «" + station.title + "» สำเร็จด้วยกันแล้วนะ") :
+                        (!string.IsNullOrWhiteSpace(station.pendingLine) ? station.pendingLine : "เรายังทำ «" + station.title + "» ไม่สำเร็จเลย ถ้าอยากลองด้วยกันก็บอกนะ")
+                });
+                if (!completed)
+                {
+                    if (!available || !string.IsNullOrWhiteSpace(station.instructions))
+                        context.CompanionFacts.Add(new RoomFact {
+                            factId = scenario.Flag(station.id + (available ? ".instructions" : ".unavailable")),
+                            statement = available ? station.instructions : "กิจกรรม «" + station.title + "» ยังไม่พร้อมให้ช่วยในตอนนี้"
+                        });
+                }
+                context.CompanionTerms.Add(station.title);
+                if (station.gameplayTerms != null) context.CompanionTerms.AddRange(station.gameplayTerms);
+            }
+            var actor = MysteryGame.Companions.NpcCompanionController.Find(context.NpcId, context.Room.roomId);
+            if (actor == null || state != GameState.Instance || actor.Scenario != scenario) return;
+            context.CompanionActionScope = actor.Mode != MysteryGame.Companions.CompanionMode.Waiting;
+            string status = actor.Mode == MysteryGame.Companions.CompanionMode.Following ? "กำลังเดินตามผู้เล่น" :
+                actor.Mode == MysteryGame.Companions.CompanionMode.WorldTask ? "กำลังเดินไปหรือทำงานกับวัตถุตามคำขอ ยังไม่ยืนยันผลจนกว่าจะเสร็จ" :
+                actor.Mode == MysteryGame.Companions.CompanionMode.Searching ? "กำลังสำรวจตามคำขอผู้เล่น ยังไม่ยืนยันว่าพบหลักฐานใหม่" :
+                actor.Mode == MysteryGame.Companions.CompanionMode.GoingToHelp ? "กำลังเดินไปช่วยกิจกรรมที่ผู้เล่นขอ ยังไม่สำเร็จ" :
+                actor.Mode == MysteryGame.Companions.CompanionMode.Helping ? "กำลังช่วยจับกลไก รอผู้เล่นทำอีกด้าน ยังไม่สำเร็จ" : "กำลังรออยู่";
+            context.CompanionFacts.Add(new RoomFact {
+                factId = scenario.Flag("mode." + actor.Mode), statement = scenario.displayName + " " + status
+            });
+            FillCompanionActions(context, scenario, state);
+        }
+
+        // Only what could start now: locked or finished stations stay out of
+        // the menu, exactly as they stay out of the prompt's activity facts.
+        private static void FillCompanionActions(NpcKnowledgeContext context,
+            MysteryGame.Companions.CompanionScenarioData scenario, GameState state)
+        {
+            context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Follow,
+                Description = "เดินตามผู้เล่นไปด้วยกัน" });
+            MysteryGame.Companions.CompanionWorldCommands.FillActions(context);
+            context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.InspectTogether,
+                Description = "ผู้เล่นชวนมาดูหรือสำรวจด้วยกัน: ตามผู้เล่นหลังจบบทคุย ไม่ใช่ค้นพบหลักฐานอัตโนมัติ" });
+            foreach (var fact in EvidenceSharing.Available(state, context.NpcId))
+            {
+                context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.ReadPrefix + fact.factId,
+                    Description = "อ่านตามข้อความในหลักฐานที่ผู้เล่นยื่นให้: " + fact.EvidenceTitle + " (ไม่ตีความหรือเฉลย)" });
+                context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.ShowPrefix + fact.factId,
+                    Description = "ผู้เล่นนำหลักฐานที่ค้นพบมาให้ดู: " + fact.EvidenceTitle });
+            }
+            context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Wait,
+                Description = "หยุดรออยู่ตรงนี้ หรือเลิกทำสิ่งที่กำลังทำอยู่" });
+            if (scenario.searchSpots != null)
+                foreach (var spot in scenario.searchSpots)
+                    if (spot != null && ConditionRule.AllHold(spot.conditions, state))
+                    {
+                        context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.Search,
+                            Description = "เดินสำรวจรอบห้องเพื่อช่วยหาหลักฐาน" });
+                        break;
+                    }
+            foreach (var station in scenario.stations)
+            {
+                if (station == null || string.IsNullOrWhiteSpace(station.id) || state.HasFlag(scenario.CompletedFlag(station)) ||
+                    !ConditionRule.AllHold(station.conditions, state)) continue;
+                context.CompanionActions.Add(new CompanionActionOption { Id = CompanionActionOption.HelpPrefix + station.id,
+                    Description = !string.IsNullOrWhiteSpace(station.actionDescription) ? station.actionDescription
+                        : "ช่วยกันทำ «" + station.title + "»" });
+            }
         }
 
         /// <summary>How many memory notes go into one prompt.</summary>
@@ -83,11 +214,24 @@ namespace MysteryGame.Knowledge
                     }
                 }
 
+                FillPresence(context, state);
+                var companion = MysteryGame.Companions.NpcCompanionController.Find(context.NpcId,
+                    context.Room != null ? context.Room.roomId : null);
+                if (companion != null && state == GameState.Instance) context.ActiveNotes.Add(companion.PromptState());
+
                 if (npc.bonds != null)
                 {
                     foreach (NpcBond bond in npc.bonds)
                     {
                         if (bond == null || string.IsNullOrWhiteSpace(bond.otherNpcId))
+                        {
+                            continue;
+                        }
+
+                        // Someone the player has not met yet (Rina while still
+                        // in Room01) is not brought up before their room.
+                        if (context.PresentLines != null && !RoomPresence.IsIn(context.Room != null ? context.Room.roomId : null, bond.otherNpcId) &&
+                            (state == null || state.GetConversationCount(bond.otherNpcId) == 0))
                         {
                             continue;
                         }
@@ -127,6 +271,30 @@ namespace MysteryGame.Knowledge
             }
         }
 
+        /// <summary>The other characters standing in the NPC's room, from the live scene.</summary>
+        private static void FillPresence(NpcKnowledgeContext context, GameState state)
+        {
+            string roomId = context.Room != null ? context.Room.roomId : null;
+            if (!RoomPresence.HasRoom(roomId))
+            {
+                return;
+            }
+
+            context.PresentLines = new List<string>();
+            foreach (string otherId in RoomPresence.In(roomId))
+            {
+                if (string.Equals(otherId, context.NpcId, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                NpcProfileData other = KnowledgeLibrary.GetNpc(otherId);
+                string name = other != null && !string.IsNullOrWhiteSpace(other.displayName) ? other.displayName : otherId;
+                string looks = other != null ? other.Appearance : string.Empty;
+                context.PresentLines.Add(string.IsNullOrWhiteSpace(looks) ? name : name + ": " + looks);
+            }
+        }
+
         /// <summary>Prefix DialogueManager uses when it files a typed line as a memory.</summary>
         public const string PlayerSaidPrefix = "ผู้เล่นพูดว่า:";
 
@@ -146,7 +314,7 @@ namespace MysteryGame.Knowledge
                 bool forbidden = context.Npc != null &&
                                  context.Npc.IsForbidden(fact.factId);
 
-                if (revealed && npcKnows && !forbidden)
+                if (revealed && npcKnows && !forbidden && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance)
                 {
                     context.KnownFacts.Add(fact);
                 }
@@ -173,11 +341,12 @@ namespace MysteryGame.Knowledge
             }
 
             HintLevel level = HintLevel.Vague;
-            if (relationship >= ExplicitHintRelationship)
+            GameDefinition game = GameDefinition.Current;
+            if (relationship >= (game != null ? game.explicitHintRelationship : ExplicitHintRelationship))
             {
                 level = HintLevel.Explicit;
             }
-            else if (relationship >= NormalHintRelationship)
+            else if (relationship >= (game != null ? game.normalHintRelationship : NormalHintRelationship))
             {
                 level = HintLevel.Normal;
             }

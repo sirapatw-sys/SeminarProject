@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b75aa9e7779470c889557275485c8a2, type: 3}
+  m_Name: Alice_PromiseKept
+  m_EditorClassIdentifier:
+  dialogueId: alice_promise_kept
+  speakerId: Alice
+  speakerName: Alice
+  lines:
+  - "...เธอกลับมาให้ดูหลักฐานตามที่รับปากไว้จริงๆ"
+  - "ฉันรู้สึกว่าไม่ได้พยายามอยู่คนเดียวแล้ว ขอบคุณนะ ...อย่าให้ฉันต้องพูดซ้ำล่ะ"
+  choices:
+  - optionText: "เราจะค่อยๆ คิดด้วยกัน"
+    responseText: "...อืม ถ้าติดตรงไหนก็มาถาม ฉันจะช่วยเท่าที่รู้จริง"
+    actions:
+    - type: 0
+      targetId: alice_evidence_arc.resolved
+    - type: 0
+      targetId: alice_evidence_arc.fulfilled
+    - type: 4
+      targetId: Alice
+      amount: 6
+    - type: 9
+      targetId: Alice
+      secondaryId: homesickness
+      amount: -20
+    - type: 7
+      targetId: Alice
+      text: "ผู้เล่นรักษาสัญญาและนำหลักฐานกลับมาคิดร่วมกับ Alice ทำให้เธอสบายใจขึ้น"
+  - optionText: "ฉันขอไปสำรวจต่อก่อน แล้วค่อยคุยกัน"
+    responseText: "...ได้สิ เธอกลับมาตามที่พูดแล้ว ฉันไม่ได้จะรั้งไว้"
+    actions:
+    - type: 0
+      targetId: alice_evidence_arc.resolved
+    - type: 0
+      targetId: alice_evidence_arc.fulfilled
+    - type: 4
+      targetId: Alice
+      amount: 3
+    - type: 7
+      targetId: Alice
+      text: "ผู้เล่นนำหลักฐานกลับมาให้ Alice ดูตามสัญญาก่อนกลับไปสำรวจต่อ"

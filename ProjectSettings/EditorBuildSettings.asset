@@ -14,4 +14,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Room03.unity
     guid: fe49be172aba4c93878008f33ed56d9d
+  - enabled: 1
+    path: Assets/Samples/Observatory/ObservatoryA.unity
+    guid: 28fac81d11a93ae44b88a873a1900f50
+  - enabled: 1
+    path: Assets/Samples/Observatory/ObservatoryB.unity
+    guid: f5b7727932ebaf241988fd4b30f6ece4
   m_configObjects: {}

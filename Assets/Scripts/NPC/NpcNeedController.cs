@@ -9,6 +9,29 @@ public class NpcNeedController : MonoBehaviour
     [SerializeField] private List<NpcNeedRate> needs = new List<NpcNeedRate>();
     [SerializeField] private List<NpcEmotionRate> emotions =
         new List<NpcEmotionRate>();
+    private GameState observed;
+
+    private void OnEnable()
+    {
+        BindState();
+        InitializeMissingValues();
+    }
+
+    private void BindState()
+    {
+        if (observed == GameState.Instance) return;
+        UnbindState();
+        observed = GameState.Instance;
+        if (observed != null) observed.StateReset += InitializeMissingValues;
+    }
+
+    private void UnbindState()
+    {
+        if (observed != null) observed.StateReset -= InitializeMissingValues;
+        observed = null;
+    }
+
+    private void OnDisable() { UnbindState(); }
 
     private void Start()
     {
@@ -19,19 +42,29 @@ public class NpcNeedController : MonoBehaviour
             return;
         }
 
+        BindState();
+        InitializeMissingValues();
+    }
+
+    // Fill only missing values, including optional fields in legacy saves.
+    // Existing saved needs/emotions always win over scene defaults.
+    private void InitializeMissingValues()
+    {
+        if (observed == null) return;
+
         foreach (NpcNeedRate need in needs)
         {
-            if (!GameState.Instance.HasNpcNeed(npcId, need.needId))
+            if (need != null && !observed.HasNpcNeed(npcId, need.needId))
             {
-                GameState.Instance.SetNpcNeed(npcId, need.needId, need.initialValue);
+                observed.SetNpcNeed(npcId, need.needId, need.initialValue);
             }
         }
 
         foreach (NpcEmotionRate emotion in emotions)
         {
-            if (!GameState.Instance.HasNpcEmotion(npcId, emotion.emotionId))
+            if (emotion != null && !observed.HasNpcEmotion(npcId, emotion.emotionId))
             {
-                GameState.Instance.SetNpcEmotion(
+                observed.SetNpcEmotion(
                     npcId,
                     emotion.emotionId,
                     emotion.initialValue
@@ -47,8 +80,13 @@ public class NpcNeedController : MonoBehaviour
             return;
         }
 
+        BindState();
+        InitializeMissingValues();
+        if (!InputGate.IsGameplayActive) return;
+
         foreach (NpcNeedRate need in needs)
         {
+            if (need == null) continue;
             float change = need.increasePerMinute * Time.deltaTime / 60f;
             GameState.Instance.ChangeNpcNeed(npcId, need.needId, change);
         }
@@ -56,6 +94,7 @@ public class NpcNeedController : MonoBehaviour
 
         foreach (NpcEmotionRate emotion in emotions)
         {
+            if (emotion == null) continue;
             float change = emotion.changePerMinute * Time.deltaTime / 60f;
             GameState.Instance.ChangeNpcEmotion(
                 npcId,

@@ -5,6 +5,17 @@ using UnityEngine;
 
 namespace MysteryGame.Knowledge
 {
+    /// <summary>Authored interpretation of evidence. First matching rule wins.</summary>
+    [Serializable]
+    public class EvidenceReaction
+    {
+        public string factId;
+        public List<ConditionRule> when = new List<ConditionRule>();
+        [TextArea(2, 5)] public string reply;
+        [TextArea(2, 5)] public string repeatReply;
+        [Range(-15, 10)] public int relationshipDelta;
+    }
+
     /// <summary>A fact this NPC only learns once something happens.</summary>
     [Serializable]
     public class KnowledgeGrant
@@ -29,6 +40,9 @@ namespace MysteryGame.Knowledge
     {
         [TextArea(2, 5)]
         public string statement;
+
+        [Tooltip("Distinctive phrases/aliases that must not appear outside this authored fact. Avoid generic feelings.")]
+        public List<string> protectedTerms = new List<string>();
     }
 
     /// <summary>Extra direction for the model that only applies in some states.</summary>
@@ -80,6 +94,7 @@ namespace MysteryGame.Knowledge
     public class FallbackReplyRule
     {
         public string ruleId;
+        public InputPuzzleData answerPuzzle;
 
         [Tooltip("Must be present in the message. None matches any message.")]
         public PlayerIntent intent = PlayerIntent.None;
@@ -100,6 +115,8 @@ namespace MysteryGame.Knowledge
 
         public bool Matches(string message, PlayerIntent detected, GameState state)
         {
+            if (answerPuzzle != null && state != null && state.HasFlag(answerPuzzle.solvedFlag)) return false;
+            if (answerPuzzle != null && !answerPuzzle.Accepts(message)) return false;
             if (replies == null || replies.Count == 0)
             {
                 return false;
@@ -110,7 +127,7 @@ namespace MysteryGame.Knowledge
                 return false;
             }
 
-            if (keywords != null && keywords.Count > 0 &&
+            if (answerPuzzle == null && keywords != null && keywords.Count > 0 &&
                 !PlayerIntentClassifier.ContainsAny(message, keywords.ToArray()))
             {
                 return false;
@@ -148,7 +165,22 @@ namespace MysteryGame.Knowledge
 
         public string displayName;
 
+        [Tooltip("What anyone in the same room sees at a glance. Other NPCs are told this when this NPC is in their room.")]
+        [TextArea(2, 3)] public string appearance;
+
         [TextArea(3, 8)] public string persona;
+
+        /// <summary>The authored appearance, or the first line of the persona.</summary>
+        public string Appearance
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(appearance)) return appearance.Trim();
+                if (string.IsNullOrWhiteSpace(persona)) return string.Empty;
+                string first = persona.Split('\n')[0].Trim();
+                return first.Length > 160 ? first.Substring(0, 160) + "..." : first;
+            }
+        }
         [TextArea(2, 5)] public string speechStyle;
         [TextArea(2, 4)] public string personalGoal;
 
@@ -185,6 +217,10 @@ namespace MysteryGame.Knowledge
         [Tooltip("Facts this NPC must never reveal, even when they know them.")]
         public List<string> forbiddenFactIds = new List<string>();
 
+        [Header("Evidence brought by the player")]
+        [Tooltip("Specific reactions first, general reactions last. Rewards apply once per NPC/room/fact.")]
+        public List<EvidenceReaction> evidenceReactions = new List<EvidenceReaction>();
+
         [Header("Hinting")]
         [Tooltip("Off for gatekeepers like Sena, who berate instead of helping.")]
         public bool givesHints = true;
@@ -219,7 +255,16 @@ namespace MysteryGame.Knowledge
                 return false;
             }
 
+            if (state != null && NpcObservation.Knows(state, npcId, state.GetCurrentScene(), factId)) return true;
+
             if (knownFactIds != null && knownFactIds.Contains(factId))
+            {
+                return true;
+            }
+
+            var room = state != null ? KnowledgeLibrary.GetRoom(state.GetCurrentScene()) : null;
+            if (room != null && EvidenceSharing.HasBeenShared(
+                    state, npcId, room.roomId, factId))
             {
                 return true;
             }

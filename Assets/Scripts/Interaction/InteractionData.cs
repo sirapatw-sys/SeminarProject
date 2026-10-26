@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum CompanionInteractionOperation { Inspect, Open }
+
 [CreateAssetMenu(
     fileName = "NewInteractionData",
     menuName = "Game/Interaction Data"
@@ -9,7 +11,21 @@ public class InteractionData : ScriptableObject
 {
     [Header("Identity")]
     public string interactionId;
+    [Header("Companion access")]
+    [Tooltip("Explicit opt-in. NPC execution never reads acceptedAnswers or starts a scene transition.")]
+    public bool allowCompanionExecution;
+    [Tooltip("The operation these authored effects perform. Inspect requests must never run Open effects.")]
+    public CompanionInteractionOperation companionOperation;
+    [TextArea] public string companionMessage;
     public string displayName;
+    public InputPuzzleData inputPuzzle;
+    [Tooltip("Hide from focus selection until conditions hold (e.g. a guarded door).")]
+    public bool hideFocusUntilAvailable;
+    [Tooltip("Optional preparation time when inspecting alone; an active companion hold skips it.")]
+    [Min(0f)] public float soloPreparationSeconds;
+    public string helperNpcId;
+    public string preparationLabel = "กำลังเตรียมสำรวจ";
+    [TextArea] public string assistedMessage;
 
     [Header("Dialogue")]
     [TextArea(2, 5)]

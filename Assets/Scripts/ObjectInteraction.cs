@@ -15,8 +15,42 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
     )]
     [SerializeField]
     private InteractionData followUpInteraction;
+    [Tooltip("Optional alternate interaction after a verified world flag, including repeatable base props.")]
+    [SerializeField] private string followUpWhenFlag;
 
     private Collider2D area;
+    private InteractionData preparing;
+    private float preparation;
+    private GameState preparationState;
+    public float PreparationProgress { get { return preparing == null ? 0f : Mathf.Clamp01(preparation / preparing.soloPreparationSeconds); } }
+
+    private bool Assisted(InteractionData data)
+    {
+        var state = GameState.Instance;
+        var actor = state == null ? null : MysteryGame.Companions.NpcCompanionController.Find(data.helperNpcId, state.GetCurrentScene());
+        return actor != null && actor.IsHolding(data.interactionId);
+    }
+    private void Update()
+    {
+        if (preparing == null) return;
+        var player = GameObject.FindGameObjectWithTag("Player");
+        var playerArea = player != null ? player.GetComponent<Collider2D>() : null;
+        if (area == null) area = GetComponent<Collider2D>();
+        string reason;
+        if (preparationState != GameState.Instance || player == null || InputGate.IsBlocked || ItemPopupUI.IsBusy ||
+            (area != null && playerArea != null && !area.bounds.Intersects(playerArea.bounds)) ||
+            Vector2.Distance(player.transform.position, FocusPoint) > 2.5f ||
+            !InteractionSystem.CanExecute(preparing, GameState.Instance, out reason))
+        { CancelPreparation(); return; }
+        preparation += Time.deltaTime;
+        if (preparation >= preparing.soloPreparationSeconds || Assisted(preparing))
+        { var data = preparing; CancelPreparation(); ExecuteInteraction(data); }
+    }
+    private void CancelPreparation()
+    {
+        if (preparationState != null) { preparationState.StateReset -= CancelPreparation; preparationState.StateRestored -= CancelPreparation; }
+        preparing = null; preparationState = null; preparation = 0f;
+    }
 
     // ------------------------------------------------------------ IFocusable
     // InteractionFocus picks the nearest interactable and calls Interact().
@@ -27,7 +61,8 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         {
             InteractionData data = ActiveData;
             // Sena answers E at the gate while she still guards it.
-            return data != null && !(IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor);
+            return data != null && (!data.hideFocusUntilAvailable ||
+                ConditionRule.AllHold(data.conditions, GameState.Instance));
         }
     }
 
@@ -36,7 +71,8 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
         get
         {
             InteractionData data = ActiveData;
-            return data != null ? "กด E เพื่อสำรวจ " + data.displayName : string.Empty;
+            return preparing != null ? preparing.preparationLabel + " " + Mathf.RoundToInt(PreparationProgress * 100f) + "% · เดินออกเพื่อหยุด" :
+                data != null ? "กด E เพื่อสำรวจ " + data.displayName : string.Empty;
         }
     }
 
@@ -59,14 +95,16 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
     }
 
     /// <summary>The interaction this object offers right now.</summary>
-    private InteractionData ActiveData
+    public InteractionData ActiveData
     {
         get
         {
             GameState state = GameState.Instance;
             if (followUpInteraction != null && interactionData != null &&
-                !interactionData.repeatable && state != null &&
-                state.HasFlag("interaction." + interactionData.interactionId + ".completed"))
+                state != null &&
+                ((!string.IsNullOrWhiteSpace(followUpWhenFlag) && state.HasFlag(followUpWhenFlag)) ||
+                 (string.IsNullOrWhiteSpace(followUpWhenFlag) && !interactionData.repeatable &&
+                  state.HasFlag("interaction." + interactionData.interactionId + ".completed"))))
             {
                 return followUpInteraction;
             }
@@ -77,6 +115,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
 
     private void TryInteract()
     {
+        if (!isActiveAndEnabled || InputGate.IsBlocked) return;
         InteractionData data = ActiveData;
         if (data == null)
         {
@@ -96,56 +135,55 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
             return;
         }
 
-        // 0. Sena guards the celestial gate. While she is still standing
-        // there, her trigger overlaps the door's, so let her own script own
-        // the E key instead of both of them opening a dialogue at once.
-        if (IsCelestialDoor(data) && SenaInteraction.IsGuardingDoor)
-        {
-            return;
-        }
-
         GameState state = GameState.Instance;
-
-        // 1. Special Case: Drawer 4-Digit Combination Lock
-        if (data.interactionId == "open_drawer")
+        string unavailable;
+        if (data.inputPuzzle != null && data.inputPuzzle.numeric &&
+            data.inputPuzzle.acceptedAnswers != null && data.inputPuzzle.acceptedAnswers.Count == 1 &&
+            InteractionSystem.CanExecute(data, state, out unavailable))
         {
-            if (state != null && state.HasFlag("drawer_opened"))
-            {
-                ShowDialogue(
-                    data.displayName,
-                    "ลิ้นชักเปิดออกแล้ว และไม่มีอะไรเหลืออยู่ข้างในแล้ว"
-                );
-                return;
-            }
-
-            SfxPlayer.Play(SfxPlayer.Cue.Interact);
-            KeypadLockUI.Show(
-                targetCode: "4592",
-                title: "แม่กุญแจรหัสของลิ้นชัก (Drawer Lock)",
-                hint: "ใส่รหัสตัวเลข 4 หลักเพื่อปลดล็อคลิ้นชัก",
-                onSuccess: () =>
+            var puzzle = data.inputPuzzle;
+            KeypadLockUI.Show(puzzle.acceptedAnswers[0], puzzle.title, puzzle.question,
+                () => ExecuteInteraction(data, puzzle.acceptedAnswers[0]),
+                answer =>
                 {
-                    if (GameState.Instance != null)
-                    {
-                        GameState.Instance.SetFlag("drawer_opened");
-                        GameState.Instance.AddItem("key");
-                    }
-                    SfxPlayer.Play(SfxPlayer.Cue.Success);
-                    ShowDialogue(
-                        data.displayName,
-                        "รหัสถูกต้อง! ได้ยินเสียงสลักปลดล็อคดังคลิก...\nในลิ้นชักมีกุญแจทองเหลืองโบราณซ่อนอยู่!"
-                    );
-                }
-            );
+                    if (this == null || InteractionSystem.Instance == null) return;
+                    // Reuse the puzzle's authoritative validation/signals without
+                    // starting dialogue over the still-open keypad.
+                    string ignored;
+                    InteractionSystem.Instance.TryExecute(data, out ignored, answer);
+                });
             return;
         }
+        if (data.soloPreparationSeconds > 0f && !Assisted(data) &&
+            !state.HasFlag("interaction." + data.interactionId + ".prepared") &&
+            InteractionSystem.CanExecute(data, state, out unavailable))
+        {
+            if (preparing == null)
+            {
+                preparing = data; preparationState = state; preparation = 0f;
+                state.StateReset += CancelPreparation; state.StateRestored += CancelPreparation;
+            }
+            return;
+        }
+        ExecuteInteraction(data);
+    }
 
+    private void ExecuteInteraction(InteractionData data, string answer = null)
+    {
+        GameState state = GameState.Instance;
         string responseMessage;
+        bool assisted = Assisted(data);
 
         bool success = InteractionSystem.Instance.TryExecute(
             data,
-            out responseMessage
+            out responseMessage,
+            answer
         );
+        if (success && data.soloPreparationSeconds > 0f)
+        {
+            state.SetFlag("interaction." + data.interactionId + ".prepared");
+            if (assisted && !string.IsNullOrWhiteSpace(data.assistedMessage)) responseMessage = data.assistedMessage;
+        }
 
         SfxPlayer.Play(success ? SfxPlayer.Cue.Interact : SfxPlayer.Cue.Locked);
         if (success && data.successClip != null)
@@ -186,14 +224,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
             );
         }
 
-        // 3. Special Case: Desk Note (Repeatable reading)
-        if (data.interactionId == "inspect_desk" &&
-            state != null && state.HasFlag("found_note"))
-        {
-            ItemPopupUI.ShowItem("paper");
-        }
-
-        // 4. Doors that lead on are data: transitionScene / endsDemo on the
+        // Doors that lead on are data: transitionScene / endsDemo on the
         // InteractionData, applied only when the interaction succeeded.
         if (success && RoomTransitionManager.Instance != null)
         {
@@ -211,13 +242,6 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
                 );
             }
         }
-    }
-
-    private static bool IsCelestialDoor(InteractionData data)
-    {
-        return data != null &&
-               (data.interactionId == "unlock_celestial_door" ||
-                data.interactionId == "unlock_door_r2");
     }
 
     private void ShowDialogue(
@@ -261,6 +285,7 @@ public class ObjectInteraction : MonoBehaviour, IFocusable
 
     private void OnDisable()
     {
+        CancelPreparation();
         InteractionFocus.Exit(this);
     }
 }

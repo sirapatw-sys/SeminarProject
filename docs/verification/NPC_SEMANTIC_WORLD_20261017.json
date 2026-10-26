@@ -1,0 +1,56 @@
+{
+  "recordedOn": "2026-10-17",
+  "repository": "sirapatw-sys/SeminarProject",
+  "branch": "codex/npc-cothinking",
+  "gameSourceCommit": "e58d66ced4caf00c9d36b1aa5755c3e7193335da",
+  "developBase": "a6c6d23d2c8110d7fe0a37b633b12c7ea0f62e53",
+  "unityVersion": "2021.3.16f1",
+  "scope": "Recorded local Unity runs at gameSourceCommit; this handoff changes documentation only. Original Logs are ignored and are not included in a clone.",
+  "tests": [
+    {
+      "platform": "EditMode",
+      "file": "Logs/NpcSemanticWorld_20261017/EditModeAccepted.xml",
+      "result": "Passed",
+      "total": 1296,
+      "passed": 1296,
+      "failed": 0,
+      "skipped": 0,
+      "sha256": "2C404F909BB87AF89F1EEADE9047883868481BF1A03599A0A851E3AA0FD4E8F8"
+    },
+    {
+      "platform": "PlayMode",
+      "file": "Logs/NpcSemanticWorld_20261017/PlayModeAccepted.xml",
+      "result": "Passed",
+      "total": 348,
+      "passed": 348,
+      "failed": 0,
+      "skipped": 0,
+      "sha256": "D6A119066E7B772044C84844214151F3AEBC128721A3A7860E91C76510A92515"
+    }
+  ],
+  "uniqueCasesAcrossPlatforms": 1644,
+  "providerEvidence": "Simulated/offline providers; no live KKU or other provider evaluation in this delivery.",
+  "build": {
+    "target": "StandaloneWindows64",
+    "configuration": "AI-enabled release; NPC_PLAYTEST_BUILD disabled",
+    "result": "Succeeded",
+    "errors": 0,
+    "directory": "Logs/CompanionAiBuilds/20261017-015338-a10e7e",
+    "log": "Logs/NpcSemanticWorld_20261017/Build.log",
+    "logSha256": "42018BE3FC3F43C20AA18807C09FF44B4EE92539D058F3AF1B70098070B4206A",
+    "zip": "MysteryGame-AI-Enabled-SemanticWorld-20261017.zip",
+    "zipBytes": 74208896,
+    "zipSha256": "477BBF248D2891D280EF0DAE9959673411B248B6F4FEE4B666B727DDCC1CE3C0",
+    "distribution": "Local artifact delivered to project owner; not uploaded to Git.",
+    "excluded": ["API key files", "UserSettings", "BurstDebugInformation_DoNotShip"]
+  },
+  "notVerified": [
+    "Live provider natural-language accuracy and latency",
+    "Manual Windows visual/audio gameplay QA",
+    "Player enjoyment or companion-value study",
+    "Windows player FPS",
+    "Independent teammate or CI rerun",
+    "Embedded or local language-model runtime"
+  ],
+  "hashNote": "Hashes identify recorded local evidence, not expected hashes of a future rerun. XML timestamps make rerun hashes differ."
+}

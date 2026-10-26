@@ -44,3 +44,8 @@ CopyPasteAssets/Sound/1 hour of silence occasionally broken up by random roblox 
 
 # Seminar course paperwork (reports, proposal, infographic): kept locally, not part of the game
 seminar assignment docs/
+
+# Local presentation tooling and exports; keep on disk, not in game commits
+/.codex-build/
+/.codex-finalizer/
+/outputs/

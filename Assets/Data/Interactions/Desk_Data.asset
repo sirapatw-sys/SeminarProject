@@ -13,7 +13,13 @@ MonoBehaviour:
   m_Name: Desk_Data
   m_EditorClassIdentifier: 
   interactionId: inspect_desk
+  allowCompanionExecution: 0
+  companionMessage: "ฉันตรวจซอกขอบโต๊ะแล้ว พบกระดาษโน้ตพับอยู่ เก็บสิ่งที่พบไว้ในสมุดให้แล้วนะ"
   displayName: Desk
+  soloPreparationSeconds: 2
+  helperNpcId: Alice
+  preparationLabel: "กำลังประคองขอบโต๊ะและสำรวจ"
+  assistedMessage: "Alice จับขอบโต๊ะที่โยกไว้ให้ คุณจึงใช้มือทั้งสองตรวจซอกใต้ขอบโต๊ะได้สะดวก... พบกระดาษโน้ตพับซ่อนอยู่!"
   interactionMessage: "คุณไล่มือไปตามขอบโต๊ะทำงานตามที่ข้อความหลังภาพบอก... ตรงซอกใต้ขอบโต๊ะมีกระดาษโน้ตแผ่นหนึ่งพับซ่อนอยู่!"
   failureMessage: "โต๊ะทำงานไม้ตัวเก่า ดูเผินๆ เหมือนไม่มีอะไรผิดปกติ..."
   repeatable: 1
@@ -26,4 +32,5 @@ MonoBehaviour:
   - type: 0
     targetId: found_note
     amount: 0
-    text: 
+    text:
+  popupItemId: paper

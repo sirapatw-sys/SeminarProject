@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MysteryGame.Core;
 using UnityEngine;
 
 public class ItemPopupUI : MonoBehaviour
@@ -43,6 +44,20 @@ public class ItemPopupUI : MonoBehaviour
     {
         get { return (_instance != null && _instance.isShowing) || pendingItems.Count > 0; }
     }
+
+    private static int closedOnFrame = -1;
+    private static readonly KeyCode[] DismissKeys = { KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter, KeyCode.Escape, KeyCode.E };
+    public static bool HoldsInput { get { return IsBusy || closedOnFrame == Time.frameCount; } }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetInputFrame() { closedOnFrame = -1; }
+
+    public static void CancelAll()
+    {
+        pendingItems.Clear();
+        if (_instance != null) _instance.ClosePopup(false);
+        closedOnFrame = -1; // Programmatic cleanup is not a player key press.
+    }
     private ItemInfo currentItem;
     private Sprite[] currentFrames;
     private float animationFps = 20f;
@@ -79,27 +94,11 @@ public class ItemPopupUI : MonoBehaviour
 
         bool hasExplicitName = !string.IsNullOrWhiteSpace(displayName);
 
-        // Fill default info if not provided
+        ItemData item = ItemData.Find(itemId);
         if (string.IsNullOrWhiteSpace(displayName))
-        {
-            if (itemId.Equals("key", System.StringComparison.OrdinalIgnoreCase))
-            {
-                displayName = "กุญแจทองเหลืองโบราณ (Brass Key)";
-                description = "กุญแจทองเหลืองเก่าแก่ที่ซ่อนอยู่ในลิ้นชัก สามารถใช้ไขประตูทางออกของห้องนี้ได้";
-            }
-            else if (itemId.Equals("paper", System.StringComparison.OrdinalIgnoreCase) ||
-                     itemId.Equals("note", System.StringComparison.OrdinalIgnoreCase))
-            {
-                displayName = "บันทึกของผู้รอดชีวิตคนก่อน (Survivor's Note)";
-                description = "\"วันที่เท่าไหร่แล้วก็ไม่รู้... ฉันติดอยู่ในห้องบ้าๆ นี่มานานเกินไป ความเครียดจะบดขยี้สติฉันอยู่แล้ว!\nฉันพยายามทุกวิถีทางเพื่อเปิดลิ้นชักนั่น... ในที่สุดหลังจากการลองสุ่มตัวเลข 4 หลักนับร้อยครั้ง... ฉันถอดรหัสมันได้แล้ว!\nรหัสเปิดลิ้นชักคือ  [ 4 5 9 2 ]\n...ใครก็ตามที่มาพบโน้ตนี้ รีบเอากุญแจข้างในแล้วหนีออกไปซะ!\"";
-            }
-            else
-            {
-                displayName = GenericItemPrefix + itemId;
-                description = "คุณได้รับ " + itemId + " เก็บไว้ในช่องเก็บของแล้ว";
-            }
-        }
-
+            displayName = item != null ? item.displayName : GenericItemPrefix + itemId;
+        if (string.IsNullOrWhiteSpace(description))
+            description = item != null ? item.description : "คุณได้รับ " + itemId;
         ItemInfo info = new ItemInfo
         {
             itemId = itemId,
@@ -188,10 +187,11 @@ public class ItemPopupUI : MonoBehaviour
 
     private void Update()
     {
+        if (AiSettingsPanel.HoldsKeyboard) return;
         // If not showing and have pending items, wait until dialogue closes
         if (!isShowing && pendingItems.Count > 0)
         {
-            if (!DialogueManager.IsDialogueOpen && !AiSettingsPanel.IsOpen && !KeypadLockUI.IsOpen)
+            if (InputGate.IsGameplayActive && !DialogueManager.IsDialogueOpen && !KeypadLockUI.IsOpen && !JournalUI.IsOpen)
             {
                 DisplayNextItem();
             }
@@ -200,16 +200,16 @@ public class ItemPopupUI : MonoBehaviour
         // Close on keyboard input
         if (isShowing)
         {
-            if (Time.unscaledTime - popupOpenedTime > 0.25f &&
-                (Input.GetKeyDown(KeyCode.Space) ||
-                 Input.GetKeyDown(KeyCode.Return) ||
-                 Input.GetKeyDown(KeyCode.KeypadEnter) ||
-                 Input.GetKeyDown(KeyCode.Escape) ||
-                 Input.GetKeyDown(KeyCode.E)))
-            {
-                ClosePopup();
-            }
+            foreach (var key in DismissKeys)
+                if (Input.GetKeyDown(key)) { HandleKey(key); break; }
         }
+    }
+
+    private void HandleKey(KeyCode key)
+    {
+        if (AiSettingsPanel.HoldsKeyboard || !isShowing || Time.unscaledTime - popupOpenedTime <= 0.25f) return;
+        if (key == KeyCode.Space || key == KeyCode.Return || key == KeyCode.KeypadEnter || key == KeyCode.Escape || key == KeyCode.E)
+            ClosePopup();
     }
 
     private void DisplayNextItem()
@@ -225,8 +225,9 @@ public class ItemPopupUI : MonoBehaviour
         popupOpenedTime = Time.unscaledTime;
     }
 
-    private void ClosePopup()
+    private void ClosePopup(bool consumeInput = true)
     {
+        if (consumeInput && isShowing) closedOnFrame = Time.frameCount;
         isShowing = false;
         currentFrames = null;
     }

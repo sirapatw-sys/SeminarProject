@@ -199,8 +199,12 @@ namespace MysteryGame.Tests
                 MiniEventData data = AssetDatabase.LoadAssetAtPath<MiniEventData>(
                     AssetDatabase.GUIDToAssetPath(guid));
                 Assert.That(data.dialogue, Is.Not.Null, data.name + " has no dialogue");
-                Assert.That(data.dialogue.choices.Count, Is.InRange(1, 4),
-                            data.name + " needs 1-4 choices for the choice panel");
+                Assert.That(data.dialogue.lines, Is.Not.Null.And.Not.Empty, data.name + " has no opening");
+                Assert.That(data.dialogue.choices, Is.Not.Null, data.name + " has no choices collection");
+                // Free-text invitations can finish on opening, while events
+                // that commit on a choice must still offer an actual choice.
+                Assert.That(data.dialogue.choices.Count, Is.InRange(data.completeOnChoice ? 1 : 0, 4),
+                            data.name + " has choices inconsistent with its completion mode");
                 if (data.triggerType == MiniEventTriggerType.RoomProgress)
                 {
                     bool found = false;

@@ -5,6 +5,14 @@
 /// </summary>
 public static class InputGate
 {
+    public static bool BlocksCompanionSimulation => !IsGameplayActive || DialogueManager.IsDialogueOpen ||
+        AiSettingsPanel.IsOpen || KeypadLockUI.IsOpen || JournalUI.IsOpen || ItemPopupUI.HoldsInput;
+    /// <summary>Room simulation is active; a conversation/settings modal may still hold input.</summary>
+    public static bool IsGameplayActive
+    {
+        get { return !IntroSequence.IsPlaying && !TitleMenu.IsOpen && !RoomTransitionManager.IsBusy; }
+    }
+
     public static bool IsBlocked
     {
         get
@@ -12,9 +20,11 @@ public static class InputGate
             return IntroSequence.IsPlaying ||
                    TitleMenu.IsOpen ||
                    DialogueManager.IsDialogueOpen ||
+                   MysteryGame.Companions.CompanionChatPanel.IsOpen ||
                    AiSettingsPanel.IsOpen ||
                    KeypadLockUI.IsOpen ||
                    JournalUI.IsOpen ||
+                   ItemPopupUI.HoldsInput ||
                    RoomTransitionManager.IsBusy;
         }
     }

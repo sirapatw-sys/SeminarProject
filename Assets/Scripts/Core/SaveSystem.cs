@@ -11,6 +11,9 @@ using UnityEngine;
 public static class SaveSystem
 {
     public const int Version = 1;
+    public static bool PersistenceEnabled { get; set; } = true;
+    public static string LastError { get; private set; }
+    public static bool RecoveredFromBackup { get; private set; }
     private const string FileName = "save.json";
 
     [Serializable]
@@ -23,23 +26,53 @@ public static class SaveSystem
 
     public static string SavePath
     {
-        get { return Path.Combine(Application.persistentDataPath, FileName); }
+        get
+        {
+            var game = GameDefinition.Current;
+            string id = game != null ? game.gameId : "mystery";
+            if (string.IsNullOrWhiteSpace(id) || id == "mystery")
+                return Path.Combine(Application.persistentDataPath, FileName); // existing saves
+            string safeId = System.Text.RegularExpressions.Regex.Replace(id, "[^a-zA-Z0-9_-]", "_");
+            return Path.Combine(Application.persistentDataPath, safeId + "_" + FileName);
+        }
     }
 
     public static bool HasSave
     {
-        get { return File.Exists(SavePath); }
+        get { return File.Exists(SavePath) || File.Exists(SavePath + ".bak"); }
     }
 
-    /// <summary>When the save on disk was written, for the title menu.</summary>
+    private static string cachedSavedAtKey;
+    private static string cachedSavedAt = string.Empty;
+
+    /// <summary>
+    /// When the save on disk was written, for the title menu. The menu asks on
+    /// every GUI event, so the parsed value is cached until the files change
+    /// instead of reading and validating the whole save several times a frame.
+    /// </summary>
     public static string LastSavedAt()
     {
+        string path = SavePath;
+        string key;
+        try
+        {
+            key = path + "|" + (File.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0) +
+                  "|" + (File.Exists(path + ".bak") ? File.GetLastWriteTimeUtc(path + ".bak").Ticks : 0);
+        }
+        catch (Exception) { key = null; }
+        if (key != null && key == cachedSavedAtKey) return cachedSavedAt;
+        string previousError = LastError;
         SaveFile file = Read();
-        return file != null ? file.savedAt : string.Empty;
+        LastError = previousError; // Reading for a label is not a failed load.
+        cachedSavedAt = file != null ? file.savedAt ?? string.Empty : string.Empty;
+        cachedSavedAtKey = key;
+        return cachedSavedAt;
     }
 
     public static bool Save()
     {
+        LastError = null;
+        if (!PersistenceEnabled) return false;
         if (GameState.Instance == null)
         {
             return false;
@@ -52,11 +85,12 @@ public static class SaveSystem
                 savedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
                 state = GameState.Instance.CreateSnapshot(),
             };
-            File.WriteAllText(SavePath, JsonUtility.ToJson(file, true));
+            AtomicSaveStore.Write(SavePath, JsonUtility.ToJson(file, true), IsValidSaveJson);
             return true;
         }
         catch (Exception ex)
         {
+            LastError = "บันทึกเกมไม่สำเร็จ เซฟก่อนหน้ายังคงอยู่";
             Debug.LogWarning("Could not write the save file: " + ex.Message);
             return false;
         }
@@ -68,30 +102,56 @@ public static class SaveSystem
     /// </summary>
     public static bool Load()
     {
+        LastError = null;
         SaveFile file = Read();
         if (file == null || file.state == null || GameState.Instance == null)
         {
+            if (string.IsNullOrEmpty(LastError)) LastError = "ไม่พบเซฟที่ใช้งานได้";
             return false;
         }
+        return TryLoadSnapshot(file.state);
+    }
 
-        GameState.Instance.RestoreSnapshot(file.state);
-        string scene = string.IsNullOrWhiteSpace(file.state.CurrentSceneId)
-            ? "Room01"
-            : file.state.CurrentSceneId;
-        RoomTransitionManager.Instance.TransitionToRoom(
-            scene,
-            "กำลังกลับไปยังจุดที่บันทึกไว้...");
-        return true;
+    /// <summary>The same safe load path, also usable with in-memory snapshots.</summary>
+    public static bool TryLoadSnapshot(StateSnapshot snapshot)
+    {
+        LastError = null;
+        var state = GameState.Instance;
+        StateSnapshot normalized;
+        string error;
+        if (state == null || RoomTransitionManager.IsBusy)
+        { LastError = "ยังโหลดเกมไม่ได้ในขณะนี้"; return false; }
+        if (!SnapshotValidator.TryNormalize(snapshot, out normalized, out error))
+        { LastError = "ข้อมูลเซฟไม่ถูกต้อง เกมเดิมยังคงอยู่"; return false; }
+        if (!RoomTransitionManager.CanLoadRoom(normalized.CurrentSceneId))
+        { LastError = "เซฟอ้างถึงห้องที่ไม่มีอยู่ เกมเดิมยังคงอยู่"; return false; }
+
+        var previous = state.CreateSnapshot();
+        if (!state.TryRestoreSnapshot(normalized, out error))
+        { LastError = "ข้อมูลเซฟไม่ถูกต้อง เกมเดิมยังคงอยู่"; return false; }
+        var transition = RoomTransitionManager.Instance;
+        bool started = transition.TryTransitionToRoom(normalized.CurrentSceneId,
+            "กำลังกลับไปยังจุดที่บันทึกไว้...", onFailure: () =>
+            {
+                string recoveryError;
+                if (state != null) state.TryRestoreSnapshot(previous, out recoveryError);
+                LastError = "โหลดห้องไม่สำเร็จ คืนสถานะเกมเดิมแล้ว";
+            });
+        if (!started)
+        {
+            state.TryRestoreSnapshot(previous, out error);
+            LastError = transition.LastError;
+        }
+        return started;
     }
 
     public static void Delete()
     {
+        if (!PersistenceEnabled) return;
         try
         {
-            if (File.Exists(SavePath))
-            {
-                File.Delete(SavePath);
-            }
+            AtomicSaveStore.Delete(SavePath);
+            RecoveredFromBackup = false;
         }
         catch (Exception ex)
         {
@@ -101,25 +161,36 @@ public static class SaveSystem
 
     private static SaveFile Read()
     {
+        return ReadFromPath(SavePath);
+    }
+
+    private static SaveFile ReadFromPath(string path)
+    {
+        string contents;
+        bool recovered;
+        RecoveredFromBackup = false;
+        if (!AtomicSaveStore.TryRead(path, IsValidSaveJson, out contents, out recovered))
+        { LastError = "ไม่พบเซฟหรือเซฟสำรองที่อ่านได้ เกมเดิมยังคงอยู่"; return null; }
+        RecoveredFromBackup = recovered;
+        LastError = null;
+        return JsonUtility.FromJson<SaveFile>(contents);
+    }
+
+    private static bool IsValidSaveJson(string contents)
+    {
         try
         {
-            if (!File.Exists(SavePath))
-            {
-                return null;
-            }
-
-            SaveFile file = JsonUtility.FromJson<SaveFile>(File.ReadAllText(SavePath));
-            if (file == null || file.version > Version)
-            {
-                return null;
-            }
-
-            return file;
+            var file = JsonUtility.FromJson<SaveFile>(contents);
+            StateSnapshot normalized;
+            string error;
+            if (file == null || file.version < 1 || file.version > Version ||
+                !SnapshotValidator.TryNormalize(file.state, out normalized, out error)) return false;
+            var game = GameDefinition.Current;
+            // File validation is independent of whether Unity currently has a
+            // player scene loaded (e.g. Editor tools). Load checks build availability.
+            return game == null || (game.rooms != null && game.rooms.Exists(room =>
+                room != null && room.roomId == normalized.CurrentSceneId));
         }
-        catch (Exception ex)
-        {
-            Debug.LogWarning("Save file is unreadable: " + ex.Message);
-            return null;
-        }
+        catch (Exception) { return false; }
     }
 }

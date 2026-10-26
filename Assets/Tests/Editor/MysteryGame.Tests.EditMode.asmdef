@@ -2,6 +2,7 @@
     "name": "MysteryGame.Tests.EditMode",
     "rootNamespace": "",
     "references": [
+        "CompanionFramework.Reasoning",
         "MysteryGame.Runtime",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"

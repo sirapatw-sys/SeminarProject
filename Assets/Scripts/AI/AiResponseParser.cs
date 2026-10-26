@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 /// <summary>
@@ -9,6 +10,7 @@ using UnityEngine;
 /// </summary>
 public static class AiResponseParser
 {
+    static readonly Regex WorldIntentProperty = new Regex(@"(?<!\\)""worldIntent""\s*:", RegexOptions.CultureInvariant);
     /// <summary>A typed-chat reply from either API shape, or null.</summary>
     public static GeneratedChatReply ParseReply(string body, bool responsesApi)
     {
@@ -56,6 +58,9 @@ public static class AiResponseParser
         try
         {
             GeneratedChatReply reply = JsonUtility.FromJson<GeneratedChatReply>(json);
+            // Unity can materialize a missing serializable nested class as an empty object.
+            // Absent legacy fields are different from a present but invalid semantic proposal.
+            if (reply != null && !WorldIntentProperty.IsMatch(json)) reply.worldIntent = null;
             return reply != null && reply.IsValid() ? reply : null;
         }
         catch (Exception)

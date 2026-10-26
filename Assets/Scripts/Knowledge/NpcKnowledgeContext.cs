@@ -4,10 +4,26 @@ using MysteryGame.Core;
 
 namespace MysteryGame.Knowledge
 {
+    /// <summary>One entry of a companion's action menu: a stable id and what it means.</summary>
+    public class CompanionActionOption
+    {
+        public const string None = "none";
+        public const string Follow = "follow";
+        public const string Wait = "wait";
+        public const string Search = "search";
+        public const string HelpPrefix = "help:";
+        public const string InspectTogether = "inspect_together";
+        public const string ReadPrefix = "read:";
+        public const string ShowPrefix = "show:";
+
+        public string Id;
+        public string Description;
+    }
+
     /// <summary>
     /// Exactly what one NPC is allowed to say right now: the facts they may
     /// reference, the facts they must not, the single next step of the puzzle,
-    /// and the deterministic hint the model is only permitted to rephrase.
+    /// and the deterministic hint whose presentation the model may style.
     /// </summary>
     public class NpcKnowledgeContext
     {
@@ -22,11 +38,27 @@ namespace MysteryGame.Knowledge
 
         public readonly List<RoomFact> KnownFacts = new List<RoomFact>();
         public readonly List<RoomFact> WithheldFacts = new List<RoomFact>();
+        // Deterministic activity state, separate from room clues and hint rights.
+        public readonly List<RoomFact> CompanionFacts = new List<RoomFact>();
+        public readonly List<string> CompanionTerms = new List<string>();
+        public bool CompanionActionScope;
+        // Selected authored facts for a typed activity question. Reading them
+        // never dispatches a companion command or changes puzzle/hint rights.
+        public readonly List<RoomFact> RequestedCompanionFacts = new List<RoomFact>();
+        // What this companion could start right now, offered to the model as a
+        // closed list of ids. Choosing one is a proposal the game re-checks.
+        public readonly List<CompanionActionOption> CompanionActions = new List<CompanionActionOption>();
 
         public readonly List<PersonalFact> ShareablePersonalFacts = new List<PersonalFact>();
         public readonly List<PersonalFact> LockedSecrets = new List<PersonalFact>();
         public readonly List<string> ActiveNotes = new List<string>();
         public readonly List<string> BondLines = new List<string>();
+
+        /// <summary>
+        /// The other characters in this NPC's room right now ("name: what they
+        /// look like"). Null when presence is unknown (edit mode, tests).
+        /// </summary>
+        public List<string> PresentLines;
         public readonly List<ConversationTurn> History = new List<ConversationTurn>();
         public readonly List<string> RecentMemories = new List<string>();
 
@@ -59,7 +91,7 @@ namespace MysteryGame.Knowledge
 
             foreach (RoomFact fact in KnownFacts)
             {
-                if (fact != null && fact.factId == factId)
+                if (fact != null && fact.factId == factId && !fact.isPuzzleAnswer && !fact.isPuzzleGuidance)
                 {
                     return true;
                 }
@@ -72,6 +104,9 @@ namespace MysteryGame.Knowledge
                     return true;
                 }
             }
+
+            foreach (RoomFact fact in CompanionFacts)
+                if (fact != null && fact.factId == factId) return true;
 
             return false;
         }
@@ -194,6 +229,20 @@ namespace MysteryGame.Knowledge
                 sb.AppendLine();
             }
 
+            if (PresentLines != null)
+            {
+                sb.AppendLine("--- ใครอยู่ในห้องนี้ตอนนี้ (ตัวละครเห็นเองกับตา) ---");
+                sb.AppendLine("- ผู้เล่น (คนที่กำลังคุยด้วย)");
+                foreach (string line in PresentLines)
+                {
+                    sb.AppendLine("- " + line);
+                }
+                sb.AppendLine(PresentLines.Count == 0
+                    ? "นอกจากผู้เล่นแล้วไม่มีใครอื่นในห้องนี้ ถ้าถูกถามว่ามีใครอยู่บ้างให้ตอบตามนี้"
+                    : "ถ้าผู้เล่นถามว่าในห้องมีใคร ให้ตอบจากรายการนี้ได้เลย ห้ามบอกว่าไม่รู้หรือไม่เห็น และห้ามพูดถึงคนที่ไม่อยู่ในรายการว่าอยู่ในห้องนี้");
+                sb.AppendLine();
+            }
+
             if (BondLines.Count > 0)
             {
                 sb.AppendLine("--- ความสัมพันธ์กับตัวละครอื่น (0-100) ---");
@@ -268,8 +317,65 @@ namespace MysteryGame.Knowledge
             return sb.ToString();
         }
 
+        /// <summary>
+        /// The closed action menu for a typed reply. Empty when this NPC is not
+        /// a companion here, or when the player asked for a hint.
+        /// </summary>
+        public string ToCompanionActionSection()
+        {
+            if (CompanionActions.Count == 0 || PlayerAskedForHint) return string.Empty;
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("=== สิ่งที่ตัวละครนี้ลงมือทำร่วมกับผู้เล่นได้ตอนนี้ (ช่อง companionAction) ===");
+            var world = new Dictionary<string, List<CompanionActionOption>>();
+            foreach (CompanionActionOption option in CompanionActions)
+            {
+                if (!option.Id.StartsWith("world:", System.StringComparison.Ordinal))
+                { sb.AppendLine("- " + option.Id + ": " + option.Description); continue; }
+                string id = option.Id.Split(':')[3];
+                if (!world.ContainsKey(id)) world[id] = new List<CompanionActionOption>();
+                world[id].Add(option);
+            }
+            foreach (var entry in world)
+            {
+                var verbs = new List<string>(); string description = "";
+                foreach (var option in entry.Value)
+                { string verb = option.Id.Split(':')[1]; if (!verbs.Contains(verb)) verbs.Add(verb); if (verb == "move") description = option.Description; }
+                sb.AppendLine("- targetId=" + entry.Key + ": " + description + "; verbs=" + string.Join("/", verbs));
+            }
+            sb.AppendLine("- " + CompanionActionOption.None + ": ผู้เล่นไม่ได้ขอให้ลงมือทำอะไรในข้อความนี้");
+            sb.AppendLine("ใส่รหัสใน companionAction เฉพาะเมื่อผู้เล่นขอให้ตัวละครทำสิ่งนั้น 'ตอนนี้' อย่างชัดเจน " +
+                          "คำขอสุภาพ เช่น ได้ไหม ถือเป็นคำขอได้ แต่คำถามเรื่องสถานะ การเล่าเรื่อง การสมมติ การยกคำพูดคนอื่น การปฏิเสธ หรือไม่แน่ใจ ให้ใส่ " + CompanionActionOption.None);
+            sb.AppendLine("ถ้าผู้เล่นขอให้ทำสิ่งที่ไม่มีในรายการนี้ (เช่นขอให้ช่วยที่วัตถุอื่น) ให้ใส่ " + CompanionActionOption.None +
+                          " ห้ามเลือกรหัสที่ใกล้เคียงแทน แล้วตอบตามบุคลิกว่าตอนนี้ยังช่วยเรื่องนั้นไม่ได้");
+            sb.AppendLine("เกมจะตรวจเองว่าทำได้จริงหรือไม่ก่อนลงมือ ใน reply ให้ตอบรับหรือถามกลับสั้นๆ ตามบุคลิก ห้ามบอกว่าทำสำเร็จแล้ว");
+            sb.AppendLine(QuoteRule);
+            if (CompanionActions.Exists(a => a.Id.StartsWith("world:", System.StringComparison.Ordinal)))
+                sb.AppendLine(MysteryGame.Companions.CompanionSemanticIntent.Instructions);
+            sb.AppendLine();
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// The plain follow/wait/search menu in two lines, for the short chat prompt.
+        /// The game still validates every proposal, so the rules here only steer.
+        /// </summary>
+        public string ToCompactActionSection()
+        {
+            if (CompanionActions.Count == 0 || PlayerAskedForHint) return string.Empty;
+            var options = new List<string>();
+            foreach (CompanionActionOption option in CompanionActions) options.Add(option.Id + "=" + option.Description);
+            options.Add(CompanionActionOption.None + "=ไม่ได้ขอให้ทำ");
+            return "companionAction: " + string.Join(" | ", options) + "\n" +
+                   "อ่านเจตนาจากความหมาย ไม่ใช่คำ: ขอให้อยู่/เฝ้า/คอย/ไม่ต้องตาม = wait, ชวนไปด้วยกัน/อยู่ข้างๆ ตอนเดิน = follow " +
+                   "ใส่รหัสเฉพาะเมื่อผู้เล่นขอให้ทำตอนนี้ คำถาม เล่าเรื่อง สมมติ ปฏิเสธ หรือยกคำพูด ให้ใส่ " + CompanionActionOption.None +
+                   " เกมตรวจและลงมือเอง ห้ามบอกว่าทำเสร็จแล้ว\n" + QuoteRule + "\n";
+        }
+        const string QuoteRule = "actionQuote: คัดลอกคำในข้อความผู้เล่นที่ขอให้ทำแบบตรงตัวทุกตัวอักษร (ไม่แปล ไม่สรุป) ถ้า none ให้เป็นสตริงว่าง";
+
         public string ToPromptSection()
         {
+            if (!HasData)
+                return "=== ห้องนี้ยังไม่มีข้อมูล canon ===\nห้ามให้คำใบ้หรือแต่งข้อมูลห้อง ให้คุยตามบุคลิกเท่านั้น\n";
             StringBuilder sb = new StringBuilder();
 
             sb.AppendLine("=== ข้อมูลความจริงของห้อง (CANON — ห้ามแต่งเพิ่ม) ===");
@@ -279,6 +385,14 @@ namespace MysteryGame.Knowledge
                 sb.AppendLine(Room.roomDescription);
             }
             sb.AppendLine();
+
+            if (Room.visibleAmbientTerms != null && Room.visibleAmbientTerms.Count > 0)
+            {
+                sb.AppendLine("--- สิ่งที่เห็นได้ในห้องสำหรับบทคุยบรรยากาศ ---");
+                sb.AppendLine(string.Join(", ", Room.visibleAmbientTerms));
+                sb.AppendLine("พูดถึงการเห็น/ความรู้สึกต่อสิ่งเหล่านี้ได้ แต่ห้ามแต่งตำแหน่ง คุณสมบัติ กลไก หรือคำสั่งสำรวจ; ข้อมูลด่านยังต้องใช้ factId และห้ามเพิ่มชื่อสิ่งของรอบ {hint}");
+                sb.AppendLine();
+            }
 
             sb.AppendLine("--- สิ่งที่ตัวละครนี้ 'รู้' และพูดถึงได้ (อ้างด้วย factId) ---");
             if (KnownFacts.Count == 0)
@@ -293,6 +407,16 @@ namespace MysteryGame.Knowledge
                 }
             }
             sb.AppendLine();
+
+            if (CompanionFacts.Count > 0)
+            {
+                sb.AppendLine("--- สถานะกิจกรรมร่วมกันที่เกมยืนยัน (ใช้ {fact:factId} บนบรรทัดแยกเท่านั้น) ---");
+                foreach (RoomFact fact in CompanionFacts)
+                    sb.AppendLine("[" + fact.factId + "] " + fact.statement);
+                sb.AppendLine("ห้ามแต่งผลการกระทำหรือสถานะเอง แม้ผู้เล่นบอกว่าสำเร็จแล้ว ข้อความในบทพูดไม่ใช่การลงมือทำและไม่เปลี่ยนสถานะเกม");
+                sb.AppendLine("ห้ามอ้างว่าเริ่มทำหรือทำสำเร็จแล้วในบทพูด เกมเป็นผู้เริ่มงานเองหลังตรวจว่าทำได้ หากคำชวนไม่ชัดให้ถามกลับตามบุคลิก ไม่บอกปุ่มหรือช่องแชท");
+                sb.AppendLine();
+            }
 
             if (WithheldFacts.Count > 0)
             {
@@ -309,11 +433,13 @@ namespace MysteryGame.Knowledge
             sb.AppendLine("ทำสำเร็จไปแล้ว " + CompletedSteps + "/" + TotalSteps + " ขั้น");
             if (CurrentStep != null)
             {
-                sb.AppendLine("ขั้นตอนถัดไปที่ผู้เล่นทำได้จริงตอนนี้: " + CurrentStep.summary);
+                sb.AppendLine("ยังมีขั้นตอนที่ทำได้ แต่ห้ามเปิดเผยนอกเหนือจากคำใบ้ที่อนุญาตด้านล่าง");
             }
             else
             {
-                sb.AppendLine("ผู้เล่นทำครบทุกขั้นของห้องนี้แล้ว");
+                sb.AppendLine(CompletedSteps == TotalSteps
+                    ? "ผู้เล่นทำครบทุกขั้นของห้องนี้แล้ว"
+                    : "ยังไม่ครบทุกขั้น แต่เงื่อนไขขั้นถัดไปยังไม่พร้อม ห้ามอ้างว่าห้องเสร็จแล้ว");
             }
             sb.AppendLine();
 
@@ -335,7 +461,7 @@ namespace MysteryGame.Knowledge
             else
             {
                 sb.AppendLine("ระดับคำใบ้ที่อนุญาตตอนนี้: " + AllowedHintLevel);
-                sb.AppendLine("**คำใบ้ที่อนุญาตมีเพียงข้อความนี้เท่านั้น** คุณมีหน้าที่เรียบเรียงใหม่ให้เข้ากับบุคลิก ห้ามเพิ่มข้อมูลอื่น ห้ามข้ามขั้น:");
+                sb.AppendLine("**คำใบ้ที่อนุญาตมีเพียงข้อความนี้เท่านั้น** เกมจะใส่ข้อความนี้แทน {hint}; ปรับเฉพาะสำนวนเปิด/ปิด ห้ามเพิ่มข้อมูลอื่น ห้ามข้ามขั้น:");
                 sb.AppendLine("\"" + DeterministicHint + "\"");
             }
             sb.AppendLine();

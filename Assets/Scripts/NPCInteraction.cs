@@ -8,6 +8,8 @@ public class NPCInteraction : MonoBehaviour, IFocusable
     private NpcEventController eventController;
     private Collider2D talkArea;
 
+    public string NpcId { get { return dialogueData != null ? dialogueData.speakerId : string.Empty; } }
+
     private void Awake()
     {
         eventController = GetComponent<NpcEventController>();
@@ -20,7 +22,9 @@ public class NPCInteraction : MonoBehaviour, IFocusable
         get
         {
             return dialogueData != null && !string.IsNullOrWhiteSpace(dialogueData.speakerName)
-                ? "กด E เพื่อคุยกับ " + dialogueData.speakerName
+                ? (GetComponent<MysteryGame.Companions.CompanionHud>()?.DiscoveryIndicatorVisible == true
+                    ? "กด E เพื่อฟังสิ่งที่ " + dialogueData.speakerName + " พบ"
+                    : "กด E เพื่อคุยกับ " + dialogueData.speakerName)
                 : "กด E เพื่อคุย";
         }
     }
@@ -49,6 +53,7 @@ public class NPCInteraction : MonoBehaviour, IFocusable
 
     public void Interact()
     {
+        if (!isActiveAndEnabled || InputGate.IsBlocked) return;
         if (eventController != null &&
             eventController.TryStartPendingEvent())
         {
@@ -82,8 +87,14 @@ public class NPCInteraction : MonoBehaviour, IFocusable
         }
     }
 
+    private void OnEnable()
+    {
+        if (dialogueData != null) MysteryGame.Knowledge.RoomPresence.Enter(dialogueData.speakerId, gameObject.scene.name);
+    }
+
     private void OnDisable()
     {
+        if (dialogueData != null) MysteryGame.Knowledge.RoomPresence.Leave(dialogueData.speakerId, gameObject.scene.name);
         InteractionFocus.Exit(this);
     }
 }

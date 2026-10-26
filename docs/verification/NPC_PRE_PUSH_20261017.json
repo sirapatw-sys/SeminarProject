@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-17",
+  "branch": "codex/npc-cothinking",
+  "reviewed_head": "84d76de",
+  "runtime_commit": "74291498b70a83870f7c1982bf5563992765d326",
+  "remote_branch_before_push": "70024e44b9739419a67bc2b0a14c76b349a1bb32",
+  "develop_verified": "a6c6d23d2c8110d7fe0a37b633b12c7ea0f62e53",
+  "unity": "2021.3.16f1",
+  "tests": {
+    "PlayMode": {
+      "total": 374,
+      "passed": 374,
+      "failed": 0,
+      "skipped": 0,
+      "unity_exit_code": 0,
+      "path": "Logs/NpcPrePush_20261017/PlayMode.xml",
+      "sha256": "9B68D3EB9061DDB959D9CBC7FDB6DFA8CF1844CDBFBAC8B6395691257A212C71"
+    },
+    "EditMode": {
+      "total": 1296,
+      "passed": 1296,
+      "failed": 0,
+      "skipped": 0,
+      "unity_exit_code": 0,
+      "path": "Logs/NpcPrePush_20261017/EditMode.xml",
+      "sha256": "1E77E2890C6CDDF1C1DD02363009CD26DCDA0239259B5D0884EF259790E1A541"
+    }
+  },
+  "accepted_unique_total": 1670,
+  "new_runtime_changes_this_review": false,
+  "build": {
+    "source": "Existing successful build for identical runtime, not a new build in the pre-push review",
+    "verification": "docs/verification/NPC_REQUEST_ROUTING_20261017.json",
+    "zip_sha256_rechecked": "98D3D7A5203678BDFFB442CAD7A62075E9C3EF2F1454335AD7AD27D208C68001"
+  },
+  "credential_scan": {
+    "scope": "Pending filenames, final diff content and commit patch history",
+    "matched_known_patterns": 0,
+    "sensitive_filenames": 0,
+    "tracked_files_over_50mb": 0,
+    "limitation": "Pattern-based scan, not proof against all credential formats"
+  },
+  "not_verified": [
+    "Real API/token/quota/latency",
+    "Manual visual QA",
+    "FPS",
+    "CI"
+  ],
+  "publication_scope": "Push branch only; no merge, force push, PR edits or teammate messages"
+}
