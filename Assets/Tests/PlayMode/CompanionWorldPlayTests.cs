@@ -17,7 +17,7 @@ public class CompanionWorldPlayTests
     GameState State => GameState.Instance;
     class Provider : IAiDialogueProvider
     {
-        public string Action;
+        public string Action, Quote;
         public CompanionSemanticIntent Intent;
         public string Context;
         public bool Delay;
@@ -31,7 +31,7 @@ public class CompanionWorldPlayTests
         {
             Calls++; Callback = done; Context = context;
             if (Delay) { while (true) yield return null; }
-            done(new GeneratedChatReply { reply = "อืม", companionAction = Action, worldIntent = Intent });
+            done(new GeneratedChatReply { reply = "อืม", companionAction = Action, actionQuote = Quote, worldIntent = Intent });
         }
     }
     static void Title(bool value) { typeof(TitleMenu).GetProperty("IsOpen").SetValue(null, value); }
@@ -117,6 +117,30 @@ public class CompanionWorldPlayTests
             Assert.That(chat.LastReply, Does.Not.Contain("4592"));
         }
         finally { InteractionSignals.Completed -= player; InteractionSignals.CompanionCompleted -= npc; }
+    }
+    [UnityTest]
+    public IEnumerator WholeQuotedStatementCannotStartFollowing()
+    {
+        DialogueProviders.Override = new Provider { Action = "follow", Quote = "วันนี้อากาศดีจัง" };
+        chat.OpenSession(); chat.Submit("วันนี้อากาศดีจัง"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
+    }
+    [UnityTest]
+    public IEnumerator WholeQuotedFeelingCannotCancelFollowing()
+    {
+        Assert.That(actor.ApplyRoomCommand(CompanionCommand.Follow), Is.True);
+        DialogueProviders.Override = new Provider { Action = "wait", Quote = "เหนื่อยจัง" };
+        chat.OpenSession(); chat.Submit("เหนื่อยจัง"); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Following));
+    }
+    [UnityTest]
+    public IEnumerator WholeQuotedRequestLeadStillAllowsAnUnfamiliarStop()
+    {
+        Assert.That(actor.ApplyRoomCommand(CompanionCommand.Follow), Is.True);
+        const string message = "ช่วยปักหลักแป๊บนึง";
+        DialogueProviders.Override = new Provider { Action = "wait", Quote = message };
+        chat.OpenSession(); chat.Submit(message); yield return null;
+        Assert.That(actor.Mode, Is.EqualTo(CompanionMode.Waiting));
     }
     [Test]
     public void FinishedInspectionIsReportedRememberedAndRecalledWithoutTheModel()
@@ -263,6 +287,97 @@ public class CompanionWorldPlayTests
         yield return null;
         Assert.That(actor.GetComponent<CompanionWorkVisuals>().IsWorking, Is.True);
         Assert.That(actor.WorkAnimationTime, Is.GreaterThan(0f));
+    }
+    [Test]
+    public void InspectionPoseSettlesReachesAndRecovers()
+    {
+        Assert.That(CompanionWorkVisuals.EvaluateInspection(0f).Ready, Is.Zero);
+        Assert.That(CompanionWorkVisuals.EvaluateInspection(0.15f).Bend, Is.Zero);
+        Assert.That(CompanionWorkVisuals.EvaluateInspection(1.1f).Bend, Is.GreaterThan(0.95f));
+        Assert.That(CompanionWorkVisuals.EvaluateInspection(2.4f).Bend, Is.Zero);
+        Assert.That(CompanionWorkVisuals.EvaluateInspection(3.7f).Bend, Is.GreaterThan(0.95f));
+    }
+    [Test]
+    public void InspectionPoseIsBoundedAndContinuousBetweenCycles()
+    {
+        for (int i = 0; i < 3000; i++)
+        {
+            var pose = CompanionWorkVisuals.EvaluateInspection(i * 0.013f);
+            Assert.That(pose.Bend, Is.InRange(0f, 1f));
+            Assert.That(Mathf.Abs(pose.Sweep), Is.LessThanOrEqualTo(1f));
+            Assert.That(pose.Reach, Is.InRange(0f, 0.501f));
+        }
+        var before = CompanionWorkVisuals.EvaluateInspection(2.599f);
+        var after = CompanionWorkVisuals.EvaluateInspection(2.601f);
+        Assert.That(Mathf.Abs(before.Reach - after.Reach), Is.LessThan(0.001f));
+        Assert.That(Mathf.Abs(before.Bend - after.Bend), Is.LessThan(0.001f));
+    }
+    [UnityTest]
+    public IEnumerator InspectionAnimationShowsFocusNotExtraArmsAndReturnsToIdle()
+    {
+        var target = Target("painting"); float duration = target.Definition.workSeconds;
+        target.Definition.workSeconds = 4.6f;
+        try
+        {
+            actor.transform.position += (Vector3)(target.ApproachPoint - actor.Feet); Physics2D.SyncTransforms();
+            chat.OpenSession(); chat.Submit("ตรวจภาพวาดหน่อย"); chat.Close(); actor.Tick(0.05f);
+            Assert.That(actor.IsInspecting, Is.True);
+            Vector2 feet = actor.Feet; Vector3 root = actor.transform.position;
+            var body = actor.GetComponent<Collider2D>(); Assert.That(body, Is.Not.Null);
+            Bounds bounds = body.bounds;
+            var visuals = actor.GetComponent<CompanionWorkVisuals>();
+            Vector2 firstFocus = Vector2.zero; float travel = 0f;
+            int frame = 0;
+            foreach (float step in new[] { 0.1f, 0.45f, 0.55f, 0.65f })
+            {
+                actor.Tick(step); yield return null; yield return null;
+                Assert.That(visuals.IsWorking, Is.True);
+                if (frame == 0) firstFocus = visuals.InspectionFocus;
+                travel = Mathf.Max(travel, Vector2.Distance(firstFocus, visuals.InspectionFocus));
+                Assert.That(actor.transform.Find("InspectionLens").GetComponent<LineRenderer>().enabled, Is.True);
+                Assert.That(actor.transform.Find("HelpingArmLeft").GetComponent<LineRenderer>().enabled, Is.False);
+                Assert.That(actor.transform.Find("HelpingArmRight").GetComponent<LineRenderer>().enabled, Is.False);
+                Assert.That(actor.Feet, Is.EqualTo(feet)); Assert.That(actor.transform.position, Is.EqualTo(root));
+                Assert.That(body.bounds, Is.EqualTo(bounds));
+                CaptureInspectionFrame(++frame);
+            }
+            Assert.That(travel, Is.GreaterThan(0.05f));
+            Assert.That(GameState.Instance.HasFlag("inspected_painting"), Is.False);
+            Assert.That(actor.ApplyRoomCommand(CompanionCommand.Wait), Is.True);
+            yield return null; yield return null;
+            Assert.That(visuals.IsWorking, Is.False);
+            foreach (var line in actor.GetComponentsInChildren<LineRenderer>())
+                if (line.name.StartsWith("Helping", StringComparison.Ordinal) || line.name.StartsWith("InspectionLens", StringComparison.Ordinal)) Assert.That(line.enabled, Is.False);
+            yield return new WaitForSeconds(0.2f);
+            var artwork = actor.transform.Find("ChibiCharacterArtwork"); Assert.That(artwork, Is.Not.Null);
+            Assert.That(Mathf.Abs(Mathf.DeltaAngle(0f, artwork.localEulerAngles.z)), Is.LessThan(0.01f));
+            Assert.That(actor.Feet, Is.EqualTo(feet));
+        }
+        finally { target.Definition.workSeconds = duration; }
+    }
+    void CaptureInspectionFrame(int frame)
+    {
+        if (!Environment.GetCommandLineArgs().Contains("-npc-search-animation-capture")) return;
+        var camera = Camera.main; Assert.That(camera, Is.Not.Null);
+        Assert.That(SystemInfo.graphicsDeviceType, Is.Not.EqualTo(UnityEngine.Rendering.GraphicsDeviceType.Null));
+        var position = camera.transform.position; float size = camera.orthographicSize, aspect = camera.aspect;
+        var previousTarget = camera.targetTexture; var previousActive = RenderTexture.active;
+        var output = new RenderTexture(640, 640, 24); var pixels = new Texture2D(640, 640, TextureFormat.RGB24, false);
+        try
+        {
+            camera.transform.position = new Vector3(actor.Feet.x, actor.Feet.y + 0.65f, position.z);
+            camera.orthographicSize = 1.6f; camera.aspect = 1f; camera.targetTexture = output; camera.Render(); RenderTexture.active = output;
+            pixels.ReadPixels(new Rect(0, 0, 640, 640), 0, 0); pixels.Apply();
+            string folder = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../Logs/NpcSearchAnimation_20261018/Frames"));
+            System.IO.Directory.CreateDirectory(folder);
+            System.IO.File.WriteAllBytes(System.IO.Path.Combine(folder, "Inspection_" + frame + ".png"), pixels.EncodeToPNG());
+        }
+        finally
+        {
+            camera.transform.position = position; camera.orthographicSize = size; camera.aspect = aspect;
+            camera.targetTexture = previousTarget; RenderTexture.active = previousActive;
+            UnityEngine.Object.Destroy(pixels); UnityEngine.Object.Destroy(output);
+        }
     }
     [Test]
     public void OptedInOpenInteractionRunsConditionsOnceWithoutOpeningPlayerPopup()

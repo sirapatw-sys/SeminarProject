@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-27",
+  "baseMain": "da99141c617199118a055675fa89ce0dbdfc68d9",
+  "sourceBranch": "codex/npc-cothinking",
+  "sourceHead": "e894060e3f596ed55bae94fc2cc565145fbb337b",
+  "patchCommit": "b2baabd8c94b777748a4be2cc7bd09662bd1e64c",
+  "mergeConflicts": 0,
+  "unity": "2021.3.16f1",
+  "tests": {
+    "EditMode": {
+      "total": "1322",
+      "passed": "1322",
+      "failed": "0",
+      "skipped": "0",
+      "result": "Passed",
+      "sha256": "f4f865c60cbe0df0c1ae3c4757d699e3f91c4aec2c8aac44ed885525548b28fe",
+      "durationSeconds": 7.8892745
+    },
+    "PlayMode": {
+      "total": "387",
+      "passed": "387",
+      "failed": "0",
+      "skipped": "0",
+      "result": "Passed",
+      "sha256": "c0138b1a8bf11a832e423d7d3dd2b3b0928182e2e0a2834371ef6057be90a7b3",
+      "durationSeconds": 114.1257804
+    }
+  },
+  "uniqueTotal": 1709,
+  "graphics": "Direct3D11 in PlayMode with -npc-search-animation-capture",
+  "frames": [
+    {
+      "file": "Frames/Inspection_1.png",
+      "sha256": "0198b789071a65ab13665a1944fe3b36b26c4e89f755786b39f7c4f9032e2e69"
+    },
+    {
+      "file": "Frames/Inspection_2.png",
+      "sha256": "abaaa93170a9e16db0bf487681d8d55636649b66000a2688cb26ca72122e9c79"
+    },
+    {
+      "file": "Frames/Inspection_3.png",
+      "sha256": "dbaf957896cda05a497314ac78eb05a6c877aed63fe3b4020ea6026ca00231f4"
+    },
+    {
+      "file": "Frames/Inspection_4.png",
+      "sha256": "db6d124c20e92d870b65528f308444e5d418f1d8912f4d9d31a068ebd4c2e77d"
+    }
+  ],
+  "testedFilesSha256": {
+    "Assets/Scripts/NPC/CompanionDialogueCommands.cs": "509457172924ef89cd8367ba75dab9ab5c97b17b935a0a40f1a8876f666444db",
+    "Assets/Scripts/UI/CharacterVisualController.cs": "5b21971f85b15338a2fd444c5ee0f26b542345436d48a58d5cb44986b2305113",
+    "Assets/Scripts/UI/CompanionWorkVisuals.cs": "01f118682254114f294565b1818002671c125917527c71a8e7ed5f2e4617080e",
+    "Assets/Tests/PlayMode/CompanionWorldPlayTests.cs": "ca54ec7dee75b2819d56e10c4763674019a37e461da59ad532027a4b01393530"
+  },
+  "limits": [
+    "Local Unity Editor tests with mocked providers; no live API",
+    "Editor render captures; not a manual game playthrough",
+    "Existing EXE and demo clips are unchanged"
+  ],
+  "publication": "Merge candidate; see pull request for final merged SHA"
+}

@@ -39,8 +39,12 @@ public class CharacterVisualController : MonoBehaviour
     private PlayerMovement playerMovement;
     private NpcCompanionController companion;
     private float companionWalkBlend;
+    private float inspectionBlend;
+    private CompanionInspectionPose inspectionPose;
+    private float inspectionLeanSide = -1f;
     private float startledAt = -10f;
     public int ArtworkSortingOrder { get { return visualRenderer != null ? visualRenderer.sortingOrder : sortingOrder; } }
+    public Bounds ArtworkBounds => visualRenderer != null ? visualRenderer.bounds : new Bounds(transform.position, Vector3.zero);
 
     private const float StartleSeconds = 0.45f;
 
@@ -217,7 +221,8 @@ public class CharacterVisualController : MonoBehaviour
             Vector2 attention = companion.IsInspecting ? companion.InspectionPoint - companion.Feet : companion.ActiveStation.playerPoint - companion.Feet;
             currentDirection = Mathf.Abs(attention.x) >= Mathf.Abs(attention.y) ?
                 (attention.x >= 0f ? Direction.Right : Direction.Left) : (attention.y >= 0f ? Direction.Up : Direction.Down);
-            worldDelta.x = attention.x >= 0f ? 0.001f : -0.001f;
+            // Near a vertical target, tiny collider-center differences must not flip the sprite.
+            worldDelta.x = Mathf.Abs(attention.x) > 0.05f ? (attention.x > 0f ? 0.001f : -0.001f) : 0f;
         }
         if (HasWalkFrames)
         {
@@ -228,13 +233,31 @@ public class CharacterVisualController : MonoBehaviour
             UpdateProceduralMotion(worldDelta, isMoving);
         }
 
-        ApplyStartle();
-        // A small held pose comes from the real task, not generated dialogue.
+        // Inspection has a settle/look/reach/check/retract cycle instead of the
+        // same waving loop as holding. All offsets belong to the artwork only.
+        bool inspecting = companion != null && companion.IsInspecting && !isMoving;
+        inspectionBlend = Mathf.MoveTowards(inspectionBlend, inspecting ? 1f : 0f, Time.deltaTime * 8f);
+        if (inspecting) inspectionPose = CompanionWorkVisuals.EvaluateInspection(companion.WorkAnimationTime);
+        var inspection = inspectionPose;
+        if (inspecting && Mathf.Abs(companion.InspectionPoint.x - companion.Feet.x) > 0.05f)
+            inspectionLeanSide = companion.InspectionPoint.x < companion.Feet.x ? 1f : -1f;
+        float leanSide = inspectionLeanSide;
+        bool holding = working && companion != null && !companion.IsInspecting;
         float workWave = working ? Mathf.Sin(companion.WorkAnimationTime * 5.5f) : 0f;
-        visualTransform.localRotation = Quaternion.Euler(0f, 0f, working ? 5f + workWave * 4f : 0f);
-        if (working && !isMoving)
+        float inspectLean = leanSide * (2.2f * inspection.Ready + 3.5f * inspection.Bend + 0.6f * inspection.Sweep);
+        visualTransform.localRotation = Quaternion.Euler(0f, 0f,
+            holding ? 5f + workWave * 4f : inspectLean * inspectionBlend);
+        if (holding && !isMoving)
             visualTransform.localScale = new Vector3(visualTransform.localScale.x * 1.025f,
                 visualTransform.localScale.y * 0.975f, visualTransform.localScale.z);
+        else if (inspectionBlend > 0f)
+        {
+            float bend = inspection.Bend * inspectionBlend;
+            visualTransform.localScale = new Vector3(visualTransform.localScale.x * (1f + 0.018f * bend),
+                visualTransform.localScale.y * (1f - 0.035f * bend), visualTransform.localScale.z);
+            visualTransform.localPosition += transform.InverseTransformVector(new Vector3(-leanSide * 0.018f * bend, -0.02f * bend, 0f));
+        }
+        ApplyStartle();
 
         // Lower characters render in front, matching a top-down room.
         visualRenderer.sortingOrder =

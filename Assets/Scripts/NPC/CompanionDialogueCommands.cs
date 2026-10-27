@@ -517,12 +517,22 @@ namespace MysteryGame.Companions
                 while (start > 0 && !boundary.IsMatch(request[start - 1].ToString())) start--;
                 while (end < request.Length && !boundary.IsMatch(request[end].ToString())) end++;
                 if (RequestLead.IsMatch(WithoutAddress(request.Substring(start, at - start), scenario)) &&
-                    QuoteTail.IsMatch(request.Substring(at + core.Length, end - at - core.Length))) return true;
+                    QuoteTail.IsMatch(request.Substring(at + core.Length, end - at - core.Length)) &&
+                    (QuotedRequestShape.IsMatch(request.Substring(start, end - start)) ||
+                     QuotedRequestLead.IsMatch(request.Substring(start, end - start)) ||
+                     QuotedRequestLead.IsMatch(request.Substring(0, at)))) return true;
             }
             return false;
         }
         private static readonly Regex ThaiPhraseBoundary = new Regex(@"[\s,.!?;:…]");
         private static readonly Regex LatinPhraseBoundary = new Regex(@"[\r\n,.!?;:…]");
+        // Copying an entire statement also satisfies substring/head/tail checks.
+        // Unknown verbs need positive request structure, not merely the model's action id.
+        private static readonly Regex QuotedRequestLead = R(
+            @"^\s*(?:(?:เธอ|คุณ)\s*)?(?:ช่วย|กรุณา|โปรด|ขอให้|อยากให้(?!\s*(?:ผม|ฉัน|เรา))|รบกวน|ฝาก|please\b|(?:can|could|would|will)\s+you\b)");
+        private static readonly Regex QuotedRequestShape = R(
+            @"(?:หน่อย|ที|เถอะ|ได้(?:ไหม|มั้ย)|\bplease)(?:\s*(?:นะ|ครับ|ค่ะ|คะ|สิ|ซิ|please))*\s*$|" +
+            @"(?:ตรงนี้|ที่นี่|ผม|ฉัน|เรา)\s*(?:ไว้|ก่อน)(?:\s*(?:นะ|ครับ|ค่ะ|คะ|สิ|ซิ|หน่อย|ที))*\s*$");
         private static readonly Regex QuoteOnlyCourtesy = R(@"^(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|จ๊ะ|หน่อย|สิ|ที|please|thanks?|ok(?:ay)?|ได้(?:ไหม|มั้ย)?|สวัสดี(?:ครับ|ค่ะ)?|hi|hello)(?:\s*(?:นะ|ครับ|ค่ะ|คะ|จ้ะ|หน่อย|สิ))*$");
         private static readonly Regex QuoteTail = R(
             @"^(?:\s*(?:ก่อน|นะ|หน่อย|สิ|ซิ|ที|ไว้|เถอะ|ด้วย|ได้(?:ไหม|มั้ย|ป่าว|หรือเปล่า|รึเปล่า)|ครับ|ค่ะ|คะ|จ้ะ|จ๊ะ|จ้า|" +

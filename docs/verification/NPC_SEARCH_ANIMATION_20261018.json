@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-18",
+  "branch": "codex/npc-cothinking",
+  "friend_base": "2a349661c0693056e9997ea0202995e33f49a2eb",
+  "runtime_commit": "b2baabd8c94b777748a4be2cc7bd09662bd1e64c",
+  "unity": "2021.3.16f1",
+  "tests": {
+    "Before": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "skipped": 0,
+      "path": "Logs/NpcSearchAnimation_20261018/Before.xml",
+      "sha256": "3BD9E27A372094130206058BA9AA912E22976E9F482493AA5A58ECBB43801B9C"
+    },
+    "PlayMode": {
+      "total": 387,
+      "passed": 387,
+      "failed": 0,
+      "skipped": 0,
+      "path": "Logs/NpcSearchAnimation_20261018/PlayMode.xml",
+      "sha256": "8967BE1AC0E397463A7AD82F9D18B072270171078CEEB263EB364CE1C51654C5"
+    },
+    "EditMode": {
+      "total": 1322,
+      "passed": 1322,
+      "failed": 0,
+      "skipped": 0,
+      "path": "Logs/NpcSearchAnimation_20261018/EditMode.xml",
+      "sha256": "EBBD65E57DBC16B73D015C446722535E9B134FD30DC81049C89C669CF41D0199"
+    },
+    "VisualFinal": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "path": "Logs/NpcSearchAnimation_20261018/VisualFinal.xml",
+      "sha256": "E03E8DD6CB97198E95BECD2E433DA78A4856511463A0B720D76FBE60E86092E0"
+    }
+  },
+  "accepted_unique_total": 1709,
+  "new_regressions": 6,
+  "frames": [
+    {
+      "path": "Logs/NpcSearchAnimation_20261018/Frames/Inspection_1.png",
+      "sha256": "FD0E6DE0AB601C0918F716014857EE3B0EB76C40B6E88724E347241D88E5864C",
+      "reviewed": true
+    },
+    {
+      "path": "Logs/NpcSearchAnimation_20261018/Frames/Inspection_2.png",
+      "sha256": "F431D7D26E81DCC71DB04F9911FBC0AD203D5E6FB5C7238DD169B826EEA1AA2A",
+      "reviewed": true
+    },
+    {
+      "path": "Logs/NpcSearchAnimation_20261018/Frames/Inspection_3.png",
+      "sha256": "82A6C566C9F00F99D3ADA95766A04507F270B7A25E4B7A08CC7DDE54E8B9F862",
+      "reviewed": true
+    },
+    {
+      "path": "Logs/NpcSearchAnimation_20261018/Frames/Inspection_4.png",
+      "sha256": "E7CA2B07E8F42F913D98D392B69917920811F28938EF2D67DDFD533F7CCD7F10",
+      "reviewed": true
+    }
+  ],
+  "graphics_verification": "Direct3D11 editor frame capture, not a manual playthrough",
+  "build": {
+    "result": "Succeeded",
+    "errors": 0,
+    "exit_code": 0,
+    "directory": "Logs/CompanionAiBuilds/20261018-092945-71cde8",
+    "log": "Logs/NpcSearchAnimation_20261018/Build.log",
+    "log_sha256": "1D7715FF976A1E3447E3CAED640A5E14FF1F5C7A02F810BEFAB826D8FF1DD035",
+    "runtime_verified": [
+      "QuotedRequestShape",
+      "CompanionInspectionPose",
+      "inspectionLeanSide",
+      "lens"
+    ]
+  },
+  "package": {
+    "path": "Logs/CompanionAiBuilds/MysteryGame-AI-Enabled-SearchAnimation-20261018.zip",
+    "bytes": 74213411,
+    "sha256": "FEFFDE06C84F293A1B6937AEFE239AB58539087E6AB2A9AB97662833450A5D37",
+    "entries": 178,
+    "all_entries_read_to_end": true
+  },
+  "not_verified": [
+    "Real API/token/quota/latency",
+    "Manual playthrough",
+    "FPS",
+    "CI"
+  ],
+  "publication": "Local only; no push/PR/merge this task"
+}
